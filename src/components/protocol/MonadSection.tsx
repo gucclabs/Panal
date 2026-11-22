@@ -2,7 +2,7 @@ import { motion } from 'framer-motion';
 import { ArrowUpRight, Check, Minus, X } from 'lucide-react';
 import { WordReveal } from '@/components/home/Reveal';
 import SectionHeader from '@/components/SectionHeader';
-import { NETWORK_COMPARISON } from '@/data/protocol';
+import { NETWORK_COMPARISON, finalityText, tpsText } from '@/data/protocol';
 import { cn } from '@/lib/utils';
 import { useTranslation } from 'react-i18next';
 
@@ -15,7 +15,7 @@ const GRID_COLS = 'grid-cols-[1.1fr_0.9fr_0.9fr_0.7fr_1.2fr_0.8fr]';
  * crece scaleY primero y word-reveal después.
  */
 export default function MonadSection() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   return (
     <section className="border-t border-line bg-paper py-24 md:py-32">
       <div className="mx-auto max-w-4xl px-6">
@@ -59,8 +59,8 @@ export default function MonadSection() {
             >
               <span className="font-display font-semibold text-ink">{row.networkKey ? t(row.networkKey) : row.network}</span>
               <span className="font-mono text-[0.875rem] text-ink-2">{row.fee}</span>
-              <span className="font-mono text-[0.875rem] text-ink-2">{row.finality}</span>
-              <span className="font-mono text-[0.875rem] text-ink-2">{row.tps}</span>
+              <span className="font-mono text-[0.875rem] text-ink-2">{finalityText(row, i18n.language)}</span>
+              <span className="font-mono text-[0.875rem] text-ink-2">{tpsText(row, i18n.language)}</span>
               <span className="flex items-center gap-2 text-[0.875rem] font-medium">
                 {row.microtask === 'si' && (
                   <>
