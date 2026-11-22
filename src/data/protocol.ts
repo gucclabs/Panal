@@ -45,7 +45,8 @@ export const NETWORK = {
   chainId: 143,
   rpc: 'rpc.monad.xyz',
   finality: '~800ms',
-  tps: '10.000',
+  /** Sin formato: se escribe en el idioma de la página (10,000 en inglés, 10.000 en español). */
+  tps: 10_000,
   feePerTx: '<$0.001',
 } as const;
 
@@ -196,8 +197,12 @@ export interface NetworkRow {
   /** Clave i18n cuando la fila no es un nombre propio («L2 típica»). */
   networkKey?: string;
   fee: string;
-  finality: string;
-  tps: string;
+  /** Un texto que vale en todos los idiomas («~800 ms») o un número de días, que se escribe con su unidad. */
+  finality: string | { days: number };
+  /** Transacciones por segundo, sin formato; `null` si no aplica. */
+  tps: number | null;
+  /** La cifra de TPS es aproximada: lleva «~» delante. */
+  tpsApprox?: boolean;
   microtask: MicrotaskVerdict;
   microtaskLabel: string;
   evm?: string;
@@ -205,11 +210,23 @@ export interface NetworkRow {
 }
 
 export const NETWORK_COMPARISON: NetworkRow[] = [
-  { network: 'Monad', fee: '< $0.001', finality: '~800 ms', tps: '10.000', microtask: 'si', microtaskLabel: 'home.monad.viable', evm: 'home.monad.evmFull', highlight: true },
-  { network: 'Ethereum L1', fee: '$0.05 – $2+', finality: '~12 min', tps: '~20', microtask: 'no', microtaskLabel: 'common.no', evm: 'home.monad.evmFull' },
-  { network: 'L2', networkKey: 'home.monad.rowL2', fee: '< $0.01', finality: '~2 s (soft)', tps: '~100', microtask: 'apenas', microtaskLabel: 'home.monad.barely', evm: 'home.monad.evmFull' },
-  { network: 'Tarjetas', networkKey: 'home.monad.rowCards', fee: '~$0.30 + 2,9%', finality: '~2 días', tps: '—', microtask: 'no', microtaskLabel: 'common.no', evm: '—' },
+  { network: 'Monad', fee: '< $0.001', finality: '~800 ms', tps: 10_000, microtask: 'si', microtaskLabel: 'home.monad.viable', evm: 'home.monad.evmFull', highlight: true },
+  { network: 'Ethereum L1', fee: '$0.05 – $2+', finality: '~12 min', tps: 20, tpsApprox: true, microtask: 'no', microtaskLabel: 'common.no', evm: 'home.monad.evmFull' },
+  { network: 'L2', networkKey: 'home.monad.rowL2', fee: '< $0.01', finality: '~2 s (soft)', tps: 100, tpsApprox: true, microtask: 'apenas', microtaskLabel: 'home.monad.barely', evm: 'home.monad.evmFull' },
+  { network: 'Tarjetas', networkKey: 'home.monad.rowCards', fee: '~$0.30 + 2.9%', finality: { days: 2 }, tps: null, microtask: 'no', microtaskLabel: 'common.no', evm: '—' },
 ];
+
+/** Los TPS de una fila en el idioma de la página: «10,000» en inglés, «~20», o «—» si no aplica. */
+export function tpsText(row: NetworkRow, idioma: string): string {
+  if (row.tps === null) return '—';
+  return `${row.tpsApprox ? '~' : ''}${new Intl.NumberFormat(idioma).format(row.tps)}`;
+}
+
+/** La finalidad de una fila; si va en días, con la unidad en el idioma de la página («~2 days», «~2 días»). */
+export function finalityText(row: NetworkRow, idioma: string): string {
+  if (typeof row.finality === 'string') return row.finality;
+  return `~${new Intl.NumberFormat(idioma, { style: 'unit', unit: 'day', unitDisplay: 'long' }).format(row.finality.days)}`;
+}
 
 /* ---------- FAQ (protocolo.md S7) ---------- */
 

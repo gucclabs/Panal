@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 
 export interface StatBlockProps {
@@ -13,7 +14,10 @@ export interface StatBlockProps {
   durationMs?: number;
 }
 
-/** Número Space Grotesk + label eyebrow, con count-up al entrar en viewport (1.4s ease-out, es-ES). */
+/**
+ * Número Space Grotesk + label eyebrow, con count-up al entrar en viewport (1.4s ease-out).
+ * El número se escribe en el idioma de la página: 2.5 en inglés, 2,5 en español.
+ */
 export default function StatBlock({
   value,
   decimals = 0,
@@ -24,9 +28,12 @@ export default function StatBlock({
   className,
   durationMs = 1400,
 }: StatBlockProps) {
+  const { i18n } = useTranslation();
   const ref = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState(false);
-  const [display, setDisplay] = useState('0');
+  // El valor del count-up, sin formato: se formatea al pintar, así que cambiar de idioma
+  // a mitad (o al final) no lo vuelve a arrancar.
+  const [shown, setShown] = useState(0);
   const [reduced] = useState(() => window.matchMedia('(prefers-reduced-motion: reduce)').matches);
 
   useEffect(() => {
@@ -47,28 +54,22 @@ export default function StatBlock({
 
   useEffect(() => {
     if (!active || reduced) return;
-    const fmt = new Intl.NumberFormat('es-ES', {
-      minimumFractionDigits: decimals,
-      maximumFractionDigits: decimals,
-    });
     let raf = 0;
     const t0 = performance.now();
     const tick = (now: number) => {
       const t = Math.min(1, (now - t0) / durationMs);
       const eased = 1 - Math.pow(1 - t, 3);
-      setDisplay(fmt.format(value * eased));
+      setShown(value * eased);
       if (t < 1) raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [active, reduced, value, decimals, durationMs]);
+  }, [active, reduced, value, durationMs]);
 
-  const text = reduced
-    ? new Intl.NumberFormat('es-ES', {
-        minimumFractionDigits: decimals,
-        maximumFractionDigits: decimals,
-      }).format(value)
-    : display;
+  const text = new Intl.NumberFormat(i18n.language, {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  }).format(reduced ? value : shown);
 
   return (
     <div ref={ref} className={cn('flex flex-col gap-2', className)}>

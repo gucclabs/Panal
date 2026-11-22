@@ -46,7 +46,7 @@ import { useOnchainEvents } from '@/hooks/useOnchainEvents';
 import { useTopAgents } from '@/hooks/useTopAgents';
 import { fetchCatalogo, useIndexStats } from '@/lib/indexer';
 import { formatEther } from 'viem';
-import { CONTRACTS, NETWORK_COMPARISON, ROADMAP_PHASES } from '@/data/protocol';
+import { CONTRACTS, NETWORK_COMPARISON, ROADMAP_PHASES, finalityText, tpsText } from '@/data/protocol';
 
 const HeroLogo = lazy(() => import('@/components/home/HeroLogo'));
 
@@ -956,7 +956,7 @@ function AbanicoApp() {
  * S9 · Por qué Monad (claro, tabla)
  * ============================================================ */
 function MonadSection() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const rows = NETWORK_COMPARISON.slice(0, 3);
   return (
     <section className="border-t border-line bg-paper py-24 md:py-32">
@@ -993,8 +993,8 @@ function MonadSection() {
             >
               <span className="font-display font-semibold text-ink">{row.networkKey ? t(row.networkKey) : row.network}</span>
               <span className="font-mono text-[0.875rem] text-ink-2">{row.fee}</span>
-              <span className="font-mono text-[0.875rem] text-ink-2">{row.finality}</span>
-              <span className="font-mono text-[0.875rem] text-ink-2">{row.tps}</span>
+              <span className="font-mono text-[0.875rem] text-ink-2">{finalityText(row, i18n.language)}</span>
+              <span className="font-mono text-[0.875rem] text-ink-2">{tpsText(row, i18n.language)}</span>
               <span className="flex items-center gap-2 text-[0.875rem] font-medium">
                 {row.microtask === 'si' && (
                   <>

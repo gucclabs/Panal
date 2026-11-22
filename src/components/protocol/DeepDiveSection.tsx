@@ -55,20 +55,23 @@ const DEEP_DIVE_COPY: Partial<Record<ContractInfo['id'], DeepDiveCopy>> = {
   },
 };
 
-/* ---------- Count-up mono (es-ES) para los porcentajes de la comisión ---------- */
+/* ---------- Números en el idioma de la página (2.5 en inglés, 2,5 en español) ---------- */
+
+function formatear(n: number, decimals: number, idioma: string) {
+  return new Intl.NumberFormat(idioma, { minimumFractionDigits: decimals, maximumFractionDigits: decimals }).format(n);
+}
+
+/* ---------- Count-up mono para los porcentajes de la comisión ---------- */
 
 function CountUpMono({ value, decimals = 0, durationMs = 1400 }: { value: number; decimals?: number; durationMs?: number }) {
+  const { i18n } = useTranslation();
   const ref = useRef<HTMLSpanElement>(null);
-  const [text, setText] = useState(() =>
-    new Intl.NumberFormat('es-ES', { minimumFractionDigits: decimals, maximumFractionDigits: decimals }).format(
-      REDUCED() ? value : 0,
-    ),
-  );
+  // Sin formato: se formatea al pintar, así que cambiar de idioma no vuelve a arrancar la cuenta.
+  const [shown, setShown] = useState(() => (REDUCED() ? value : 0));
 
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    const fmt = new Intl.NumberFormat('es-ES', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
     if (REDUCED()) return; // el estado inicial ya muestra el valor final
     let raf = 0;
     const io = new IntersectionObserver(
@@ -79,7 +82,7 @@ function CountUpMono({ value, decimals = 0, durationMs = 1400 }: { value: number
         const tick = (now: number) => {
           const t = Math.min(1, (now - t0) / durationMs);
           const eased = 1 - Math.pow(1 - t, 3);
-          setText(fmt.format(value * eased));
+          setShown(value * eased);
           if (t < 1) raf = requestAnimationFrame(tick);
         };
         raf = requestAnimationFrame(tick);
@@ -91,15 +94,15 @@ function CountUpMono({ value, decimals = 0, durationMs = 1400 }: { value: number
       io.disconnect();
       cancelAnimationFrame(raf);
     };
-  }, [value, decimals, durationMs]);
+  }, [value, durationMs]);
 
-  return <span ref={ref}>{text}</span>;
+  return <span ref={ref}>{formatear(shown, decimals, i18n.language)}</span>;
 }
 
 /* ---------- Desglose visual 97,5 / 2,5 (PanalEscrow) ---------- */
 
 function FeeBreakdown() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const barRef = useRef<HTMLDivElement>(null);
 
   useGSAP(
@@ -128,7 +131,7 @@ function FeeBreakdown() {
         className="mt-3 flex h-11 w-full origin-left overflow-hidden rounded-full border border-coal-line will-change-transform"
       >
         <div className="flex h-full items-center justify-end bg-honey pr-3" style={{ width: '97.5%' }}>
-          <span className="font-mono text-[12px] font-semibold text-ink">97,5%</span>
+          <span className="font-mono text-[12px] font-semibold text-ink">{formatear(97.5, 1, i18n.language)}%</span>
         </div>
         <div className="h-full bg-sand" style={{ width: '2.5%' }} />
       </div>
