@@ -26,7 +26,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { keccak256, toBytes } from 'viem';
-import { TaskStatus } from '@panal/sdk';
+import { EstadoV2_5, TaskStatus, idDelV2_5, type TareaV2_5 } from '@panal/sdk';
 import { arrancarVigilante } from '../template/src/vigilante.js';
 import type { VigilanteDeps } from '../template/src/vigilante.js';
 
@@ -301,6 +301,142 @@ console.log('\n── Compatibilidad con el archivo de la versión anterior ─�
   const e = leerEstado(dir);
   check('un estado sin `pendientes` se lee sin romper', Array.isArray(e.pendientes), JSON.stringify(e));
   check('y respeta la marca que traía', e.visto === '1', e.visto);
+}
+
+console.log('\n── El escrow v2.5: su contador, aceptar a tiempo y cobrar lo revisado ──\n');
+
+const AHORA = BigInt(Math.floor(Date.now() / 1000));
+/** Una tarea del v2.5, con su número de fuera de la cadena. */
+function t25(i: bigint, p: Partial<TareaV2_5> = {}): TareaV2_5 {
+  return {
+    id: idDelV2_5(i),
+    client: OTRO,
+    worker: YO,
+    currency: `0x${'00'.repeat(20)}`,
+    amount: 10n ** 17n,
+    taskHash: keccak256(toBytes(BRIEF)),
+    resultHash: `0x${'00'.repeat(32)}`,
+    estado: EstadoV2_5.Abierta,
+    cierre: 0,
+    workerShareBps: 0,
+    deadline: AHORA + 7200n,
+    acceptBy: AHORA + 6300n,
+    reviewWindow: 86_400,
+    createdAt: AHORA - 60n,
+    deliveredAt: 0n,
+    disputedAt: 0n,
+    ...p,
+  } as TareaV2_5;
+}
+
+/** Sin tareas en el v2 y estas en el v2.5. */
+function deps25(dir: string, extra: Partial<VigilanteDeps>, lista: TareaV2_5[]): VigilanteDeps {
+  return deps(dir, {
+    panal: {
+      getTaskCount: async () => 0n,
+      getTask: async () => {
+        throw new Error('no hay tareas en el v2');
+      },
+      v2_5: { escrow: OTRO },
+      getTaskCountV2_5: async () => BigInt(lista.length),
+      getTaskV2_5: async (id: bigint) => lista[Number(id - idDelV2_5(0n))],
+    } as unknown as VigilanteDeps['panal'],
+    ...extra,
+  });
+}
+
+/** Arranca el vigilante y lo para cuando se cumple `listo` (o a los 4 s). */
+async function hasta(d: VigilanteDeps, listo: () => boolean): Promise<void> {
+  const { parar } = arrancarVigilante(d);
+  const fin = Date.now() + 4000;
+  while (!listo() && Date.now() < fin) await new Promise((r) => setTimeout(r, 10));
+  // Un respiro para que termine de escribir lo que estuviera escribiendo.
+  await new Promise((r) => setTimeout(r, 50));
+  parar();
+}
+
+{
+  const dir = nuevoDir();
+  const trabajadas: bigint[] = [];
+  await unaPasada(
+    deps25(dir, { trabajar: async (id) => (trabajadas.push(id), true) }, [t25(0n)]),
+  );
+  const e = JSON.parse(readFileSync(join(dir, 'vigilante.json'), 'utf8')) as { visto25?: string; pendientes: string[] };
+  check('una tarea nueva del v2.5 se ve y se trabaja con su número de fuera', trabajadas.join() === '1000000000', trabajadas.join());
+  check('  y la marca del v2.5 avanza aparte', e.visto25 === '0' && e.pendientes.length === 0, JSON.stringify(e));
+}
+{
+  const dir = nuevoDir();
+  const trabajadas: bigint[] = [];
+  await unaPasada(
+    deps25(dir, { trabajar: async (id) => (trabajadas.push(id), true) }, [t25(0n, { acceptBy: AHORA - 10n })]),
+  );
+  check('pasado su tiempo de aceptar sin aceptarla, no se trabaja y se suelta', trabajadas.length === 0 && leerEstado(dir).pendientes.length === 0);
+}
+{
+  const dir = nuevoDir();
+  const aceptadas: bigint[] = [];
+  await unaPasada(
+    deps25(dir, { enCurso: () => true, aceptar: async (id) => void aceptadas.push(id) }, [t25(0n, { acceptBy: AHORA + 300n })]),
+  );
+  check('trabajándose y con su tiempo de aceptar acabándose, se acepta', aceptadas.join() === '1000000000', aceptadas.join());
+  check('  y sigue pendiente hasta que se entregue', leerEstado(dir).pendientes.includes('1000000000'));
+}
+{
+  const dir = nuevoDir();
+  const aceptadas: bigint[] = [];
+  await unaPasada(deps25(dir, { enCurso: () => true, aceptar: async (id) => void aceptadas.push(id) }, [t25(0n)]));
+  check('con tiempo de sobra no se gasta una transacción en aceptar', aceptadas.length === 0);
+}
+{
+  const dir = nuevoDir();
+  const aceptadas: bigint[] = [];
+  await unaPasada(
+    deps25(dir, { enCurso: () => true, aceptar: async (id) => void aceptadas.push(id) }, [
+      t25(0n, { estado: EstadoV2_5.Aceptada, acceptBy: AHORA + 60n }),
+    ]),
+  );
+  check('una ya aceptada no se vuelve a aceptar', aceptadas.length === 0);
+}
+{
+  const dir = nuevoDir();
+  const liberadas: bigint[] = [];
+  const entregada = t25(0n, { estado: EstadoV2_5.Entregada, deliveredAt: AHORA - 90_000n, reviewWindow: 86_400 });
+  await hasta(
+    deps25(dir, { liberar: async (ts) => (ts.forEach((t) => liberadas.push(t.id)), true) }, [entregada]),
+    () => liberadas.length > 0,
+  );
+  const e = JSON.parse(readFileSync(join(dir, 'vigilante.json'), 'utf8')) as { porCobrar?: string[] };
+  check('entregada y pasada su revisión, se libera', liberadas.join() === '1000000000', liberadas.join());
+  check('  y sale de la lista de por cobrar', (e.porCobrar ?? []).length === 0, JSON.stringify(e));
+}
+{
+  const dir = nuevoDir();
+  const liberadas: bigint[] = [];
+  const enRevision = t25(0n, { estado: EstadoV2_5.Entregada, deliveredAt: AHORA - 3600n, reviewWindow: 86_400 });
+  await hasta(
+    deps25(dir, { liberar: async (ts) => (ts.forEach((t) => liberadas.push(t.id)), true) }, [enRevision]),
+    () => {
+      try {
+        return (JSON.parse(readFileSync(join(dir, 'vigilante.json'), 'utf8')) as { porCobrar?: string[] }).porCobrar?.length === 1;
+      } catch {
+        return false;
+      }
+    },
+  );
+  check('dentro de su revisión no se libera, pero queda apuntada', liberadas.length === 0);
+}
+{
+  const dir = nuevoDir();
+  const liberadas: bigint[] = [];
+  const entregada = t25(0n, { estado: EstadoV2_5.Entregada, deliveredAt: AHORA - 90_000n });
+  let intentos = 0;
+  await hasta(
+    deps25(dir, { liberar: async () => (intentos++, false) }, [entregada]),
+    () => intentos > 0,
+  );
+  const e = JSON.parse(readFileSync(join(dir, 'vigilante.json'), 'utf8')) as { porCobrar?: string[] };
+  check('si liberar no compensa todavía, se queda apuntada para luego', intentos === 1 && (e.porCobrar ?? []).includes('1000000000') && liberadas.length === 0, JSON.stringify(e));
 }
 
 for (const d of temporales) rmSync(d, { recursive: true, force: true });

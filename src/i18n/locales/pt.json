@@ -3107,6 +3107,7 @@
     "bajoMinimo": "Há um preço abaixo do mínimo do escrow (0,001 MON, 1 $PANAL ou 0,01 USDC).",
     "guardar": "Publicar preços em {{moneda}}",
     "noAceptar": "Não aceitar {{moneda}}",
-    "nota": "Uma transação por moeda. Se mudar seus níveis, publique esses preços de novo: se não baterem, o site não oferece essa moeda."
+    "nota": "Uma transação por moeda. Se mudar seus níveis, publique esses preços de novo: se não baterem, o site não oferece essa moeda.",
+    "desordenados": "Vão do menor para o maior, como seus níveis."
   }
 }

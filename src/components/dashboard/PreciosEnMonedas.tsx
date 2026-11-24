@@ -156,6 +156,8 @@ export default function PreciosEnMonedas({
               const malas = lista.some((x, i) => x.trim() !== '' && importes[i] === null);
               const completas = importes.every((x) => x !== null);
               const bajoMinimo = importes.some((x) => x !== null && x < minimoDelEscrowV2_5(m));
+              // El contrato los quiere de menor a mayor, como los niveles: si no, revierte.
+              const desordenados = importes.some((x, i) => i > 0 && x !== null && importes[i - 1] != null && x < importes[i - 1]!);
               return (
                 <section key={m} className="flex flex-col gap-2 rounded-xl border border-line bg-cream p-4">
                   <p className="font-mono text-[0.875rem] font-semibold text-ink">{simbolo}</p>
@@ -187,11 +189,12 @@ export default function PreciosEnMonedas({
                     </p>
                   )}
                   {bajoMinimo && <p className="text-[0.75rem] text-terra">{t('precios.bajoMinimo')}</p>}
+                  {desordenados && <p className="text-[0.75rem] text-terra">{t('precios.desordenados')}</p>}
                   <div className="mt-1 flex flex-wrap gap-2">
                     <button
                       type="button"
                       onClick={() => guardar(m, false)}
-                      disabled={!completas || bajoMinimo}
+                      disabled={!completas || bajoMinimo || desordenados}
                       className="btn-monad px-4 py-2 text-[0.8125rem] font-semibold disabled:opacity-40"
                     >
                       {t('precios.guardar', { moneda: simbolo })}

@@ -56,6 +56,14 @@
  * hueco. Por eso cada ronda intenta cerrar lo suyo. Intentarlo antes de tiempo
  * no cuesta nada: la estimación del gas falla y no se firma.
  *
+ * LOS DOS TABLONES (24-nov-2026). Desde el escrow v2.5 la web publica en el
+ * tablón v2.5; el v2 sigue con lo suyo. Se miran los dos, cada uno con sus
+ * categorías declaradas (cada tablón lleva las suyas, su cupo y sus faltas).
+ * Los encargos del v2.5 llevan, fuera de la cadena, su número + 1.000.000.000,
+ * y el SDK elige tablón por el número. En el v2.5 las cuentas se cierran
+ * cuando el escrow cierra la tarea: al aprobar el cliente o al liberarse tras
+ * la revisión, que este agente hace solo (ver retirada.ts).
+ *
  * LA WALLET, DE UNA EN UNA. Coger, ofertar y cerrar son transacciones. Con un
  * encargo en marcha la ronda se salta, y entre dos transacciones se espera: en
  * Monad una lanzada justo detrás de otra de la misma wallet revierte.
@@ -71,15 +79,19 @@ import {
   FEE_BPS,
   MAX_CATEGORIAS,
   ModoTablon,
+  FEE_BPS_V2_5,
   NATIVE_CURRENCY,
   TaskStatus,
+  V2_5_MAINNET,
   categoriaDelTablon,
+  esDelV2_5,
+  idDelV2_5,
   esFresco,
   formatearDolares,
   leerAnuncio,
   stripFilesManifest,
 } from '@panal/sdk';
-import type { ArchivoParaSubir, EncargoConReglas, PanalClient } from '@panal/sdk';
+import type { ArchivoParaSubir, EncargoConReglas, PanalClient, VersionEscrow } from '@panal/sdk';
 
 export interface OpcionesTablon {
   /** Cada cuánto se mira el tablón, en minutos. */
@@ -166,13 +178,21 @@ export function opcionesDelEntorno(
  */
 export async function dolaresNetos(
   panal: Pick<PanalClient, 'precios' | 'valorDeVentaPanal'>,
-  e: { amount: bigint; currency: Address },
+  e: { amount: bigint; currency: Address; version?: VersionEscrow },
 ): Promise<number | null> {
-  const neto = (e.amount * (10_000n - FEE_BPS)) / 10_000n;
+  const c = e.currency.toLowerCase();
+  // En el v2.5 la comisión depende de la moneda: 1,5 % en $PANAL, 2,5 % en el resto.
+  const fee =
+    e.version === 'v2_5'
+      ? BigInt(c === NATIVE_CURRENCY || c === V2_5_MAINNET.usdc.toLowerCase() ? FEE_BPS_V2_5.resto : FEE_BPS_V2_5.panal)
+      : FEE_BPS;
+  const neto = (e.amount * (10_000n - fee)) / 10_000n;
+  // USDC ya está en dólares (6 decimales): no hace falta precio de nada.
+  if (c === V2_5_MAINNET.usdc.toLowerCase()) return Number(neto) / 1e6;
   const precios = await panal.precios().catch(() => null);
   if (!esFresco(precios?.mon)) return null;
-  // El tablón solo acepta MON y $PANAL: lo que no es MON es $PANAL.
-  const enMon = e.currency.toLowerCase() === NATIVE_CURRENCY ? neto : await panal.valorDeVentaPanal(neto).catch(() => null);
+  // Lo que no es MON ni USDC es $PANAL.
+  const enMon = c === NATIVE_CURRENCY ? neto : await panal.valorDeVentaPanal(neto).catch(() => null);
   if (enMon === null) return null;
   return Number(formatEther(enMon)) * precios.mon.valor;
 }
@@ -258,12 +278,15 @@ export async function buscarEncargoDeTarea(
   yo: Address,
   maximo = 300,
 ): Promise<EncargoConReglas | null> {
-  const total = await panal.getBoardJobCount();
+  // Una tarea del escrow v2.5 solo puede venir del tablón v2.5, y al revés.
+  const version: VersionEscrow = esDelV2_5(taskId) ? 'v2_5' : 'v2';
+  const base = version === 'v2_5' ? idDelV2_5(0n) : 0n;
+  const total = await panal.getBoardJobCount(version);
   const yoLc = yo.toLowerCase();
   for (let hasta = total; hasta > 0n && total - hasta < BigInt(maximo); hasta -= 10n) {
     const desde = hasta > 10n ? hasta - 10n : 0n;
     const ids: bigint[] = [];
-    for (let i = hasta - 1n; i >= desde; i--) ids.push(i);
+    for (let i = hasta - 1n; i >= desde; i--) ids.push(base + i);
     const lote = await Promise.all(ids.map((i) => panal.getBoardJob(i)));
     const j = lote.find((x) => x.escrowTaskId === taskId && x.agente.toLowerCase() === yoLc && x.estado !== EstadoTablon.Publicado);
     if (j) return j;
@@ -279,6 +302,11 @@ export interface DepsTablon {
   opciones: OpcionesTablon;
   /** Lo que este agente cobra por un encargo en el registro, y en qué moneda. */
   precio: { amount: bigint; currency: Address };
+  /**
+   * Los tablones en los que mirar: los que tienen sus categorías declaradas.
+   * Por defecto, solo el v2.
+   */
+  versiones?: VersionEscrow[];
   /** ¿Hay un encargo en marcha? Entonces no se toca la wallet. */
   ocupado: () => boolean;
   /** Marca la wallet como ocupada mientras se coge, se oferta o se cierra. */
@@ -391,7 +419,7 @@ export async function repasarTablon(deps: DepsTablon): Promise<string[]> {
         anotar(`[tablon] #${jobId} cuentas cerradas: cobrado y hueco libre`);
         return hecho;
       } catch (err) {
-        // Lo normal: entregado hace menos de 72 h y el cliente no ha aprobado.
+        // Lo normal: entregado y dentro de su revisión, sin que el cliente apruebe.
         // La estimación del gas lo dice antes de firmar, así que no costó nada.
         if (!/NotFinished/.test(String(err))) anotar(`[tablon] #${jobId} no se pudo cerrar: ${corto(err)}`);
       } finally {
@@ -400,13 +428,18 @@ export async function repasarTablon(deps: DepsTablon): Promise<string[]> {
     }
 
     // 2. Lo publicado.
-    let lista: (EncargoConReglas & { anuncio: string })[];
-    try {
-      lista = await deps.panal.listBoardJobAdverts({ limit: 50 });
-    } catch (err) {
-      anotar(`[tablon] no se pudo leer el tablón: ${corto(err)}`);
-      return hecho;
+    //    De cada tablón, por separado: si uno no contesta, se mira el otro.
+    const lista: (EncargoConReglas & { anuncio: string })[] = [];
+    let leidos = 0;
+    for (const version of deps.versiones ?? ['v2']) {
+      try {
+        lista.push(...(await deps.panal.listBoardJobAdverts({ limit: 50, version })));
+        leidos++;
+      } catch (err) {
+        anotar(`[tablon] no se pudo leer el tablón ${version === 'v2_5' ? 'v2.5' : 'v2'}: ${corto(err)}`);
+      }
     }
+    if (leidos === 0) return hecho;
 
     const posibles = candidatos(lista, deps, ahora()).filter((c) => !descartados.has(c.job.id.toString()));
     for (const c of posibles.slice(0, CANDIDATOS_POR_RONDA)) {
@@ -420,7 +453,7 @@ export async function repasarTablon(deps: DepsTablon): Promise<string[]> {
 
       // El que más paga va primero: si no llega al mínimo, se prueba el siguiente.
       if (deps.opciones.minimoUsd !== null) {
-        const usd = await dolaresNetos(deps.panal, { amount: c.cobra, currency: c.job.moneda });
+        const usd = await dolaresNetos(deps.panal, { amount: c.cobra, currency: c.job.moneda, version: c.job.version });
         if (usd === null) {
           anotar(`[tablon] #${id} sin precio fresco en dólares: no se coge nada.`);
           return hecho;
@@ -558,26 +591,38 @@ export async function arrancarTablon(deps: Omit<DepsTablon, 'precio'>): Promise<
     return;
   }
 
-  // Las categorías, declaradas en la cadena. Una transacción, solo si cambian.
-  try {
-    const situacion = await deps.panal.boardStanding(deps.yo);
-    const quiero = [...deps.opciones.categorias].sort((a, b) => a - b).join();
-    if ([...situacion.categorias].sort((a, b) => a - b).join() !== quiero) {
-      await deps.panal.setBoardCategories(deps.opciones.categorias);
-      console.log(`[tablon] categorías declaradas: ${deps.opciones.categorias.map((c) => categoriaDelTablon(c)).join(', ')}`);
+  // Las categorías, declaradas en cada tablón (cada uno lleva las suyas). Una
+  // transacción, solo si cambian. Un tablón en el que no se pueden declarar se
+  // deja fuera; si no queda ninguno, el tablón se apaga.
+  const versiones: VersionEscrow[] = [];
+  const quiero = [...deps.opciones.categorias].sort((a, b) => a - b).join();
+  for (const version of (deps.panal.v2_5 ? ['v2_5', 'v2'] : ['v2']) as VersionEscrow[]) {
+    const cual = version === 'v2_5' ? 'v2.5' : 'v2';
+    try {
+      const situacion = await deps.panal.boardStanding(deps.yo, version);
+      if ([...situacion.categorias].sort((a, b) => a - b).join() !== quiero) {
+        // Dos transacciones seguidas de la misma wallet chocan en Monad.
+        if (versiones.length > 0) await (deps.esperar ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms))))(15_000);
+        await deps.panal.setBoardCategories(deps.opciones.categorias, version);
+        console.log(`[tablon] categorías declaradas en el tablón ${cual}: ${deps.opciones.categorias.map((c) => categoriaDelTablon(c)).join(', ')}`);
+      }
+      versiones.push(version);
+      console.log(
+        `Tablón ${cual}: nivel ${situacion.nivel} · cada ${deps.opciones.minutos} min · ${deps.opciones.categorias.map((c) => categoriaDelTablon(c)).join(', ')}` +
+          ` · desde ${formatEther(precio.amount)} en su moneda` +
+          `${deps.opciones.minimoUsd !== null ? ` y ${formatearDolares(deps.opciones.minimoUsd)} netos` : ''}` +
+          ` · ${deps.opciones.margenMinutos} min de plazo como mínimo.`,
+      );
+    } catch (err) {
+      console.warn(`[tablon] no se pudieron declarar las categorías en el tablón ${cual}: ${err instanceof Error ? err.message.split('\n')[0] : err}.`);
     }
-    console.log(
-      `Tablón: nivel ${situacion.nivel} · cada ${deps.opciones.minutos} min · ${deps.opciones.categorias.map((c) => categoriaDelTablon(c)).join(', ')}` +
-        ` · desde ${formatEther(precio.amount)} en su moneda` +
-        `${deps.opciones.minimoUsd !== null ? ` y ${formatearDolares(deps.opciones.minimoUsd)} netos` : ''}` +
-        ` · ${deps.opciones.margenMinutos} min de plazo como mínimo.`,
-    );
-  } catch (err) {
-    console.warn(`[tablon] no se pudieron declarar las categorías: ${err instanceof Error ? err.message.split('\n')[0] : err}. Tablón apagado.`);
+  }
+  if (versiones.length === 0) {
+    console.warn('[tablon] no hay ningún tablón con las categorías declaradas. Tablón apagado.');
     return;
   }
 
-  const completas: DepsTablon = { ...deps, precio };
+  const completas: DepsTablon = { ...deps, precio, versiones };
   let enMarcha = false;
   const ronda = async (): Promise<void> => {
     if (enMarcha) return;

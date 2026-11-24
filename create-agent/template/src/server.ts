@@ -81,6 +81,9 @@ import {
   sinBarraFinal,
   NIVEL_MAXIMO_DEL_TABLON,
   NIVEL_MINIMO_PARA_SUBCONTRATAR,
+  NATIVE_CURRENCY,
+  EstadoV2_5,
+  esDelV2_5,
 } from '@panal/sdk';
 import { comoAdjunto } from './salida.js';
 import { privateKeyToAccount } from 'viem/accounts';
@@ -90,9 +93,9 @@ import type { EncargoConReglas } from '@panal/sdk';
 import { handleTask, NIVELES, SUBCONTRATA_SKILLS } from './agent.js';
 import { frasesGuardadas, pedirTraduccion } from './traduccion.js';
 import type { AdjuntoRecibido, ArchivoParaConsultar, NivelPropio, TaskContext, TaskFile, TaskResult } from './agent.js';
-import { arrancarVigilante } from './vigilante.js';
+import { ACEPTAR_SI_QUEDAN_S, arrancarVigilante } from './vigilante.js';
 import { arrancarDisputas } from './disputas.js';
-import { arrancarRetirada, opcionesDelEntorno } from './retirada.js';
+import { arrancarRetirada, liberarRevisadas, opcionesDelEntorno } from './retirada.js';
 import { arrancarTablon, EncargosPropios, opcionesDelEntorno as opcionesTablon, retomarDelTablon } from './tablon.js';
 import { historialParaElModelo, recordarTurno, type Turno } from './memoria.js';
 import { apagarEnOrden, atenderSenales, conPlazo, PlazoAgotado, plazoApagadoMs, plazoX402Ms } from './operacion.js';
@@ -237,6 +240,87 @@ function nivelDe(pagado: bigint): NivelPropio | null {
   };
 }
 
+/** Lo que dice el pago de una tarea: qué nivel compró, o por qué no vale. */
+type Pago = { ok: true; nivel: NivelPropio | null } | { ok: false; error: string; extra?: Record<string, unknown> };
+
+/** Los precios de este agente en PanalPrices, por moneda, cinco minutos. */
+const preciosCache = new Map<string, { lista: bigint[]; hasta: number }>();
+
+async function preciosEn(moneda: Address): Promise<bigint[]> {
+  if (!panal.v2_5) return [];
+  const k = moneda.toLowerCase();
+  const c = preciosCache.get(k);
+  if (c && c.hasta > Date.now()) return c.lista;
+  const lista = await panal.getPricesV2_5(account.address, moneda);
+  preciosCache.set(k, { lista, hasta: Date.now() + REFRESCO_NIVELES });
+  return lista;
+}
+
+/**
+ * El nivel que compró quien bloqueó `amount` en `currency`.
+ *
+ * En la moneda del registro, como siempre: el importe contra los niveles. En
+ * otra (USDC, o la otra de MON y $PANAL, desde el escrow v2.5), contra la
+ * lista que este agente publicó en PanalPrices para ella: el precio i es el
+ * del nivel i. Sin lista, este agente no cobra en esa moneda; con una lista
+ * que no cuadra con sus niveles no se puede saber qué compró, y no se adivina.
+ */
+async function leerPago(amount: bigint, currency: Address): Promise<Pago> {
+  if (currency.toLowerCase() === MONEDA_REGISTRO.toLowerCase()) {
+    if (NIVEL_MINIMO && amount < NIVEL_MINIMO.wei) {
+      return {
+        ok: false,
+        error: `esta tarea bloqueó ${amount} y el nivel más barato cuesta ${NIVEL_MINIMO.wei}`,
+        extra: { tiers: NIVELES_OK.map(comoFicha) },
+      };
+    }
+    return { ok: true, nivel: nivelDe(amount) };
+  }
+  const lista = await preciosEn(currency);
+  if (lista.length === 0) {
+    return { ok: false, error: 'este agente no cobra en esa moneda: no tiene precios publicados en ella (PanalPrices)' };
+  }
+  if (lista.length !== Math.max(1, NIVELES_OK.length)) {
+    return {
+      ok: false,
+      error: 'los precios de este agente en esa moneda no cuadran con sus niveles: no se sabe qué nivel se pagó',
+      extra: { prices: lista.map(String) },
+    };
+  }
+  let i = -1;
+  lista.forEach((precio, k) => {
+    if (precio <= amount) i = k;
+  });
+  if (i < 0) {
+    return {
+      ok: false,
+      error: `esta tarea bloqueó ${amount} y el precio más barato de este agente en esa moneda es ${lista[0]}`,
+      extra: { prices: lista.map(String) },
+    };
+  }
+  const delNivel = NIVELES_OK[i];
+  return { ok: true, nivel: delNivel ? nivelDe(delNivel.wei) : null };
+}
+
+/**
+ * En el escrow v2.5, una tarea sin aceptar solo se entrega hasta su
+ * `acceptBy`. Si ese momento está cerca, se acepta antes de trabajar (desde
+ * ahí el límite es el plazo); si ya pasó, no hay nada que hacer y se dice.
+ * Aceptar cuesta una transacción, así que solo se hace cuando hace falta.
+ */
+async function asegurarAceptada(taskId: bigint): Promise<void> {
+  if (!esDelV2_5(taskId)) return;
+  const t = await panal.getTaskV2_5(taskId);
+  if (t.estado !== EstadoV2_5.Abierta) return;
+  const ahora = BigInt(Math.floor(Date.now() / 1000));
+  if (ahora > t.acceptBy) {
+    throw new Error('pasó su tiempo de aceptar sin aceptarla: ya no se puede entregar, y el cliente puede cancelarla');
+  }
+  if (t.acceptBy - ahora >= BigInt(ACEPTAR_SI_QUEDAN_S)) return;
+  const hash = await panal.acceptTask(taskId);
+  console.log(`[panal] #${taskId} aceptada en la cadena antes de trabajar: su tiempo de aceptar se acababa · tx ${hash}`);
+}
+
 const key = process.env.AGENT_PRIVATE_KEY?.trim();
 if (!key || !/^0x[0-9a-fA-F]{64}$/.test(key)) {
   console.error('Falta AGENT_PRIVATE_KEY (0x + 64 hex) en el .env. Copia .env.example y rellénalo.');
@@ -309,6 +393,13 @@ const NIVELES_DEL_CODIGO = NIVELES_OK;
 let FICHA_TEXTO: { name: string; description: string } = { name: '', description: '' };
 
 /**
+ * La moneda en la que este agente cobra en el registro: la de su precio y la
+ * de sus niveles. Se relee con los niveles. Un encargo en otra moneda (USDC,
+ * desde el escrow v2.5) se mide con sus precios de PanalPrices.
+ */
+let MONEDA_REGISTRO: Address = NATIVE_CURRENCY;
+
+/**
  * Los encargos de ejemplo que este agente propone al contratarle.
  *
  * Viven en la cadena (`ejemplo:` en la ficha) y se editan desde el panel de la
@@ -325,6 +416,7 @@ async function refrescarNiveles(): Promise<void> {
       description: ficha.metadata.description,
     };
     EJEMPLOS_OK = leerEjemplosDeMetadata(ficha.metadataURI);
+    MONEDA_REGISTRO = ficha.currency ?? NATIVE_CURRENCY;
     const enCadena = leerNivelesDeMetadata(ficha.metadataURI);
     const antes = NIVELES_OK.map((n) => `${n.wei}:${n.name ?? ''}`).join('|');
     NIVELES_OK = enCadena.length > 0 ? enCadena : NIVELES_DEL_CODIGO;
@@ -887,6 +979,11 @@ function contexto(
     deadline: bigint;
     adjuntos: AdjuntoRecibido[];
     historial: Turno[];
+    /**
+     * El nivel que se pagó, si ya se sabe. Hace falta cuando el pago va en otra
+     * moneda que la del registro: el importe solo no lo dice (ver `leerPago`).
+     */
+    nivel?: NivelPropio | null;
   },
   sobre: CallEnvelope | null,
   /**
@@ -899,7 +996,7 @@ function contexto(
   // Se resuelve aquí y no en cada llamador para que no haya dos maneras de
   // decidirlo. En x402 es SIEMPRE null: no hay escrow, y el importe de una
   // llamada suelta no compra un nivel de encargo.
-  const nivel = base.taskId === null ? null : nivelDe(base.amount);
+  const nivel = base.taskId === null ? null : base.nivel !== undefined ? base.nivel : nivelDe(base.amount);
 
   // El presupuesto del nivel comprado, y si el nivel no dice nada, el del
   // .env. Así el nivel caro puede comprar ayuda y el barato no, sin que un
@@ -1094,6 +1191,11 @@ async function work(
     if (recibidos.length > 0) console.log(`[panal] #${taskId} con ${recibidos.length} adjunto(s) del cliente`);
 
     const task = await leerTarea(taskId);
+    // Las del tablón v2.5 no hace falta: su tiempo de aceptar es el plazo.
+    if (!delTablon) await asegurarAceptada(taskId);
+    // El nivel por la moneda en que se pagó. Si ya no se puede leer —precios
+    // cambiados desde que llegó el encargo—, se trabaja sin nivel.
+    const pago = await leerPago(task.amount, task.currency).catch(() => null);
     const subcontratos: SubcontractRecord[] = [];
     const salida = await handleTask(
       brief,
@@ -1102,6 +1204,7 @@ async function work(
           taskId,
           client: delTablon?.cliente ?? task.client,
           amount: task.amount,
+          nivel: pago?.ok ? pago.nivel : null,
           deadline: task.deadline,
           adjuntos: recibidos,
           // Un encargo del escrow no arrastra conversación: se paga, se
@@ -2050,6 +2153,16 @@ const server = createServer((req, res) => {
         json(res, 409, { error: `la tarea está ${TaskStatus[task.status]}` });
         return;
       }
+      // Escrow v2.5: sin aceptar, solo se puede entregar hasta `acceptBy`.
+      if (esDelV2_5(taskId)) {
+        const t25 = await panal.getTaskV2_5(taskId);
+        if (t25.estado === EstadoV2_5.Abierta && BigInt(Math.floor(Date.now() / 1000)) > t25.acceptBy) {
+          json(res, 409, {
+            error: 'pasó el tiempo para aceptar esta tarea: ya no se puede entregar. Cancélala para recuperar el pago.',
+          });
+          return;
+        }
+      }
       if (!(await signedBy(briefSignMessage(taskId), body.signature, task.client))) {
         json(res, 401, { error: 'la firma no es del cliente de esta tarea' });
         return;
@@ -2063,14 +2176,15 @@ const server = createServer((req, res) => {
       // Se dice el número y se dicen los niveles: el cliente ya tiene el pago
       // bloqueado, y saber si le sobra texto o le falta nivel es la diferencia
       // entre arreglarlo y esperar al plazo para recuperar el dinero.
-      const nivel = nivelDe(task.amount);
-      if (NIVEL_MINIMO && task.amount < NIVEL_MINIMO.wei) {
-        json(res, 400, {
-          error: `esta tarea bloqueó ${task.amount} y el nivel más barato cuesta ${NIVEL_MINIMO.wei}`,
-          tiers: NIVELES_OK.map(comoFicha),
-        });
+      //
+      // Y en la moneda en que se pagó: en otra que la del registro, con los
+      // precios que este agente publicó para ella (ver `leerPago`).
+      const pago = await leerPago(task.amount, task.currency);
+      if (!pago.ok) {
+        json(res, 400, { error: pago.error, ...pago.extra });
         return;
       }
+      const nivel = pago.nivel;
       const topeDelNivel = nivel?.maxBriefChars ?? MAX_BRIEF_CHARS;
       if (body.brief.length > topeDelNivel) {
         json(res, 400, {
@@ -2405,9 +2519,23 @@ arrancarVigilante({
   // encargo y la entrega van por el buzón del tablón. Funciona aunque el tablón
   // automático esté apagado: si el dueño ofertó a mano desde la web con la
   // wallet de este agente, el agente trabaja lo que le asignen.
+  // Escrow v2.5: aceptar cuando el trabajo se alarga, y cobrar lo que pasó su
+  // revisión sin que el cliente aprobara (ver vigilante.ts).
+  aceptar: async (taskId) => {
+    await panal.acceptTask(taskId);
+  },
+  liberar: (tareas) =>
+    liberarRevisadas({
+      panal,
+      yo: account.address,
+      tareas,
+      ocupado: () => apagando || inFlight.size > 0 || tablonFirmando,
+    }),
   tablon: panal.boardJobsAvailable
     ? {
-        es: (cliente) => cliente.toLowerCase() === panal.addresses.tablon.toLowerCase(),
+        // Los dos tablones: el v2 y el v2.5, que es donde se publica desde el 24-nov.
+        es: (cliente) =>
+          [panal.addresses.tablon, panal.v2_5?.tablon].some((t) => t && t.toLowerCase() === cliente.toLowerCase()),
         retomar: async (taskId) => {
           // Mientras la ronda del tablón coge y lee, el encargo es suyo.
           if (tablonFirmando) return false;

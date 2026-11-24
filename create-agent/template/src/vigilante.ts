@@ -40,13 +40,50 @@
  * recuperar su propio hueco. Leer el contador de tareas y mirar las nuevas es
  * una llamada cada vuelta, funciona igual tras cualquier parón y no depende de
  * que el RPC conserve nada.
+ *
+ * LOS DOS ESCROWS (24-nov-2026). Desde el escrow v2.5 hay dos contadores: el
+ * del v2, que sigue cerrando lo suyo, y el del v2.5, donde entra todo lo nuevo.
+ * Sus tareas llevan, fuera de la cadena, su número + 1.000.000.000, y el SDK
+ * elige el contrato por el número. El v2.5 trae tres cosas que mirar:
+ *
+ *   - ACEPTAR A TIEMPO. Una tarea sin aceptar solo se puede entregar hasta su
+ *     `acceptBy` (entregar cuenta como aceptar). Si un trabajo se alarga y ese
+ *     momento se acerca, se acepta en la cadena; desde ahí el límite es el
+ *     plazo. Pasado `acceptBy` sin aceptar ya no se puede ni aceptar ni
+ *     entregar: el cliente la cancela y recupera su dinero, y aquí se suelta.
+ *   - COBRAR LO QUE PASÓ LA REVISIÓN. Entregada, si el cliente no aprueba ni
+ *     disputa dentro de su revisión (de 24 h a 7 días), cualquiera puede
+ *     liberar el pago, y quien más interés tiene es este agente. Las entregadas
+ *     se apuntan en `porCobrar` y, pasada su revisión, se liberan juntas.
+ *   - RECHAZAR no lo hace solo: un encargo que no encaja se contesta por HTTP
+ *     como siempre.
  */
 
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { keccak256, toBytes } from 'viem';
 import type { Address } from 'viem';
-import { TaskStatus, type PanalClient } from '@panal/sdk';
+import {
+  EstadoV2_5,
+  TaskStatus,
+  comoTask,
+  esDelV2_5,
+  finDeLaRevision,
+  idDelV2_5,
+  type PanalClient,
+  type TareaV2_5,
+} from '@panal/sdk';
+
+/**
+ * Cuánto antes de `acceptBy` se acepta una tarea del v2.5 que se está
+ * trabajando. Aceptar es una transacción (~0,005 MON): solo se gasta cuando el
+ * trabajo puede pasarse de ese momento. Lo normal —la web da para aceptar
+ * hasta 15 minutos antes del plazo— es entregar mucho antes y no gastarla.
+ */
+export const ACEPTAR_SI_QUEDAN_S = 20 * 60;
+
+/** Cada cuánto se intenta cobrar lo que pasó la revisión. */
+const COBRO_CADA_MS = 15 * 60 * 1000;
 
 export interface VigilanteDeps {
   panal: PanalClient;
@@ -99,6 +136,18 @@ export interface VigilanteDeps {
     es: (cliente: Address) => boolean;
     retomar: (taskId: bigint) => Promise<boolean>;
   };
+  /**
+   * Acepta en la cadena una tarea del v2.5 (ver `ACEPTAR_SI_QUEDAN_S`). Sin
+   * esto, un trabajo que se alargue más allá de `acceptBy` ya no se podría
+   * entregar.
+   */
+  aceptar?: (taskId: bigint) => Promise<void>;
+  /**
+   * Libera juntas las entregadas del v2.5 cuya revisión ya pasó. Devuelve si
+   * lo hizo: `false` si no compensaba todavía o la wallet estaba ocupada, y
+   * entonces se reintenta más tarde.
+   */
+  liberar?: (tareas: TareaV2_5[]) => Promise<boolean>;
 }
 
 /** Cada cuánto se mira cuando hay movimiento, en segundos. */
@@ -181,6 +230,10 @@ export function arrancarVigilante(deps: VigilanteDeps): { parar: () => void } {
   interface Estado {
     visto: bigint;
     pendientes: Set<string>;
+    /** Hasta dónde se enumeró el escrow v2.5, con su número de la CADENA (-1: nada). */
+    visto25: bigint;
+    /** Entregadas del v2.5 que esperan a que acabe su revisión para cobrarlas. */
+    porCobrar: Set<string>;
   }
 
   const leerEstado = (): Estado => {
@@ -188,6 +241,8 @@ export function arrancarVigilante(deps: VigilanteDeps): { parar: () => void } {
       const raw = JSON.parse(readFileSync(estadoPath, 'utf8')) as {
         visto?: string;
         pendientes?: string[];
+        visto25?: string;
+        porCobrar?: string[];
       };
       return {
         // -1 y no 0: sin marca hay que hacer el repaso inicial.
@@ -197,9 +252,13 @@ export function arrancarVigilante(deps: VigilanteDeps): { parar: () => void } {
         // por delante de la marca; lo que quedó huérfano por detrás hay que
         // recuperarlo a mano, que es exactamente el destrozo que esto corrige.
         pendientes: new Set(raw.pendientes ?? []),
+        // Un archivo de antes del v2.5 no las trae: se empieza desde cero, que
+        // en el v2.5 es empezar por su primera tarea.
+        visto25: raw.visto25 === undefined ? -1n : BigInt(raw.visto25),
+        porCobrar: new Set(raw.porCobrar ?? []),
       };
     } catch {
-      return { visto: -1n, pendientes: new Set() };
+      return { visto: -1n, pendientes: new Set(), visto25: -1n, porCobrar: new Set() };
     }
   };
 
@@ -210,7 +269,8 @@ export function arrancarVigilante(deps: VigilanteDeps): { parar: () => void } {
    * reinicio guardaba la mitad que dice «ya miré» y perdía la que dice «pero
    * esto sigue sin resolver». En un solo archivo no puede pasar.
    */
-  const escribirEstado = (visto: bigint, pendientes: Set<string>): void => {
+  const escribirEstado = (e: Estado): void => {
+    const { visto, pendientes } = e;
     let lista = [...pendientes];
     if (lista.length > MAX_PENDIENTES) {
       // Ordenadas por id: las más viejas primero, que son las que se tiran.
@@ -224,7 +284,17 @@ export function arrancarVigilante(deps: VigilanteDeps): { parar: () => void } {
       );
     }
     try {
-      writeFileSync(estadoPath, JSON.stringify({ visto: visto.toString(), pendientes: lista }, null, 2));
+      // `porCobrar` con el mismo tope: todas salen al cobrarse o cerrarse, pero
+      // nada obliga a que pase.
+      const cobrar = [...e.porCobrar].slice(-MAX_PENDIENTES);
+      writeFileSync(
+        estadoPath,
+        JSON.stringify(
+          { visto: visto.toString(), pendientes: lista, visto25: e.visto25.toString(), porCobrar: cobrar },
+          null,
+          2,
+        ),
+      );
     } catch (err) {
       // Perder el estado cuesta repetir el repaso, así que no se para nada.
       console.error(`[vigilante] no se pudo guardar el estado: ${err instanceof Error ? err.message : err}`);
@@ -234,7 +304,8 @@ export function arrancarVigilante(deps: VigilanteDeps): { parar: () => void } {
   /** true si encontro algo que atender: eso es lo que decide el ritmo. */
   async function repasar(): Promise<boolean> {
     const total = await deps.panal.getTaskCount();
-    const { visto, pendientes } = leerEstado();
+    const estado = leerEstado();
+    const { visto, pendientes } = estado;
     // La primera vez se miran las últimas REPASO_INICIAL en vez de las 30.000
     // que pueda haber: las viejas están cerradas y no cambian.
     const desde = visto >= 0n ? visto + 1n : total > REPASO_INICIAL ? total - REPASO_INICIAL : 0n;
@@ -242,8 +313,32 @@ export function arrancarVigilante(deps: VigilanteDeps): { parar: () => void } {
     // Las nuevas, más las que quedaron sin resolver de vueltas anteriores.
     const aMirar = new Set<string>(pendientes);
     for (let i = desde; i < total; i++) aMirar.add(i.toString());
+
+    // Y las del v2.5, con su número de fuera de la cadena. Si su contador no
+    // responde, esta vuelta se queda en lo que ya había: la marca no avanza y
+    // la próxima las recoge.
+    let visto25 = estado.visto25;
+    if (deps.panal.v2_5) {
+      try {
+        const total25 = await deps.panal.getTaskCountV2_5();
+        const desde25 = visto25 >= 0n ? visto25 + 1n : total25 > REPASO_INICIAL ? total25 - REPASO_INICIAL : 0n;
+        for (let i = desde25; i < total25; i++) aMirar.add(idDelV2_5(i).toString());
+        visto25 = total25 - 1n;
+      } catch (err) {
+        console.error(`[vigilante] el contador del escrow v2.5 no respondió: ${err instanceof Error ? err.message : err}`);
+      }
+    }
+
+    const porCobrar = new Set(estado.porCobrar);
+    const guardar = (restantes: Set<string>): void =>
+      escribirEstado({ visto: total - 1n, pendientes: restantes, visto25, porCobrar });
+
     if (aMirar.size === 0) {
-      escribirEstado(total - 1n, aMirar);
+      guardar(aMirar);
+      await cobrarRevisadas(porCobrar).catch((err) =>
+        console.error(`[vigilante] cobrar lo revisado: ${err instanceof Error ? err.message : err}`),
+      );
+      guardar(aMirar);
       return false;
     }
 
@@ -258,7 +353,7 @@ export function arrancarVigilante(deps: VigilanteDeps): { parar: () => void } {
       const taskId = BigInt(id);
       let veredicto: Veredicto = 'pendiente';
       try {
-        veredicto = await revisarUna(taskId);
+        veredicto = await revisarUna(taskId, porCobrar);
       } catch (err) {
         console.error(
           `[vigilante] #${taskId}: ${err instanceof Error ? err.message : err} — sigue pendiente`,
@@ -266,13 +361,48 @@ export function arrancarVigilante(deps: VigilanteDeps): { parar: () => void } {
       }
       if (veredicto === 'resuelta') restantes.delete(id);
     }
-    escribirEstado(total - 1n, restantes);
+    guardar(restantes);
+    if (!parado) {
+      await cobrarRevisadas(porCobrar).catch((err) =>
+        console.error(`[vigilante] cobrar lo revisado: ${err instanceof Error ? err.message : err}`),
+      );
+      guardar(restantes);
+    }
     // Habia algo que mirar, aunque no fuera nuestro: no es una vuelta en blanco.
     return true;
   }
 
-  async function revisarUna(taskId: bigint): Promise<Veredicto> {
-    const task = await deps.panal.getTask(taskId);
+  /** Cuándo se intentará cobrar otra vez (en memoria: perderlo solo adelanta un intento). */
+  let proximoCobro = 0;
+
+  /**
+   * Libera las entregadas del v2.5 cuya revisión ya pasó. Las que ya no están
+   * entregadas —aprobadas, liberadas por otro, en disputa— salen de la lista:
+   * su dinero ya va por otro camino.
+   */
+  async function cobrarRevisadas(porCobrar: Set<string>): Promise<void> {
+    if (!deps.liberar || porCobrar.size === 0 || Date.now() < proximoCobro) return;
+    proximoCobro = Date.now() + COBRO_CADA_MS;
+    const ahora = BigInt(Math.floor(Date.now() / 1000));
+    const listas: TareaV2_5[] = [];
+    for (const id of [...porCobrar]) {
+      if (parado) return;
+      const t = await deps.panal.getTaskV2_5(BigInt(id));
+      const fin = finDeLaRevision(t);
+      if (fin === null) {
+        porCobrar.delete(id);
+        continue;
+      }
+      if (ahora >= fin) listas.push(t);
+    }
+    if (listas.length === 0) return;
+    if (await deps.liberar(listas)) for (const t of listas) porCobrar.delete(t.id.toString());
+  }
+
+  async function revisarUna(taskId: bigint, porCobrar: Set<string>): Promise<Veredicto> {
+    // Del v2.5 se lee entera: hacen falta `acceptBy` y si ya se aceptó.
+    const v25 = esDelV2_5(taskId) ? await deps.panal.getTaskV2_5(taskId) : null;
+    const task = v25 ? comoTask(v25) : await deps.panal.getTask(taskId);
     const id = taskId.toString();
 
     // No es mía: no hay nada que resolver y no hará falta volver a mirarla.
@@ -286,7 +416,33 @@ export function arrancarVigilante(deps: VigilanteDeps): { parar: () => void } {
       vistas.delete(id);
       avisadas.delete(id);
       quejadas.delete(id);
+      // Entregada en el v2.5: queda cobrarla si el cliente no aprueba a tiempo.
+      if (v25?.estado === EstadoV2_5.Entregada && deps.liberar) porCobrar.add(id);
       return 'resuelta';
+    }
+
+    // Del v2.5 y sin aceptar: entregar solo vale hasta `acceptBy`.
+    if (v25?.estado === EstadoV2_5.Abierta) {
+      const ahora = BigInt(Math.floor(Date.now() / 1000));
+      if (ahora > v25.acceptBy) {
+        vistas.delete(id);
+        avisadas.delete(id);
+        console.error(
+          `[vigilante] #${taskId} pasó su tiempo de aceptar sin aceptarla ni entregarla: ya no se puede ` +
+            'hacer nada con ella. El cliente puede cancelarla y recuperar su dinero.',
+        );
+        return 'resuelta';
+      }
+      // Se trabaja ahora y el trabajo puede pasarse de `acceptBy`: se acepta,
+      // y desde ahí el límite es el plazo. Si falla, se reintenta la próxima vuelta.
+      if (deps.enCurso(taskId) && deps.aceptar && v25.acceptBy - ahora < BigInt(ACEPTAR_SI_QUEDAN_S)) {
+        try {
+          await deps.aceptar(taskId);
+          console.log(`[vigilante] #${taskId} aceptada en la cadena: el trabajo se alarga y su tiempo de aceptar se acababa`);
+        } catch (err) {
+          console.error(`[vigilante] #${taskId} no se pudo aceptar: ${err instanceof Error ? err.message : err}`);
+        }
+      }
     }
 
     // Se está trabajando ahora mismo: no es un hueco, es el camino normal. Ni

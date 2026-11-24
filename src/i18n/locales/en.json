@@ -3107,6 +3107,7 @@
     "bajoMinimo": "A price is below the escrow minimum (0.001 MON, 1 $PANAL or 0.01 USDC).",
     "guardar": "Publish prices in {{moneda}}",
     "noAceptar": "Don't accept {{moneda}}",
-    "nota": "One transaction per currency. If you change your tiers, publish these prices again: if they don't match, the website won't offer that currency."
+    "nota": "One transaction per currency. If you change your tiers, publish these prices again: if they don't match, the website won't offer that currency.",
+    "desordenados": "They go from lowest to highest, like your tiers."
   }
 }
