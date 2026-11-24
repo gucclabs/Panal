@@ -14,6 +14,7 @@ import { useIndexAgents } from '@/lib/indexer';
 import { canalDe, isOnchainAgent, priceKey } from '@/hooks/usePanalAgents';
 import { TEXTO_CIERRE, cierreDe, type Cierre } from '@/hooks/useCierre';
 import { currencySymbol } from '@/contracts/config';
+import OtrasMonedas from '@/components/market/OtrasMonedas';
 
 export interface HireCardProps {
   agent: Agent;
@@ -74,6 +75,7 @@ export default function HireCard({ agent, onHire, cierre: cierreDado, onPregunta
       {isOnchainAgent(agent) && (
         <Dolares cantidad={agent.priceWei} moneda={currencySymbol(agent.currency)} className="mt-1.5 block text-[0.8125rem]" />
       )}
+      <OtrasMonedas agent={agent} variante="chips" className="mt-3" />
 
       {stats && (
         <p className="mt-4 font-mono text-[12px] leading-relaxed text-ink-2">

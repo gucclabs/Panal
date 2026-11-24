@@ -45,9 +45,12 @@ import {
   importeEn,
   minimoDelEscrowV2_5,
   monedasParaContratar,
+  otrasMonedasDe,
+  precioEnMoneda,
   tiemposDeEncargo,
   type DatosDelAgente,
 } from '../src/lib/monedasDeContratacion';
+import type { Agent } from '../src/data/agents';
 
 let fallos = 0;
 const check = (nombre: string, ok: boolean, detalle = ''): void => {
@@ -257,6 +260,24 @@ console.log('\n─── en qué monedas se contrata ───');
 
   const enPanal: DatosDelAgente = { ...base, registro: PANAL, precios: { mon: [10n ** 16n], panal: [5n], usdc: [] } };
   check('la moneda del registro no se repite ni la pisa PanalPrices', json(monedasParaContratar(enPanal)) === json([PANAL, NATIVE_CURRENCY]) && importeEn(enPanal, PANAL, 0, 100n) === 100n);
+}
+
+console.log('\n─── el mercado: otras monedas y el filtro ───');
+{
+  // Lint tal cual está en la cadena: MON en el registro, tres niveles y USDC en PanalPrices.
+  const lint = { mon: [], panal: [], usdc: [10_000n, 20_000n, 40_000n] };
+  const otras = otrasMonedasDe(NATIVE_CURRENCY, lint, 3);
+  check('Lint: también USDC, desde 0,01', otras.length === 1 && otras[0]!.symbol === 'USDC' && otras[0]!.desdeWei === 10_000n && otras[0]!.desde === 0.01, json(otras));
+  check('el «desde» es el más barato aunque no vaya primero', otrasMonedasDe(NATIVE_CURRENCY, { ...lint, usdc: [40_000n, 10_000n, 20_000n] }, 3)[0]?.desde === 0.01);
+  check('una lista que no cuadra con los niveles no se anuncia', otrasMonedasDe(NATIVE_CURRENCY, lint, 2).length === 0);
+  check('la moneda del registro no sale como «otra»', otrasMonedasDe(NATIVE_CURRENCY, { ...lint, mon: [1n, 2n, 3n] }, 3).every((o) => o.symbol !== 'MON'));
+
+  const agente = { currency: NATIVE_CURRENCY, pricePerTask: 0.005, otrasMonedas: otras } as unknown as Agent;
+  check('filtro MON: el precio del registro', precioEnMoneda(agente, 'mon') === 0.005);
+  check('filtro USDC: el de PanalPrices', precioEnMoneda(agente, 'usdc') === 0.01);
+  check('filtro $PANAL: no lo acepta', precioEnMoneda(agente, 'panal') === null);
+  const sinPrecios = { currency: PANAL_TOKEN_ADDRESS, pricePerTask: 5 } as unknown as Agent;
+  check('sin PanalPrices: solo la moneda del registro', precioEnMoneda(sinPrecios, 'panal') === 5 && precioEnMoneda(sinPrecios, 'usdc') === null);
 }
 
 console.log('\n─── mínimos y tiempos del v2.5 ───');

@@ -16,7 +16,7 @@ import PanalRed from '@/components/market/PanalRed';
 import RankingTable from '@/components/market/RankingTable';
 import FilterSheet from '@/components/market/FilterSheet';
 import type { AdvancedFilters } from '@/components/market/filters';
-import { DEFAULT_ADVANCED, countActiveAdvanced } from '@/components/market/filters';
+import { DEFAULT_ADVANCED, PRECIO_MINIMO, countActiveAdvanced } from '@/components/market/filters';
 import { FadeUp, WordReveal } from '@/components/market/motion';
 import { cn } from '@/lib/utils';
 import { porReputacion } from '@/lib/reputacion';
@@ -24,6 +24,7 @@ import { atajo } from '@/lib/teclado';
 import type { Agent, AgentCategory } from '@/data/agents';
 import { CATEGORY_LABELS } from '@/data/agents';
 import { PANAL_TOKEN_ADDRESS } from '@/contracts/config';
+import { precioEnMoneda, type MonedaDeFiltro } from '@/lib/monedasDeContratacion';
 import { usePanalAgents, isOnchainAgent } from '@/hooks/usePanalAgents';
 import { useTopAgents } from '@/hooks/useTopAgents';
 import { losQueRespondenPrimero } from '@/lib/reachability';
@@ -87,18 +88,25 @@ function porMoneda(a: Agent, b: Agent): number {
   return grupo(a) - grupo(b);
 }
 
-function sortAgents(list: Agent[], sort: SortKey): Agent[] {
+function sortAgents(list: Agent[], sort: SortKey, moneda: MonedaDeFiltro | null): Agent[] {
   // El orden pedido, con los que no contestan siempre detrás.
-  return losQueRespondenPrimero(ordenar(list, sort));
+  return losQueRespondenPrimero(ordenar(list, sort, moneda));
 }
 
-function ordenar(list: Agent[], sort: SortKey): Agent[] {
+/**
+ * Con una moneda elegida, el precio se compara EN ESA moneda: el filtro ya ha
+ * dejado solo a los que la aceptan, así que todos tienen precio en ella y no
+ * hace falta agrupar. Sin moneda, el del registro y agrupando, como siempre.
+ */
+function ordenar(list: Agent[], sort: SortKey, moneda: MonedaDeFiltro | null): Agent[] {
   const arr = [...list];
+  const precio = (x: Agent) => (moneda ? (precioEnMoneda(x, moneda) ?? x.pricePerTask) : x.pricePerTask);
+  const grupo = (a: Agent, b: Agent) => (moneda ? 0 : porMoneda(a, b));
   switch (sort) {
     case 'precio-asc':
-      return arr.sort((a, b) => porMoneda(a, b) || a.pricePerTask - b.pricePerTask);
+      return arr.sort((a, b) => grupo(a, b) || precio(a) - precio(b));
     case 'precio-desc':
-      return arr.sort((a, b) => porMoneda(a, b) || b.pricePerTask - a.pricePerTask);
+      return arr.sort((a, b) => grupo(a, b) || precio(b) - precio(a));
     case 'tareas':
       return arr.sort((a, b) => b.tasksCompleted - a.tasksCompleted);
     case 'ingresos':
@@ -183,8 +191,13 @@ export default function Marketplace() {
   // filtro avanzado de moneda; el resto del estado sigue siendo local.
   const currencyParam = searchParams.get('moneda');
   const [advanced, setAdvanced] = useState<AdvancedFilters>(() =>
-    currencyParam === 'panal' || currencyParam === 'mon'
-      ? { ...DEFAULT_ADVANCED, currency: currencyParam }
+    currencyParam === 'panal' || currencyParam === 'mon' || currencyParam === 'usdc'
+      ? {
+          ...DEFAULT_ADVANCED,
+          currency: currencyParam,
+          // El mínimo del filtro de precio tiene que ser el de esa moneda.
+          priceMin: PRECIO_MINIMO[currencyParam],
+        }
       : DEFAULT_ADVANCED,
   );
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -237,11 +250,12 @@ export default function Marketplace() {
   const filtered = useMemo(() => {
     const list = allAgents.filter((a) => {
       if (category !== 'todos' && a.category !== category) return false;
-      // Filtro de moneda: agentes sin currency (v1/demo) cuentan como MON
-      const isPanalAgent = a.currency === PANAL_TOKEN_ADDRESS;
-      if (advanced.currency === 'mon' && isPanalAgent) return false;
-      if (advanced.currency === 'panal' && !isPanalAgent) return false;
-      if (a.pricePerTask < advanced.priceMin || a.pricePerTask > advanced.priceMax) return false;
+      // Filtro de moneda: la del registro o cualquiera de PanalPrices (v2.5).
+      // Con una elegida, el rango de precio es en ESA moneda; sin ninguna, el
+      // del registro, como siempre (agentes sin currency cuentan como MON).
+      const precio = advanced.currency === 'todas' ? a.pricePerTask : precioEnMoneda(a, advanced.currency);
+      if (precio === null) return false;
+      if (precio < advanced.priceMin || precio > advanced.priceMax) return false;
       if (advanced.minRating > 0 && a.rating < advanced.minRating) return false;
       if (advanced.onlyVerified && !a.verified) return false;
       if (advanced.onlyOnline && a.status !== 'en-linea') return false;
@@ -268,7 +282,7 @@ export default function Marketplace() {
       }
       return true;
     });
-    return sortAgents(list, sort);
+    return sortAgents(list, sort, advanced.currency === 'todas' ? null : advanced.currency);
   }, [allAgents, category, quien, advanced, debouncedQuery, sort, t]);
 
   /* carga simulada 400ms con skeletons al cambiar filtros (S5):

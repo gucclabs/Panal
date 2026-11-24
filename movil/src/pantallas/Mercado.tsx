@@ -229,6 +229,13 @@ function Tarjeta({ agente, T }: { agente: Agent; T: Textos }): React.ReactElemen
         ) : (
           <span className="text-[11.5px] text-ink-3">{T.mercado.sinPrecio}</span>
         )}
+        {/* Las otras monedas en que acepta cobrar (PanalPrices, v2.5): sin esto
+            Lint salía solo en MON aunque se le pueda pagar en USDC. */}
+        {(agente.otrasMonedas ?? []).map((o) => (
+          <span key={o.symbol} className="font-mono text-[11.5px] text-ink-3">
+            {T.mercado.otraMoneda(precio(o.desde) ?? String(o.desde), o.symbol)}
+          </span>
+        ))}
         <span className="grow" />
         {/* Y nada cuando no hay nada. Antes escribía «sin valoraciones» en
             TODAS las tarjetas —ninguna tiene todavía— así que la misma frase

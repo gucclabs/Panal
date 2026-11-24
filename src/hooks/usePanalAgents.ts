@@ -23,19 +23,31 @@ import { useQuery } from '@tanstack/react-query';
 import { formatEther, formatUnits } from 'viem';
 import type { Address } from 'viem';
 import {
+  MULTICALL3_ADDRESS,
   NATIVE_CURRENCY,
   currencySymbol,
   PANAL_NAMES_ADDRESS,
+  PANAL_PRICES_ADDRESS,
   PANAL_REGISTRY_ADDRESS,
   PANAL_REGISTRY_V2_ADDRESS,
   PANAL_REPUTATION_ADDRESS,
   PANAL_REPUTATION_V2_ADDRESS,
   V2_ENABLED,
+  V2_5_ENABLED,
   publicClient,
 } from '@/contracts/config';
 import { panalNamesAbi, panalRegistryAbi, panalRegistryV2Abi, panalReputationAbi } from '@/contracts/abis';
 import type { Agent, AgentCategory } from '@/data/agents';
-import { esTokenDeEjemplo, esTokenDeNivel, esTokenDePregunta, esTokenDeTipo, leerPrecioDePregunta, leerTipo } from '@panal/sdk';
+import {
+  esTokenDeEjemplo,
+  esTokenDeNivel,
+  esTokenDePregunta,
+  esTokenDeTipo,
+  leerNivelesDeMetadata,
+  leerPrecioDePregunta,
+  leerTipo,
+  panalPricesAbi,
+} from '@panal/sdk';
 import { useIdiomaDelDocumento } from '@/lib/idiomaActual';
 import { MARCA_VACIA, esTokenDeMarca, leerMarca, type Marca } from '@/lib/marca';
 import { canalDeFicha, extractBotUrl, type Canal } from '@/lib/botEndpoint';
@@ -49,6 +61,7 @@ import {
 } from '@/lib/indexer';
 import { losQueRespondenPrimero, noRespondeSegunIndexador } from '@/lib/reachability';
 import { reputacionDeStats } from '@/lib/reputacion';
+import { otrasMonedasDe, type PreciosPorMoneda } from '@/lib/monedasDeContratacion';
 
 // Se re-exporta para que las cuatro pantallas que lo pintan importen el tipo
 // del mismo sitio del que importan `canalDe`, y no de dos.
@@ -104,6 +117,12 @@ export interface OnchainAgent extends Agent {
    * DICE, y quién lo ha comprobado no cabe ahí. Ver `src/lib/cuenta.ts`.
    */
   cuenta: CuentaDeAgente | null;
+  /**
+   * Cuántos niveles tiene en la ficha de la CADENA. Las listas de PanalPrices
+   * van por ellos (la i de cada lista es el nivel i), así que hace falta para
+   * saber si su precio en otra moneda vale. Ver lib/monedasDeContratacion.ts.
+   */
+  nivelesEnCadena: number;
 }
 
 /**
@@ -428,6 +447,7 @@ function delCatalogo(fichas: CatalogAgent[], idioma: string): OnchainAgent[] {
         // pinta como siempre, que es exactamente lo que hacía antes.
         marca: leerMarca(f.metadataURI),
         pregunta: leerPrecioDePregunta(f.metadataURI),
+        nivelesEnCadena: f.metadataURI ? leerNivelesDeMetadata(f.metadataURI).length : 0,
         // Del mismo `metadataURI`, y por eso mismo `undefined` con un indexador
         // anterior a él: entonces es «no se sabe» y no se marca nada.
         canal: canalDeFicha(f.metadataURI),
@@ -575,6 +595,7 @@ async function fetchOnchainAgents(idioma: string): Promise<OnchainAgent[]> {
       skills: meta.skills,
       marca: leerMarca(data.metadataURI),
       pregunta: leerPrecioDePregunta(data.metadataURI),
+      nivelesEnCadena: leerNivelesDeMetadata(data.metadataURI).length,
       // Aquí la ficha viene entera de la cadena: la respuesta es sí o no.
       canal: canalDeFicha(data.metadataURI),
       botUrl: extractBotUrl(data.metadataURI),
@@ -604,6 +625,45 @@ async function fetchOnchainAgents(idioma: string): Promise<OnchainAgent[]> {
   return agents.filter((a): a is OnchainAgent => a !== null && a.status === 'en-linea');
 }
 
+/**
+ * PanalPrices de muchos agentes de una vez: lo que cobra cada uno en otras
+ * monedas (v2.5). Una sola llamada por cada 100 agentes, con multicall, y no
+ * una por agente: el RPC público corta cerca de 50 concurrentes y el mercado ya
+ * se quedó vacío una vez por pedirle demasiado.
+ *
+ * Nunca lanza: si la lectura falla, cada agente se queda con la moneda de su
+ * registro, que es lo que había antes.
+ */
+const PRECIOS_POR_LOTE = 100;
+
+async function leerPreciosDeTodos(direcciones: Address[]): Promise<Map<string, PreciosPorMoneda>> {
+  const out = new Map<string, PreciosPorMoneda>();
+  for (let i = 0; i < direcciones.length; i += PRECIOS_POR_LOTE) {
+    const lote = direcciones.slice(i, i + PRECIOS_POR_LOTE);
+    try {
+      const res = await publicClient.multicall({
+        contracts: lote.map((agente) => ({
+          address: PANAL_PRICES_ADDRESS,
+          abi: panalPricesAbi,
+          functionName: 'getAllPrices',
+          args: [agente],
+        })) as never,
+        multicallAddress: MULTICALL3_ADDRESS,
+        allowFailure: true,
+      });
+      (res as unknown as Array<{ status: 'success' | 'failure'; result?: unknown }>).forEach((r, k) => {
+        if (r.status !== 'success') return;
+        const [mon, panal, usdc] = r.result as readonly [readonly bigint[], readonly bigint[], readonly bigint[]];
+        if (mon.length + panal.length + usdc.length === 0) return;
+        out.set(lote[k]!.toLowerCase(), { mon, panal, usdc });
+      });
+    } catch {
+      // Sin precios de este lote: sus agentes se quedan con la moneda del registro.
+    }
+  }
+  return out;
+}
+
 export function usePanalAgents() {
   // Del `lang` del documento y no de i18next: este hook lo usa TAMBIÉN la app,
   // que no monta i18next. Ver `idiomaActual.ts`.
@@ -626,9 +686,27 @@ export function usePanalAgents() {
   // comparte con el resto de consumidores de useIndexAgents).
   const { byAddress } = useIndexAgents();
 
+  // Sus precios en otras monedas (PanalPrices, v2.5). Aparte de la lista y con
+  // menos prisa: cambian cuando el dueño los edita, no cada minuto.
+  const direcciones = useMemo(
+    () => (query.data ?? []).map((a) => a.workerAddress.toLowerCase() as Address).sort(),
+    [query.data],
+  );
+  const precios = useQuery({
+    queryKey: ['panal-prices', direcciones.join(',')],
+    queryFn: () => leerPreciosDeTodos(direcciones),
+    enabled: V2_5_ENABLED && direcciones.length > 0,
+    staleTime: 5 * 60_000,
+    refetchInterval: 5 * 60_000,
+  });
+
   const agents = useMemo<OnchainAgent[]>(
     () =>
-      losQueRespondenPrimero((query.data ?? []).map((a) => {
+      losQueRespondenPrimero((query.data ?? []).map((sinPrecios) => {
+        const p = precios.data?.get(sinPrecios.workerAddress.toLowerCase());
+        const a = p
+          ? { ...sinPrecios, otrasMonedas: otrasMonedasDe(sinPrecios.currency, p, sinPrecios.nivelesEnCadena) }
+          : sinPrecios;
         // Los del CATALOGO ya vienen completos: su ficha trae las stats y el
         // volumen. La fusion es solo para los del respaldo, que salen del
         // registro y no saben nada del indexador.
@@ -646,7 +724,7 @@ export function usePanalAgents() {
           ...volumenDe(st, a.currency),
         };
       })),
-    [query.data, byAddress],
+    [query.data, byAddress, precios.data],
   );
 
   return {

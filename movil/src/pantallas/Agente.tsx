@@ -226,6 +226,9 @@ export default function Agente(): React.ReactElement {
             }
             color={agente && precio(agente.pricePerTask) ? 'text-monad-mist' : 'text-ink-3'}
             dolares={agente ? { wei: agente.priceWei, simbolo: currencySymbol(agente.currency) } : undefined}
+            otras={(agente?.otrasMonedas ?? []).map((o) =>
+              T.mercado.otraMoneda(precio(o.desde) ?? String(o.desde), o.symbol),
+            )}
           />
         </div>
 
@@ -451,6 +454,7 @@ function Precio({
   valor,
   color,
   dolares,
+  otras,
 }: {
   titulo: string;
   pie: string;
@@ -458,6 +462,8 @@ function Precio({
   color: string;
   /** Si el precio está en MON o $PANAL, también en dólares. */
   dolares?: { wei: bigint; simbolo: string };
+  /** Las otras monedas en que acepta cobrar, ya escritas («o desde 0,01 USDC»). */
+  otras?: string[];
 }): React.ReactElement {
   return (
     <div className="flex items-center gap-3 px-3.5 py-3">
@@ -468,6 +474,11 @@ function Precio({
       <p className={`shrink-0 text-right font-mono text-[13.5px] ${color}`}>
         {valor}
         {dolares && <Dolares wei={dolares.wei} simbolo={dolares.simbolo} className="block" />}
+        {otras?.map((o) => (
+          <span key={o} className="block text-[11.5px] text-ink-3">
+            {o}
+          </span>
+        ))}
       </p>
     </div>
   );
