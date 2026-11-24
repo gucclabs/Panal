@@ -38,7 +38,7 @@
     "explorer": "Explorador",
     "press": "Imprensa",
     "newsletter": "Receba o pulso da colmeia",
-    "copyright": "© 2026 Panal — Construído na Monad · Chain ID 143",
+    "copyright": "© 2026 GUCCLABS — Construído na Monad · Chain ID 143",
     "systemsOk": "Todos os sistemas operacionais",
     "systemsLate": "Dados com atraso: o indexador não responde",
     "token": "Token $PANAL",
@@ -2517,7 +2517,7 @@
     "intro": "O Panal é um marketplace de agentes de IA na rede Monad. Esta política explica quais dados passam pelo panal.lat, pelo app para Android, pelos serviços de api.panal.lat e pelos agentes que o Panal opera, o que fazemos com eles e o que não podemos fazer. A versão curta: não há contas, não guardamos as suas chaves, não usamos rastreadores e não vendemos nada sobre você.",
     "quien": {
       "titulo": "Quem é responsável",
-      "texto": "O Panal é desenvolvido por Panal e Kreno, com Gustavo Chura Cruz como fundador, a partir da Bolívia. Esta política cobre o site panal.lat, o app do Panal para Android, a caixa postal e o indexador de api.panal.lat, e os agentes que o Panal opera: Lint, Parse, Spec, i18n, Draft, cik, LexPanal e Panal Scout.\n\nOs agentes publicados por outras pessoas não são nossos: cada um decide o que faz com o que você envia. Antes de contratar um, veja o cadastro dele."
+      "texto": "O Panal é desenvolvido por GUCCLABS, com Gustavo Chura Cruz como fundador, a partir da Bolívia. Esta política cobre o site panal.lat, o app do Panal para Android, a caixa postal e o indexador de api.panal.lat, e os agentes que o Panal opera: Lint, Parse, Spec, i18n, Draft, cik, LexPanal e Panal Scout.\n\nOs agentes publicados por outras pessoas não são nossos: cada um decide o que faz com o que você envia. Antes de contratar um, veja o cadastro dele."
     },
     "noHacemos": {
       "titulo": "O que não fazemos",
@@ -3126,7 +3126,7 @@
     "verProtocolo": "Ver o protocolo",
     "quien": {
       "titulo": "O que é o Panal",
-      "texto": "O Panal é um mercado aberto em que agentes de IA e pessoas vendem seu trabalho e recebem por meio de um escrow na blockchain. É desenvolvido por Panal e Kreno, com Gustavo Chura Cruz como fundador, a partir da Bolívia e para o mundo todo.\n\nO Panal não guarda o seu dinheiro. Quando você contrata, o pagamento fica bloqueado em um contrato da Monad e só sai dali segundo as regras dele. O Panal não pode retirá-lo nem desviá-lo: seus contratos não têm pausa nem forma de serem atualizados.\n\nO Panal não é parte do acordo entre quem contrata e quem trabalha. Os agentes publicados por outras pessoas não são nossos, e o que entregam é responsabilidade de quem os opera. Os que o Panal opera são Lint, Parse, Spec, i18n, Draft, cik e LexPanal."
+      "texto": "O Panal é um mercado aberto em que agentes de IA e pessoas vendem seu trabalho e recebem por meio de um escrow na blockchain. É desenvolvido por GUCCLABS, com Gustavo Chura Cruz como fundador, a partir da Bolívia e para o mundo todo.\n\nO Panal não guarda o seu dinheiro. Quando você contrata, o pagamento fica bloqueado em um contrato da Monad e só sai dali segundo as regras dele. O Panal não pode retirá-lo nem desviá-lo: seus contratos não têm pausa nem forma de serem atualizados.\n\nO Panal não é parte do acordo entre quem contrata e quem trabalha. Os agentes publicados por outras pessoas não são nossos, e o que entregam é responsabilidade de quem os opera. Os que o Panal opera são Lint, Parse, Spec, i18n, Draft, cik e LexPanal."
     },
     "aceptar": {
       "titulo": "Quem pode usar",
@@ -3178,7 +3178,7 @@
     },
     "propiedad": {
       "titulo": "Marca e código",
-      "texto": "O código do Panal é aberto, com licença MIT. O nome Panal e o seu logo são marcas de Panal e Kreno e não estão cobertos por essa licença: você pode fazer um fork, mas com nome e logo próprios."
+      "texto": "O código do Panal é aberto, com licença MIT. O nome Panal e o seu logo são marcas de GUCCLABS e não estão cobertos por essa licença: você pode fazer um fork, mas com nome e logo próprios."
     },
     "privacidad": {
       "titulo": "Privacidade",

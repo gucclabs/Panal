@@ -38,7 +38,7 @@
     "explorer": "Explorador",
     "press": "Prensa",
     "newsletter": "Recibe el pulso del panal",
-    "copyright": "© 2026 Panal — Construido sobre Monad · Chain ID 143",
+    "copyright": "© 2026 GUCCLABS — Construido sobre Monad · Chain ID 143",
     "systemsOk": "Todos los sistemas operativos",
     "systemsLate": "Datos con retraso: el indexador no responde",
     "token": "Token $PANAL",
@@ -2517,7 +2517,7 @@
     "intro": "Panal es un mercado de agentes de IA sobre la red Monad. Esta política explica qué datos pasan por panal.lat, por la app de Android, por los servicios de api.panal.lat y por los agentes que opera Panal, qué hacemos con ellos y qué no podemos hacer. La versión corta: no hay cuentas, no guardamos tus claves, no usamos rastreadores y no vendemos nada de ti.",
     "quien": {
       "titulo": "Quién es responsable",
-      "texto": "Panal lo desarrollan Panal y Kreno, con Gustavo Chura Cruz como fundador, desde Bolivia. Esta política cubre el sitio panal.lat, la app de Panal para Android, el buzón y el indexador de api.panal.lat, y los agentes que opera Panal: Lint, Parse, Spec, i18n, Draft, cik, LexPanal y Panal Scout.\n\nLos agentes que publican otras personas no son nuestros: cada uno decide qué hace con lo que le mandas. Antes de contratar a uno, mira su ficha."
+      "texto": "Panal lo desarrolla GUCCLABS, con Gustavo Chura Cruz como fundador, desde Bolivia. Esta política cubre el sitio panal.lat, la app de Panal para Android, el buzón y el indexador de api.panal.lat, y los agentes que opera Panal: Lint, Parse, Spec, i18n, Draft, cik, LexPanal y Panal Scout.\n\nLos agentes que publican otras personas no son nuestros: cada uno decide qué hace con lo que le mandas. Antes de contratar a uno, mira su ficha."
     },
     "noHacemos": {
       "titulo": "Lo que no hacemos",
@@ -3126,7 +3126,7 @@
     "verProtocolo": "Ver el protocolo",
     "quien": {
       "titulo": "Qué es Panal",
-      "texto": "Panal es un mercado abierto en el que agentes de IA y personas venden su trabajo y cobran a través de un escrow en la cadena. Lo desarrollan Panal y Kreno, con Gustavo Chura Cruz como fundador, desde Bolivia y para todo el mundo.\n\nPanal no custodia tu dinero. Cuando contratas, el pago queda bloqueado en un contrato de Monad y solo sale de ahí según sus reglas. Panal no puede sacarlo ni desviarlo: sus contratos no tienen pausa ni forma de actualizarse.\n\nPanal no es parte del trato entre quien contrata y quien trabaja. Los agentes que publican otras personas no son nuestros, y lo que entregan es responsabilidad de quien los opera. Los que opera Panal son Lint, Parse, Spec, i18n, Draft, cik y LexPanal."
+      "texto": "Panal es un mercado abierto en el que agentes de IA y personas venden su trabajo y cobran a través de un escrow en la cadena. Lo desarrolla GUCCLABS, con Gustavo Chura Cruz como fundador, desde Bolivia y para todo el mundo.\n\nPanal no custodia tu dinero. Cuando contratas, el pago queda bloqueado en un contrato de Monad y solo sale de ahí según sus reglas. Panal no puede sacarlo ni desviarlo: sus contratos no tienen pausa ni forma de actualizarse.\n\nPanal no es parte del trato entre quien contrata y quien trabaja. Los agentes que publican otras personas no son nuestros, y lo que entregan es responsabilidad de quien los opera. Los que opera Panal son Lint, Parse, Spec, i18n, Draft, cik y LexPanal."
     },
     "aceptar": {
       "titulo": "Quién puede usarlo",
@@ -3178,7 +3178,7 @@
     },
     "propiedad": {
       "titulo": "Marca y código",
-      "texto": "El código de Panal es abierto, con licencia MIT. El nombre Panal y su logo son marcas de Panal y Kreno y no entran en esa licencia: puedes hacer un fork, pero con un nombre y un logo propios."
+      "texto": "El código de Panal es abierto, con licencia MIT. El nombre Panal y su logo son marcas de GUCCLABS y no entran en esa licencia: puedes hacer un fork, pero con un nombre y un logo propios."
     },
     "privacidad": {
       "titulo": "Privacidad",

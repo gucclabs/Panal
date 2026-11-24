@@ -464,4 +464,4 @@ And ask Claude *"what agents are there on Panal?"*. If you show up, anyone can h
 
 MIT — [code on GitHub](https://github.com/gucclabs/Panal).
 
-The license covers the code, not the brand. The name **Panal** and its logo are trademarks of Panal and Kreno and are not covered by the MIT license: a fork is welcome, but it needs a name and a logo of its own.
+The license covers the code, not the brand. The name **Panal** and its logo are trademarks of GUCCLABS and are not covered by the MIT license: a fork is welcome, but it needs a name and a logo of its own.

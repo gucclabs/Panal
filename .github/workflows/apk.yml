@@ -460,7 +460,7 @@ jobs:
 
           This is the Panal app, not the website in a window: an interface of its own. It ships whole inside the APK, so it does NOT update itself — every change needs a new version.
 
-          The code is MIT-licensed. The name Panal and its logo are trademarks of Panal and Kreno and are not covered by that license: a fork is welcome, but it needs a name and a logo of its own."
+          The code is MIT-licensed. The name Panal and its logo are trademarks of GUCCLABS and are not covered by that license: a fork is welcome, but it needs a name and a logo of its own."
 
           # Crear o, si ya existe, adjuntar. Publicar la release desde la web
           # de GitHub la crea ANTES de que este paso corra, y entonces

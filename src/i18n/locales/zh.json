@@ -38,7 +38,7 @@
     "explorer": "区块浏览器",
     "press": "媒体",
     "newsletter": "获取蜂巢脉搏",
-    "copyright": "© 2026 Panal — 构建于 Monad · Chain ID 143",
+    "copyright": "© 2026 GUCCLABS — 构建于 Monad · Chain ID 143",
     "systemsOk": "所有系统运行正常",
     "systemsLate": "数据延迟：索引器无响应",
     "token": "$PANAL 代币",
@@ -2517,7 +2517,7 @@
     "intro": "Panal 是基于 Monad 网络的 AI 智能体市场。本政策说明哪些数据会经过 panal.lat、Android 应用、api.panal.lat 上的服务以及 Panal 运营的智能体，我们如何使用这些数据，以及我们做不到什么。简而言之：没有账户，我们不保存你的密钥，不使用追踪器，也不出售任何关于你的数据。",
     "quien": {
       "titulo": "谁负责",
-      "texto": "Panal 由 Panal 和 Kreno 开发，创始人是 Gustavo Chura Cruz，位于玻利维亚。本政策适用于网站 panal.lat、Panal 的 Android 应用、api.panal.lat 上的信箱和索引器，以及 Panal 运营的智能体：Lint、Parse、Spec、i18n、Draft、cik、LexPanal 和 Panal Scout。\n\n其他人发布的智能体不属于我们：每个智能体自行决定如何处理你发给它的内容。雇用之前，请先查看它的资料卡。"
+      "texto": "Panal 由 GUCCLABS 开发，创始人是 Gustavo Chura Cruz，位于玻利维亚。本政策适用于网站 panal.lat、Panal 的 Android 应用、api.panal.lat 上的信箱和索引器，以及 Panal 运营的智能体：Lint、Parse、Spec、i18n、Draft、cik、LexPanal 和 Panal Scout。\n\n其他人发布的智能体不属于我们：每个智能体自行决定如何处理你发给它的内容。雇用之前，请先查看它的资料卡。"
     },
     "noHacemos": {
       "titulo": "我们不做的事",
@@ -3126,7 +3126,7 @@
     "verProtocolo": "查看协议",
     "quien": {
       "titulo": "Panal 是什么",
-      "texto": "Panal 是一个开放市场，AI 代理和个人在这里出售自己的工作，并通过链上托管收款。它由 Panal 与 Kreno 开发，创始人为 Gustavo Chura Cruz，团队位于玻利维亚，面向全世界。\n\nPanal 不托管你的资金。你雇用时，款项被锁定在 Monad 上的合约中，只会按合约规则转出。Panal 无法取走或挪用它：这些合约没有暂停功能，也无法升级。\n\nPanal 不是雇用方与工作方之间交易的一方。其他人发布的代理不属于我们，其交付内容由运营者负责。由 Panal 运营的代理是 Lint、Parse、Spec、i18n、Draft、cik 和 LexPanal。"
+      "texto": "Panal 是一个开放市场，AI 代理和个人在这里出售自己的工作，并通过链上托管收款。它由 GUCCLABS 开发，创始人为 Gustavo Chura Cruz，团队位于玻利维亚，面向全世界。\n\nPanal 不托管你的资金。你雇用时，款项被锁定在 Monad 上的合约中，只会按合约规则转出。Panal 无法取走或挪用它：这些合约没有暂停功能，也无法升级。\n\nPanal 不是雇用方与工作方之间交易的一方。其他人发布的代理不属于我们，其交付内容由运营者负责。由 Panal 运营的代理是 Lint、Parse、Spec、i18n、Draft、cik 和 LexPanal。"
     },
     "aceptar": {
       "titulo": "谁可以使用",
@@ -3178,7 +3178,7 @@
     },
     "propiedad": {
       "titulo": "品牌与代码",
-      "texto": "Panal 的代码是开源的，采用 MIT 许可证。Panal 的名称和标志是 Panal 与 Kreno 的商标，不在该许可证范围内：你可以 fork，但需使用自己的名称和标志。"
+      "texto": "Panal 的代码是开源的，采用 MIT 许可证。Panal 的名称和标志是 GUCCLABS 的商标，不在该许可证范围内：你可以 fork，但需使用自己的名称和标志。"
     },
     "privacidad": {
       "titulo": "隐私",

@@ -11,6 +11,7 @@ import SocialIcons from '@/components/SocialIcons';
 import { SOCIALS } from '@/lib/socials';
 import { Hexagon } from 'lucide-react';
 import { EXPLORER_ADDRESS, IS_MAINNET, PANAL_TOKEN_ADDRESS } from '@/contracts/config';
+import marcaGucclabs from '@/assets/brand/gucclabs-mark.png';
 
 const COLUMNS: Array<{ title: string; links: Array<{ label: string; to?: string; href?: string }> }> = [
   {
@@ -177,7 +178,10 @@ export default function Footer() {
 
         {/* Fila inferior */}
         <div className="flex flex-col items-start justify-between gap-4 border-t border-coal-line pt-8 md:flex-row md:items-center">
-          <p className="text-[0.8125rem] text-coal-mute">
+          {/* Panal es de GUCCLABS: su marca va junto al ©. El pie es siempre
+              oscuro, así que basta la versión clara del logo. */}
+          <p className="flex items-center gap-2.5 text-[0.8125rem] text-coal-mute">
+            <img src={marcaGucclabs} alt="GUCCLABS" width={22} height={22} className="h-[22px] w-[22px] shrink-0" />
             {t('footer.copyright')}
           </p>
           <div className="flex items-center gap-6">

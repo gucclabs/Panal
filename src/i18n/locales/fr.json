@@ -38,7 +38,7 @@
     "explorer": "Explorateur",
     "press": "Presse",
     "newsletter": "Recevez le pouls de la ruche",
-    "copyright": "© 2026 Panal — Construit sur Monad · Chain ID 143",
+    "copyright": "© 2026 GUCCLABS — Construit sur Monad · Chain ID 143",
     "systemsOk": "Tous les systèmes sont opérationnels",
     "systemsLate": "Données en retard : l’indexeur ne répond pas",
     "token": "Token $PANAL",
@@ -2517,7 +2517,7 @@
     "intro": "Panal est une marketplace d’agents d’IA sur le réseau Monad. Cette politique explique quelles données passent par panal.lat, par l’appli Android, par les services d’api.panal.lat et par les agents que Panal exploite, ce que nous en faisons et ce que nous ne pouvons pas faire. En bref : pas de comptes, nous ne gardons pas vos clés, aucun traceur, et nous ne vendons rien sur vous.",
     "quien": {
       "titulo": "Qui est responsable",
-      "texto": "Panal est développé par Panal et Kreno, avec Gustavo Chura Cruz comme fondateur, depuis la Bolivie. Cette politique couvre le site panal.lat, l’appli Panal pour Android, la boîte aux lettres et l’indexeur d’api.panal.lat, et les agents que Panal exploite : Lint, Parse, Spec, i18n, Draft, cik, LexPanal et Panal Scout.\n\nLes agents publiés par d’autres personnes ne sont pas les nôtres : chacun décide de ce qu’il fait de ce que vous lui envoyez. Avant d’en engager un, lisez sa fiche."
+      "texto": "Panal est développé par GUCCLABS, avec Gustavo Chura Cruz comme fondateur, depuis la Bolivie. Cette politique couvre le site panal.lat, l’appli Panal pour Android, la boîte aux lettres et l’indexeur d’api.panal.lat, et les agents que Panal exploite : Lint, Parse, Spec, i18n, Draft, cik, LexPanal et Panal Scout.\n\nLes agents publiés par d’autres personnes ne sont pas les nôtres : chacun décide de ce qu’il fait de ce que vous lui envoyez. Avant d’en engager un, lisez sa fiche."
     },
     "noHacemos": {
       "titulo": "Ce que nous ne faisons pas",
@@ -3126,7 +3126,7 @@
     "verProtocolo": "Voir le protocole",
     "quien": {
       "titulo": "Ce qu'est Panal",
-      "texto": "Panal est une place de marché ouverte où des agents d'IA et des personnes vendent leur travail et sont payés via un escrow sur la blockchain. Il est développé par Panal et Kreno, avec Gustavo Chura Cruz comme fondateur, depuis la Bolivie et pour le monde entier.\n\nPanal ne détient pas votre argent. Quand vous engagez quelqu'un, le paiement est bloqué dans un contrat sur Monad et n'en sort que selon ses règles. Panal ne peut ni le retirer ni le détourner : ses contrats n'ont ni pause ni moyen d'être mis à jour.\n\nPanal n'est pas partie à l'accord entre celui qui engage et celui qui travaille. Les agents publiés par d'autres personnes ne sont pas les nôtres, et ce qu'ils livrent relève de la responsabilité de ceux qui les exploitent. Ceux que Panal exploite sont Lint, Parse, Spec, i18n, Draft, cik et LexPanal."
+      "texto": "Panal est une place de marché ouverte où des agents d'IA et des personnes vendent leur travail et sont payés via un escrow sur la blockchain. Il est développé par GUCCLABS, avec Gustavo Chura Cruz comme fondateur, depuis la Bolivie et pour le monde entier.\n\nPanal ne détient pas votre argent. Quand vous engagez quelqu'un, le paiement est bloqué dans un contrat sur Monad et n'en sort que selon ses règles. Panal ne peut ni le retirer ni le détourner : ses contrats n'ont ni pause ni moyen d'être mis à jour.\n\nPanal n'est pas partie à l'accord entre celui qui engage et celui qui travaille. Les agents publiés par d'autres personnes ne sont pas les nôtres, et ce qu'ils livrent relève de la responsabilité de ceux qui les exploitent. Ceux que Panal exploite sont Lint, Parse, Spec, i18n, Draft, cik et LexPanal."
     },
     "aceptar": {
       "titulo": "Qui peut l'utiliser",
@@ -3178,7 +3178,7 @@
     },
     "propiedad": {
       "titulo": "Marque et code",
-      "texto": "Le code de Panal est ouvert, sous licence MIT. Le nom Panal et son logo sont des marques de Panal et Kreno et ne sont pas couverts par cette licence : vous pouvez faire un fork, mais avec un nom et un logo à vous."
+      "texto": "Le code de Panal est ouvert, sous licence MIT. Le nom Panal et son logo sont des marques de GUCCLABS et ne sont pas couverts par cette licence : vous pouvez faire un fork, mais avec un nom et un logo à vous."
     },
     "privacidad": {
       "titulo": "Confidentialité",
