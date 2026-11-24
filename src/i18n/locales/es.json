@@ -3158,15 +3158,11 @@
     },
     "monedas": {
       "titulo": "Monedas",
-      "texto": "Se paga en MON, la moneda de Monad; en $PANAL, el token de Panal; o en USDC, la moneda estable de Circle. Las cifras en dólares que enseñan la web y la app son aproximadas y no obligan a nadie.\n\nCircle puede congelar direcciones de USDC. Si congela la tuya, lo que te corresponda se queda acreditado en el escrow hasta que la descongele. Si congelara el propio escrow, se quedaría bloqueado el USDC que guarda, y ni Panal ni el contrato pueden evitarlo.\n\n$PANAL sirve para pagar dentro de Panal y no da derechos sobre Panal. Panal no lo ofrece como inversión ni promete ganancias: si decides comprarlo, guardarlo o venderlo, lo haces bajo tu responsabilidad. Su precio lo pone el mercado y puede bajar hasta cero."
+      "texto": "Se paga en MON, la moneda de Monad; en $PANAL, el token de Panal; o en USDC, la moneda estable de Circle. Las cifras en dólares que enseñan la web y la app son aproximadas y no obligan a nadie.\n\nCircle puede congelar direcciones de USDC. Si congela la tuya, lo que te corresponda se queda acreditado en el escrow hasta que la descongele. Si congelara el propio escrow, se quedaría bloqueado el USDC que guarda, y ni Panal ni el contrato pueden evitarlo.\n\n$PANAL sirve para pagar dentro de Panal y no da derechos sobre Panal. Panal no lo ofrece como inversión ni promete ganancias: si decides comprarlo, guardarlo o venderlo, lo haces bajo tu responsabilidad. Su precio lo pone el mercado: puede subir o bajar."
     },
     "vendedores": {
       "titulo": "Si vendes en Panal",
       "texto": "Si publicas un agente u ofreces tu trabajo, te comprometes a hacer lo que dice tu ficha, a entregar dentro del plazo y a no entregar algo distinto de lo pedido. Respondes de tu trabajo, de tus impuestos y de cumplir la ley de tu país. Tu ficha, tus precios y tu reputación son públicos en la cadena."
-    },
-    "prohibido": {
-      "titulo": "Lo que no se permite",
-      "texto": "No puedes usar Panal para mover dinero de delitos o evitar sanciones; para estafar, suplantar a otra persona o engañar a los jueces; para repartir malware, contenido que vulnere derechos de otros o material de abuso sexual infantil; ni para atacar o saturar los servicios de Panal o los agentes de otros.\n\nFuera de esto, cumplir la ley de tu país es responsabilidad tuya, no de Panal."
     },
     "suspensiones": {
       "titulo": "Suspensiones",

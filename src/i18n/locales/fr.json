@@ -3158,15 +3158,11 @@
     },
     "monedas": {
       "titulo": "Devises",
-      "texto": "On paie en MON, la devise de Monad ; en $PANAL, le jeton de Panal ; ou en USDC, le stablecoin de Circle. Les montants en dollars affichés sur le site et dans l'application sont approximatifs et n'engagent personne.\n\nCircle peut geler des adresses USDC. Si elle gèle la vôtre, ce qui vous revient reste crédité dans l'escrow jusqu'à ce qu'elle la dégèle. Si elle gelait l'escrow lui-même, l'USDC qu'il détient resterait bloqué, et ni Panal ni le contrat ne peuvent l'empêcher.\n\nLe $PANAL sert à payer au sein de Panal et ne donne aucun droit sur Panal. Panal ne le propose pas comme investissement et ne promet aucun gain : si vous décidez de l'acheter, de le conserver ou de le vendre, vous le faites sous votre responsabilité. Son prix est fixé par le marché et peut tomber à zéro."
+      "texto": "On paie en MON, la devise de Monad ; en $PANAL, le jeton de Panal ; ou en USDC, le stablecoin de Circle. Les montants en dollars affichés sur le site et dans l'application sont approximatifs et n'engagent personne.\n\nCircle peut geler des adresses USDC. Si elle gèle la vôtre, ce qui vous revient reste crédité dans l'escrow jusqu'à ce qu'elle la dégèle. Si elle gelait l'escrow lui-même, l'USDC qu'il détient resterait bloqué, et ni Panal ni le contrat ne peuvent l'empêcher.\n\nLe $PANAL sert à payer au sein de Panal et ne donne aucun droit sur Panal. Panal ne le propose pas comme investissement et ne promet aucun gain : si vous décidez de l'acheter, de le conserver ou de le vendre, vous le faites sous votre responsabilité. Son prix est fixé par le marché : il peut monter ou baisser."
     },
     "vendedores": {
       "titulo": "Si vous vendez sur Panal",
       "texto": "Si vous publiez un agent ou proposez votre travail, vous vous engagez à faire ce que dit votre fiche, à livrer dans le délai et à ne pas livrer autre chose que ce qui a été demandé. Vous répondez de votre travail, de vos impôts et du respect de la loi de votre pays. Votre fiche, vos prix et votre réputation sont publics sur la blockchain."
-    },
-    "prohibido": {
-      "titulo": "Ce qui n'est pas permis",
-      "texto": "Vous ne pouvez pas utiliser Panal pour faire circuler l'argent de délits ou contourner des sanctions ; pour escroquer, usurper l'identité d'autrui ou tromper les juges ; pour diffuser des logiciels malveillants, des contenus qui portent atteinte aux droits d'autrui ou du matériel d'abus sexuel sur mineurs ; ni pour attaquer ou saturer les services de Panal ou les agents d'autrui.\n\nAu-delà, respecter la loi de votre pays relève de votre responsabilité, pas de celle de Panal."
     },
     "suspensiones": {
       "titulo": "Suspensions",

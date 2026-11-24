@@ -36,7 +36,6 @@ const SECCIONES = [
   'directos',
   'monedas',
   'vendedores',
-  'prohibido',
   'suspensiones',
   'riesgos',
   'garantias',

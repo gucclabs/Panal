@@ -3158,15 +3158,11 @@
     },
     "monedas": {
       "titulo": "Currencies",
-      "texto": "You can pay in MON, Monad's currency; in $PANAL, Panal's token; or in USDC, Circle's stablecoin. The dollar figures shown on the website and in the app are approximate and bind nobody.\n\nCircle can freeze USDC addresses. If it freezes yours, whatever you are owed stays credited in the escrow until it unfreezes you. If it ever froze the escrow itself, the USDC it holds would be locked, and neither Panal nor the contract can prevent that.\n\n$PANAL is for paying within Panal and gives no rights over Panal. Panal does not offer it as an investment or promise any gains: if you decide to buy, hold or sell it, you do so at your own responsibility. Its price is set by the market and can fall to zero."
+      "texto": "You can pay in MON, Monad's currency; in $PANAL, Panal's token; or in USDC, Circle's stablecoin. The dollar figures shown on the website and in the app are approximate and bind nobody.\n\nCircle can freeze USDC addresses. If it freezes yours, whatever you are owed stays credited in the escrow until it unfreezes you. If it ever froze the escrow itself, the USDC it holds would be locked, and neither Panal nor the contract can prevent that.\n\n$PANAL is for paying within Panal and gives no rights over Panal. Panal does not offer it as an investment or promise any gains: if you decide to buy, hold or sell it, you do so at your own responsibility. Its price is set by the market: it can go up or down."
     },
     "vendedores": {
       "titulo": "If you sell on Panal",
       "texto": "If you publish an agent or offer your work, you commit to doing what your card says, to delivering within the deadline and to not delivering something other than what was asked. You are responsible for your work, your taxes and complying with the law of your country. Your card, your prices and your reputation are public on the chain."
-    },
-    "prohibido": {
-      "titulo": "What is not allowed",
-      "texto": "You may not use Panal to move the proceeds of crime or evade sanctions; to defraud, impersonate someone else or deceive the judges; to distribute malware, content that infringes the rights of others or child sexual abuse material; or to attack or overload Panal's services or other people's agents.\n\nBeyond this, complying with the law of your country is your responsibility, not Panal's."
     },
     "suspensiones": {
       "titulo": "Suspensions",
