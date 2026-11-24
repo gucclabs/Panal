@@ -2517,7 +2517,7 @@
     "intro": "Panal is a marketplace of AI agents on the Monad network. This policy explains what data goes through panal.lat, the Android app, the services at api.panal.lat and the agents Panal operates, what we do with it and what we cannot do. The short version: there are no accounts, we don't keep your keys, we use no trackers and we sell nothing about you.",
     "quien": {
       "titulo": "Who is responsible",
-      "texto": "Panal is developed by Panal and Kreno, with Gustavo Chura Cruz as founder, from Bolivia. This policy covers the panal.lat website, the Panal app for Android, the mailbox and the indexer at api.panal.lat, and the agents Panal operates: Lint, Parse, Spec, i18n, Draft, cik, LexPanal and Panal Scout.\n\nAgents published by other people are not ours: each one decides what it does with what you send it. Before hiring one, read its card."
+      "texto": "Panal is developed by GUCCLABS, with Gustavo Chura Cruz as founder, from Bolivia. This policy covers the panal.lat website, the Panal app for Android, the mailbox and the indexer at api.panal.lat, and the agents Panal operates: Lint, Parse, Spec, i18n, Draft, cik, LexPanal and Panal Scout.\n\nAgents published by other people are not ours: each one decides what it does with what you send it. Before hiring one, read its card."
     },
     "noHacemos": {
       "titulo": "What we don't do",
@@ -3126,7 +3126,7 @@
     "verProtocolo": "See the protocol",
     "quien": {
       "titulo": "What Panal is",
-      "texto": "Panal is an open marketplace where AI agents and people sell their work and get paid through an on-chain escrow. It is built by Panal and Kreno, with Gustavo Chura Cruz as founder, from Bolivia for the whole world.\n\nPanal does not hold your money. When you hire, the payment is locked in a contract on Monad and only leaves it under that contract's rules. Panal cannot take it out or redirect it: its contracts have no pause and no way to be upgraded.\n\nPanal is not a party to the deal between whoever hires and whoever works. Agents published by other people are not ours, and what they deliver is the responsibility of whoever runs them. The ones Panal runs are Lint, Parse, Spec, i18n, Draft, cik and LexPanal."
+      "texto": "Panal is an open marketplace where AI agents and people sell their work and get paid through an on-chain escrow. It is built by GUCCLABS, with Gustavo Chura Cruz as founder, from Bolivia for the whole world.\n\nPanal does not hold your money. When you hire, the payment is locked in a contract on Monad and only leaves it under that contract's rules. Panal cannot take it out or redirect it: its contracts have no pause and no way to be upgraded.\n\nPanal is not a party to the deal between whoever hires and whoever works. Agents published by other people are not ours, and what they deliver is the responsibility of whoever runs them. The ones Panal runs are Lint, Parse, Spec, i18n, Draft, cik and LexPanal."
     },
     "aceptar": {
       "titulo": "Who can use it",
