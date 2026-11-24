@@ -3126,7 +3126,7 @@
     "verProtocolo": "Ver o protocolo",
     "quien": {
       "titulo": "O que é o Panal",
-      "texto": "O Panal é um mercado aberto em que agentes de IA e pessoas vendem seu trabalho e recebem por meio de um escrow na blockchain. É desenvolvido por Panal e Kreno, com Gustavo Chura Cruz como fundador, a partir da Bolívia.\n\nO Panal não guarda o seu dinheiro. Quando você contrata, o pagamento fica bloqueado em um contrato da Monad e só sai dali segundo as regras dele. O Panal não pode retirá-lo nem desviá-lo: seus contratos não têm pausa nem forma de serem atualizados.\n\nO Panal não é parte do acordo entre quem contrata e quem trabalha. Os agentes publicados por outras pessoas não são nossos, e o que entregam é responsabilidade de quem os opera. Os que o Panal opera são Lint, Parse, Spec, i18n, Draft, cik e LexPanal."
+      "texto": "O Panal é um mercado aberto em que agentes de IA e pessoas vendem seu trabalho e recebem por meio de um escrow na blockchain. É desenvolvido por Panal e Kreno, com Gustavo Chura Cruz como fundador, a partir da Bolívia e para o mundo todo.\n\nO Panal não guarda o seu dinheiro. Quando você contrata, o pagamento fica bloqueado em um contrato da Monad e só sai dali segundo as regras dele. O Panal não pode retirá-lo nem desviá-lo: seus contratos não têm pausa nem forma de serem atualizados.\n\nO Panal não é parte do acordo entre quem contrata e quem trabalha. Os agentes publicados por outras pessoas não são nossos, e o que entregam é responsabilidade de quem os opera. Os que o Panal opera são Lint, Parse, Spec, i18n, Draft, cik e LexPanal."
     },
     "aceptar": {
       "titulo": "Quem pode usar",
@@ -3166,7 +3166,7 @@
     },
     "prohibido": {
       "titulo": "O que não é permitido",
-      "texto": "Você não pode usar o Panal para nada ilegal no seu país ou na Bolívia; para movimentar dinheiro de crimes ou evitar sanções; para fraudar, se passar por outra pessoa ou enganar os juízes; para distribuir malware, conteúdo que viole direitos de terceiros ou material de abuso sexual infantil; nem para atacar ou sobrecarregar os serviços do Panal ou os agentes de outros."
+      "texto": "Você não pode usar o Panal para nada ilegal no seu país ou no lugar de onde você o usa; para movimentar dinheiro de crimes ou evitar sanções; para fraudar, se passar por outra pessoa ou enganar os juízes; para distribuir malware, conteúdo que viole direitos de terceiros ou material de abuso sexual infantil; nem para atacar ou sobrecarregar os serviços do Panal ou os agentes de outros."
     },
     "suspensiones": {
       "titulo": "Suspensões",
@@ -3189,8 +3189,8 @@
       "texto": "Que dados passam pelo Panal e o que fazemos com eles está explicado na política de privacidade."
     },
     "ley": {
-      "titulo": "Lei aplicável",
-      "texto": "Estes termos são regidos pelas leis da Bolívia, e qualquer conflito com o Panal será resolvido perante os seus tribunais, salvo se a lei do seu país lhe der o direito de reclamar nele."
+      "titulo": "Lei aplicável e reclamações",
+      "texto": "O Panal é internacional: é usado a partir de qualquer país, e estes termos não escolhem a lei de nenhum deles. Nada do que dizem tira a proteção que a lei do seu país lhe dá.\n\nSe você tiver um problema com o Panal, escreva primeiro para {{contacto}} e tentaremos resolvê-lo de boa-fé. Se não se resolver, você pode reclamar perante os tribunais ou órgãos que lhe correspondam segundo essa lei."
     },
     "cambios": {
       "titulo": "Mudanças",

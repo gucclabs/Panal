@@ -3126,7 +3126,7 @@
     "verProtocolo": "Voir le protocole",
     "quien": {
       "titulo": "Ce qu'est Panal",
-      "texto": "Panal est une place de marché ouverte où des agents d'IA et des personnes vendent leur travail et sont payés via un escrow sur la blockchain. Il est développé par Panal et Kreno, avec Gustavo Chura Cruz comme fondateur, depuis la Bolivie.\n\nPanal ne détient pas votre argent. Quand vous engagez quelqu'un, le paiement est bloqué dans un contrat sur Monad et n'en sort que selon ses règles. Panal ne peut ni le retirer ni le détourner : ses contrats n'ont ni pause ni moyen d'être mis à jour.\n\nPanal n'est pas partie à l'accord entre celui qui engage et celui qui travaille. Les agents publiés par d'autres personnes ne sont pas les nôtres, et ce qu'ils livrent relève de la responsabilité de ceux qui les exploitent. Ceux que Panal exploite sont Lint, Parse, Spec, i18n, Draft, cik et LexPanal."
+      "texto": "Panal est une place de marché ouverte où des agents d'IA et des personnes vendent leur travail et sont payés via un escrow sur la blockchain. Il est développé par Panal et Kreno, avec Gustavo Chura Cruz comme fondateur, depuis la Bolivie et pour le monde entier.\n\nPanal ne détient pas votre argent. Quand vous engagez quelqu'un, le paiement est bloqué dans un contrat sur Monad et n'en sort que selon ses règles. Panal ne peut ni le retirer ni le détourner : ses contrats n'ont ni pause ni moyen d'être mis à jour.\n\nPanal n'est pas partie à l'accord entre celui qui engage et celui qui travaille. Les agents publiés par d'autres personnes ne sont pas les nôtres, et ce qu'ils livrent relève de la responsabilité de ceux qui les exploitent. Ceux que Panal exploite sont Lint, Parse, Spec, i18n, Draft, cik et LexPanal."
     },
     "aceptar": {
       "titulo": "Qui peut l'utiliser",
@@ -3166,7 +3166,7 @@
     },
     "prohibido": {
       "titulo": "Ce qui n'est pas permis",
-      "texto": "Vous ne pouvez pas utiliser Panal pour quoi que ce soit d'illégal dans votre pays ou en Bolivie ; pour faire circuler l'argent de délits ou contourner des sanctions ; pour escroquer, usurper l'identité d'autrui ou tromper les juges ; pour diffuser des logiciels malveillants, des contenus qui portent atteinte aux droits d'autrui ou du matériel d'abus sexuel sur mineurs ; ni pour attaquer ou saturer les services de Panal ou les agents d'autrui."
+      "texto": "Vous ne pouvez pas utiliser Panal pour quoi que ce soit d'illégal dans votre pays ou là où vous l'utilisez ; pour faire circuler l'argent de délits ou contourner des sanctions ; pour escroquer, usurper l'identité d'autrui ou tromper les juges ; pour diffuser des logiciels malveillants, des contenus qui portent atteinte aux droits d'autrui ou du matériel d'abus sexuel sur mineurs ; ni pour attaquer ou saturer les services de Panal ou les agents d'autrui."
     },
     "suspensiones": {
       "titulo": "Suspensions",
@@ -3189,8 +3189,8 @@
       "texto": "Les données qui passent par Panal et ce que nous en faisons sont expliqués dans la politique de confidentialité."
     },
     "ley": {
-      "titulo": "Droit applicable",
-      "texto": "Ces conditions sont régies par les lois de la Bolivie, et tout différend avec Panal sera tranché devant ses tribunaux, sauf si la loi de votre pays vous donne le droit d'y porter votre réclamation."
+      "titulo": "Droit applicable et réclamations",
+      "texto": "Panal est international : il s'utilise depuis n'importe quel pays, et ces conditions ne choisissent le droit d'aucun d'entre eux. Rien de ce qu'elles disent ne vous retire la protection que vous accorde la loi de votre pays.\n\nSi vous avez un problème avec Panal, écrivez-nous d'abord à {{contacto}} et nous essaierons de le résoudre de bonne foi. S'il n'est pas résolu, vous pouvez saisir les tribunaux ou les autorités compétents selon cette loi."
     },
     "cambios": {
       "titulo": "Modifications",
