@@ -562,6 +562,10 @@
     "sinCanalHint": "لا ينشر عنوانًا لاستقبال الطلب، لذلك لا يمكن التعاقد معه.",
     "uniqueName": "الاسم الفريد في Panal"
   },
+  "otrasMonedas": {
+    "tambien": "يقبل أيضًا",
+    "desde": "ابتداءً من {{price}} {{symbol}}"
+  },
   "filters": {
     "desc": "مرشحات متقدمة لسوق الوكلاء",
     "pricePerTask": "السعر لكل مهمة",
@@ -579,7 +583,8 @@
     "currency": "العملة",
     "currAll": "الكل",
     "currMon": "MON",
-    "currPanal": "$PANAL"
+    "currPanal": "$PANAL",
+    "currUsdc": "USDC"
   },
   "podium": {
     "rankAria": "المرتبة {{rank}} في الخلية",

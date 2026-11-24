@@ -3,14 +3,17 @@ import { useTranslation } from 'react-i18next';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
-import type { AdvancedFilters } from '@/components/market/filters';
+import { PRECIO_MINIMO, type AdvancedFilters } from '@/components/market/filters';
 import { cn } from '@/lib/utils';
 
 /* ---------- slider logarítmico (rango según moneda) ----------
- * MON: 10^-3–10^3 (0.001–1.000) · $PANAL: 10^0–10^3 (1–1.000) */
+ * MON: 10^-3–10^3 (0.001–1.000) · $PANAL: 10^0–10^3 (1–1.000) ·
+ * USDC: 10^-2–10^3 (0,01–1.000): sus mínimos son los del escrow v2.5. */
 const SLIDER_MIN = 0;
 const SLIDER_MAX = 100;
-const expMinFor = (cur: 'todas' | 'mon' | 'panal') => (cur === 'panal' ? 0 : -3);
+const expMinFor = (cur: AdvancedFilters['currency']) => (cur === 'panal' ? 0 : cur === 'usdc' ? -2 : -3);
+const UNIDAD: Record<AdvancedFilters['currency'], string> = { todas: 'MON', mon: 'MON', panal: '$PANAL', usdc: 'USDC' };
+const MINIMO: Record<AdvancedFilters['currency'], string> = { todas: '0.001 MON', mon: '0.001 MON', panal: '1 $PANAL', usdc: '0.01 USDC' };
 const toPrice = (v: number, expMin: number) =>
   v >= SLIDER_MAX
     ? Number.POSITIVE_INFINITY // extremo derecho = sin límite
@@ -26,12 +29,13 @@ const fmtSliderMon = (v: number) =>
         ? v.toFixed(2)
         : v >= 1
           ? v.toFixed(1).replace(/\.0$/, '')
-          : v.toFixed(3);
+          : v.toFixed(3).replace(/0+$/, ''); // 0,01 USDC y no «0.010»
 
 const CURRENCY_OPTIONS = [
   { value: 'todas', label: 'filters.currAll' },
   { value: 'mon', label: 'filters.currMon' },
   { value: 'panal', label: 'filters.currPanal' },
+  { value: 'usdc', label: 'filters.currUsdc' },
 ] as const;
 
 const RATING_STEPS = [4, 4.5, 4.8, 5] as const;
@@ -55,7 +59,7 @@ export default function FilterSheet({ open, onOpenChange, filters, onChange, res
   const set = (patch: Partial<AdvancedFilters>) => onChange({ ...filters, ...patch });
   const expMin = expMinFor(filters.currency);
   const sliderValue = [toSlider(filters.priceMin, expMin), toSlider(filters.priceMax, expMin)];
-  const priceUnit = filters.currency === 'panal' ? '$PANAL' : 'MON';
+  const priceUnit = UNIDAD[filters.currency];
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -82,7 +86,7 @@ export default function FilterSheet({ open, onOpenChange, filters, onChange, res
                 {fmtSliderMon(filters.priceMin)} – {fmtSliderMon(filters.priceMax)} {priceUnit}
               </span>
             </div>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-4 gap-2">
               {CURRENCY_OPTIONS.map((opt) => {
                 const active = filters.currency === opt.value;
                 return (
@@ -90,11 +94,10 @@ export default function FilterSheet({ open, onOpenChange, filters, onChange, res
                     key={opt.value}
                     type="button"
                     onClick={() => {
-                      // Al cambiar a $PANAL el mínimo técnico es 1; al volver, 0.001
-                      const nextExp = expMinFor(opt.value);
+                      // El mínimo técnico de cada moneda: 1 $PANAL, 0,01 USDC, 0,001 MON
                       set({
                         currency: opt.value,
-                        priceMin: Math.pow(10, nextExp),
+                        priceMin: PRECIO_MINIMO[opt.value],
                         priceMax: Number.POSITIVE_INFINITY,
                       });
                     }}
@@ -123,7 +126,7 @@ export default function FilterSheet({ open, onOpenChange, filters, onChange, res
               className="py-2"
             />
             <div className="flex justify-between font-mono text-[11px] text-ink-3">
-              <span>{filters.currency === 'panal' ? '1 $PANAL' : '0.001 MON'}</span>
+              <span>{MINIMO[filters.currency]}</span>
               <span>{t('filters.logScale')}</span>
               <span>∞</span>
             </div>

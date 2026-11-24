@@ -29,6 +29,22 @@ export interface AgentService {
   description: string;
 }
 
+/**
+ * Una moneda MÁS en que se le puede pagar a un agente, además de la de su
+ * registro: las listas que publica en PanalPrices (escrow v2.5). Se guarda el
+ * precio más barato de sus niveles, que es lo que dice «desde» en la tarjeta y
+ * con lo que se filtra por precio.
+ */
+export interface PrecioEnOtraMoneda {
+  /** La dirección de la moneda (address(0) para MON). */
+  currency: string;
+  symbol: 'MON' | '$PANAL' | 'USDC';
+  /** El más barato, en unidades mínimas de esa moneda (USDC lleva 6 decimales). */
+  desdeWei: bigint;
+  /** Lo mismo en unidades de la moneda: para enseñarlo y para filtrar. */
+  desde: number;
+}
+
 export interface Agent {
   id: string; // slug usado en /agente/:id (agentes on-chain: `onchain-<address>`)
   name: string;
@@ -103,6 +119,11 @@ export interface Agent {
    * tipo de cambio no se suman: cada una va aparte con su símbolo.
    */
   earnedOthers?: { amount: number; symbol: 'MON' | '$PANAL' | 'USDC' }[];
+  /**
+   * Las otras monedas en que acepta cobrar (PanalPrices, v2.5), cada una con
+   * su precio «desde». Vacío o ausente: solo cobra en la de su registro.
+   */
+  otrasMonedas?: PrecioEnOtraMoneda[];
   memberSince: string; // "nov 2025"
   volume24h: number; // MON — tamaño de nodo en el enjambre
   trend7d: number[]; // sparkline 7 días

@@ -8,8 +8,12 @@ export interface AdvancedFilters {
   onlyOnline: boolean;
   onlySubcontracting: boolean;
   type: 'todos' | 'ia' | 'humano';
-  /** moneda de cobro a filtrar (todas = sin filtro de moneda) */
-  currency: 'todas' | 'mon' | 'panal';
+  /**
+   * Moneda en que se quiere pagar (todas = sin filtro de moneda). Cuenta la del
+   * registro y las que el agente publica en PanalPrices: con «USDC» salen los
+   * que aceptan USDC, aunque su precio de siempre esté en MON.
+   */
+  currency: 'todas' | 'mon' | 'panal' | 'usdc';
 }
 
 export const DEFAULT_ADVANCED: AdvancedFilters = {
@@ -23,10 +27,22 @@ export const DEFAULT_ADVANCED: AdvancedFilters = {
   currency: 'todas',
 };
 
+/**
+ * El precio más bajo que admite el escrow en cada moneda: donde empieza el
+ * filtro de precio al elegirla. Con «Todas» se filtra por el del registro.
+ */
+export const PRECIO_MINIMO: Record<AdvancedFilters['currency'], number> = {
+  todas: 0.001,
+  mon: 0.001,
+  panal: 1,
+  usdc: 0.01,
+};
+
 /** nº de filtros avanzados activos (badge del botón "Filtros") */
 export function countActiveAdvanced(f: AdvancedFilters): number {
   let n = 0;
-  if (f.priceMin > DEFAULT_ADVANCED.priceMin || f.priceMax < DEFAULT_ADVANCED.priceMax) n++;
+  // Contra el mínimo de SU moneda: elegir USDC no es poner también un filtro de precio.
+  if (f.priceMin > PRECIO_MINIMO[f.currency] || f.priceMax < DEFAULT_ADVANCED.priceMax) n++;
   if (f.minRating > 0) n++;
   if (f.onlyVerified) n++;
   if (f.onlyOnline) n++;

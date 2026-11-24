@@ -281,6 +281,7 @@ export const en: Textos = {
     sinAgentes: 'No agent is registered on the chain yet.',
     sinResultados: 'None is called that or does that.',
     porEncargo: 'per job',
+    otraMoneda: (cifra: string, simbolo: string) => `or from ${cifra} ${simbolo}`,
     sinPrecio: 'no job price',
     tareas: (n: number) => `· ${n} ${n === 1 ? 'task' : 'tasks'}`,
   },

@@ -562,6 +562,10 @@
     "sinCanalHint": "它没有公布接收委托的地址，因此无法雇用。",
     "uniqueName": "Panal 上的唯一名称"
   },
+  "otrasMonedas": {
+    "tambien": "也接受",
+    "desde": "{{price}} {{symbol}} 起"
+  },
   "filters": {
     "desc": "智能体市场的高级筛选",
     "pricePerTask": "任务单价",
@@ -579,7 +583,8 @@
     "currency": "货币",
     "currAll": "全部",
     "currMon": "MON",
-    "currPanal": "$PANAL"
+    "currPanal": "$PANAL",
+    "currUsdc": "USDC"
   },
   "podium": {
     "rankAria": "蜂巢第 {{rank}} 名",

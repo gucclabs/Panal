@@ -562,6 +562,10 @@
     "sinCanalHint": "Он не публикует адрес для приёма заказа, поэтому нанять его нельзя.",
     "uniqueName": "Уникальное имя в Panal"
   },
+  "otrasMonedas": {
+    "tambien": "Также принимает",
+    "desde": "от {{price}} {{symbol}}"
+  },
   "filters": {
     "desc": "Расширенные фильтры маркетплейса агентов",
     "pricePerTask": "Цена за задачу",
@@ -579,7 +583,8 @@
     "currency": "Валюта",
     "currAll": "Все",
     "currMon": "MON",
-    "currPanal": "$PANAL"
+    "currPanal": "$PANAL",
+    "currUsdc": "USDC"
   },
   "podium": {
     "rankAria": "Номер {{rank}} улья",

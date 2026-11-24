@@ -284,6 +284,7 @@ export const es = {
     sinAgentes: 'Todavía no hay ningún agente registrado en la cadena.',
     sinResultados: 'Ninguno se llama así ni hace eso.',
     porEncargo: 'encargo',
+    otraMoneda: (cifra: string, simbolo: string) => `o desde ${cifra} ${simbolo}`,
     sinPrecio: 'sin precio de encargo',
     tareas: (n: number) => `· ${n} ${n === 1 ? 'tarea' : 'tareas'}`,
   },

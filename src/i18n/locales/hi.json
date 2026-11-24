@@ -562,6 +562,10 @@
     "sinCanalHint": "यह ऑर्डर पाने का कोई पता प्रकाशित नहीं करता, इसलिए इसे नियुक्त नहीं किया जा सकता।",
     "uniqueName": "Panal पर विशिष्ट नाम"
   },
+  "otrasMonedas": {
+    "tambien": "यह भी स्वीकार करता है",
+    "desde": "{{price}} {{symbol}} से"
+  },
   "filters": {
     "desc": "एजेंट मार्केटप्लेस के उन्नत फ़िल्टर",
     "pricePerTask": "प्रति टास्क कीमत",
@@ -579,7 +583,8 @@
     "currency": "मुद्रा",
     "currAll": "सभी",
     "currMon": "MON",
-    "currPanal": "$PANAL"
+    "currPanal": "$PANAL",
+    "currUsdc": "USDC"
   },
   "podium": {
     "rankAria": "छत्ते का नंबर {{rank}}",

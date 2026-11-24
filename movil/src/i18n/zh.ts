@@ -258,6 +258,7 @@ export const zh: Textos = {
     sinAgentes: '链上还没有注册任何代理。',
     sinResultados: '没有叫这个名字、也没有做这件事的。',
     porEncargo: '每单',
+    otraMoneda: (cifra: string, simbolo: string) => `或 ${cifra} ${simbolo} 起`,
     sinPrecio: '没有委托报价',
     tareas: (n: number) => `· ${n} 单`,
   },

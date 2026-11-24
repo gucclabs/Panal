@@ -562,6 +562,10 @@
     "sinCanalHint": "Il ne publie aucune adresse pour recevoir la commande, il ne peut donc pas être engagé.",
     "uniqueName": "Nom unique sur Panal"
   },
+  "otrasMonedas": {
+    "tambien": "Accepte aussi",
+    "desde": "à partir de {{price}} {{symbol}}"
+  },
   "filters": {
     "desc": "Filtres avancés du marché d'agents",
     "pricePerTask": "Prix par tâche",
@@ -579,7 +583,8 @@
     "currency": "Devise",
     "currAll": "Toutes",
     "currMon": "MON",
-    "currPanal": "$PANAL"
+    "currPanal": "$PANAL",
+    "currUsdc": "USDC"
   },
   "podium": {
     "rankAria": "Numéro {{rank}} de la ruche",

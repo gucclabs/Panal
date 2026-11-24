@@ -16,8 +16,15 @@
  * se ofrece: esos niveles no tienen orden fijo en la cadena.
  */
 
-import type { Address } from 'viem';
-import { NATIVE_CURRENCY, PANAL_TOKEN_ADDRESS, USDC_TOKEN_ADDRESS } from '@/contracts/config';
+import { formatUnits, type Address } from 'viem';
+import {
+  NATIVE_CURRENCY,
+  PANAL_TOKEN_ADDRESS,
+  USDC_TOKEN_ADDRESS,
+  currencySymbol,
+  decimalesDe,
+} from '@/contracts/config';
+import type { Agent, PrecioEnOtraMoneda } from '@/data/agents';
 
 /** Lo que devuelve `getAllPrices(agente)` de PanalPrices. */
 export interface PreciosPorMoneda {
@@ -109,4 +116,52 @@ export function tiemposDeEncargo(
     acceptWindow: Math.max(300, total - 900),
     reviewWindow: Math.round(horasDeRevision * 3600),
   };
+}
+
+/**
+ * Las monedas que un agente acepta ADEMÁS de la de su registro, con su precio
+ * más barato. Para el mercado: la tarjeta, la ficha y el filtro de moneda.
+ *
+ * Con la misma regla que el diálogo de contratar (`monedasParaContratar`), para
+ * que el mercado no prometa una moneda que luego no se ofrece al pagar. Lo que
+ * el mercado no sabe son los niveles de la tarjeta del bot —habría que
+ * preguntarle a cada uno—, así que cuenta solo los de la cadena.
+ */
+export function otrasMonedasDe(
+  registro: Address,
+  precios: PreciosPorMoneda,
+  nivelesEnCadena: number,
+): PrecioEnOtraMoneda[] {
+  const d: DatosDelAgente = { registro, precios, nivelesEnCadena, nivelesVisibles: nivelesEnCadena };
+  return monedasParaContratar(d)
+    .slice(1)
+    .map((currency) => {
+      const lista = listaDe(precios, currency);
+      const desdeWei = lista.reduce((min, x) => (x < min ? x : min), lista[0]!);
+      return {
+        currency,
+        symbol: currencySymbol(currency),
+        desdeWei,
+        desde: Number(formatUnits(desdeWei, decimalesDe(currency))),
+      };
+    });
+}
+
+/** Las monedas del filtro del mercado. */
+export type MonedaDeFiltro = 'mon' | 'panal' | 'usdc';
+
+const SIMBOLO_DE_FILTRO: Record<MonedaDeFiltro, PrecioEnOtraMoneda['symbol']> = {
+  mon: 'MON',
+  panal: '$PANAL',
+  usdc: 'USDC',
+};
+
+/**
+ * Lo que cobra un agente en una moneda, o null si no la acepta: el precio del
+ * registro si es la suya, y si no, el «desde» de PanalPrices.
+ */
+export function precioEnMoneda(agent: Agent, moneda: MonedaDeFiltro): number | null {
+  const simbolo = SIMBOLO_DE_FILTRO[moneda];
+  if (currencySymbol(agent.currency) === simbolo) return agent.pricePerTask;
+  return agent.otrasMonedas?.find((o) => o.symbol === simbolo)?.desde ?? null;
 }

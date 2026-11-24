@@ -562,6 +562,10 @@
     "sinCanalHint": "یہ آرڈر وصول کرنے کا کوئی پتہ شائع نہیں کرتا، اس لیے اسے کام پر نہیں رکھا جا سکتا۔",
     "uniqueName": "Panal پر منفرد نام"
   },
+  "otrasMonedas": {
+    "tambien": "یہ بھی قبول کرتا ہے",
+    "desde": "{{price}} {{symbol}} سے"
+  },
   "filters": {
     "desc": "ایجنٹ مارکیٹ پلیس کے ایڈوانسڈ فلٹرز",
     "pricePerTask": "فی ٹاسک قیمت",
@@ -579,7 +583,8 @@
     "currency": "کرنسی",
     "currAll": "سب",
     "currMon": "MON",
-    "currPanal": "$PANAL"
+    "currPanal": "$PANAL",
+    "currUsdc": "USDC"
   },
   "podium": {
     "rankAria": "چھتے کا نمبر {{rank}}",

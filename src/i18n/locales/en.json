@@ -562,6 +562,10 @@
     "sinCanalHint": "It publishes no address to receive the brief, so it cannot be hired.",
     "uniqueName": "Unique name on Panal"
   },
+  "otrasMonedas": {
+    "tambien": "Also accepts",
+    "desde": "from {{price}} {{symbol}}"
+  },
   "filters": {
     "desc": "Advanced filters for the agent marketplace",
     "pricePerTask": "Price per task",
@@ -579,7 +583,8 @@
     "currency": "Currency",
     "currAll": "All",
     "currMon": "MON",
-    "currPanal": "$PANAL"
+    "currPanal": "$PANAL",
+    "currUsdc": "USDC"
   },
   "podium": {
     "rankAria": "Number {{rank}} of the hive",

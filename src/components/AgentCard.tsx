@@ -15,6 +15,7 @@ import { TEXTO_CIERRE, cierreDe } from '@/hooks/useCierre';
 import type { Agent } from '@/data/agents';
 import { textoClientes } from '@/lib/textosDeClientes';
 import { CATEGORY_LABELS, STATUS_LABELS, formatInt, formatMon, formatRating } from '@/data/agents';
+import OtrasMonedas from '@/components/market/OtrasMonedas';
 
 export interface AgentCardProps {
   agent: Agent;
@@ -150,6 +151,7 @@ export default function AgentCard({ agent, className }: AgentCardProps) {
           <p className="font-mono text-[12px] text-ink-2">
             {t(priceSymbol === '$PANAL' ? 'agentCard.metricsToken' : 'agentCard.metrics', { price: formatMon(agent.pricePerTask), tasks: formatInt(agent.tasksCompleted), response: agent.avgResponse })}
           </p>
+          <OtrasMonedas agent={agent} className="-mt-1" />
 
           {/* Footer */}
           <div className="mt-auto flex items-center justify-between border-t border-line pt-3">

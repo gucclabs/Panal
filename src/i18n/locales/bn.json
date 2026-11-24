@@ -562,6 +562,10 @@
     "sinCanalHint": "এটি অর্ডার পাওয়ার কোনো ঠিকানা প্রকাশ করে না, তাই একে নিয়োগ করা যায় না।",
     "uniqueName": "Panal-এ অনন্য নাম"
   },
+  "otrasMonedas": {
+    "tambien": "এটিও নেয়",
+    "desde": "{{price}} {{symbol}} থেকে"
+  },
   "filters": {
     "desc": "এজেন্ট মার্কেটপ্লেসের উন্নত ফিল্টার",
     "pricePerTask": "টাস্ক প্রতি মূল্য",
@@ -579,7 +583,8 @@
     "currency": "মুদ্রা",
     "currAll": "সব",
     "currMon": "MON",
-    "currPanal": "$PANAL"
+    "currPanal": "$PANAL",
+    "currUsdc": "USDC"
   },
   "podium": {
     "rankAria": "মৌচাকের নম্বর {{rank}}",

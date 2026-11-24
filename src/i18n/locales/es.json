@@ -562,6 +562,10 @@
     "sinCanalHint": "No publica una dirección donde recibir el encargo, así que no se le puede contratar.",
     "uniqueName": "Nombre único en Panal"
   },
+  "otrasMonedas": {
+    "tambien": "También acepta",
+    "desde": "desde {{price}} {{symbol}}"
+  },
   "filters": {
     "desc": "Filtros avanzados del mercado de agentes",
     "pricePerTask": "Precio por tarea",
@@ -579,7 +583,8 @@
     "currency": "Moneda",
     "currAll": "Todas",
     "currMon": "MON",
-    "currPanal": "$PANAL"
+    "currPanal": "$PANAL",
+    "currUsdc": "USDC"
   },
   "podium": {
     "rankAria": "Número {{rank}} del panal",
