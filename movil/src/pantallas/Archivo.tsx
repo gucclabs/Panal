@@ -14,6 +14,7 @@ import { monto, cuando } from '~/lib/formato';
 import Menu from '~/componentes/Menu';
 import { useTextos, textos } from '~/i18n/idiomas';
 import type { Textos } from '~/i18n/idiomas';
+import { etiquetaTarea } from '@/lib/escrow';
 
 /**
  * Tus expedientes.
@@ -185,10 +186,10 @@ export default function Archivo(): React.ReactElement {
                 <p className="min-w-0 grow break-words text-[14px] font-medium leading-[1.4]">
                   {e.local.brief ? primeraLinea(e.local.brief) : T.archivo.sinBrief}
                 </p>
-                <span className="shrink-0 font-mono text-[12px] text-ink-3">#{e.id}</span>
+                <span className="shrink-0 font-mono text-[12px] text-ink-3">{etiquetaTarea(BigInt(e.id))}</span>
               </div>
               <p className="mt-1 text-[11.5px] text-ink-3">
-                {nombreDeAgente(e.agente)} · {cuando(e.cadena.creado)} · {monto(e.cadena.importe)}{' '}
+                {nombreDeAgente(e.agente)} · {cuando(e.cadena.creado)} · {monto(e.cadena.importe, e.cadena.simbolo)}{' '}
                 {e.cadena.simbolo}
               </p>
               <div className="mt-2.5 flex items-center gap-1.5 border-t border-line pt-2.5">

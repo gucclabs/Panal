@@ -19,6 +19,7 @@ import { formatBytes } from '@/lib/deliveredFiles';
 import { revisarAntesDeGuardar } from '@/lib/revisionDeArchivos';
 import { monto } from '~/lib/formato';
 import { etiquetaIdioma, idioma, textos } from '~/i18n/idiomas';
+import { etiquetaTarea } from '@/lib/escrow';
 
 function escapar(s: string): string {
   return s
@@ -44,10 +45,10 @@ export function aHtml(e: Expediente): string {
   // `textos()` y no un hook: esto escribe un archivo, no pinta una pantalla.
   const T = textos().copia;
   const filas = [
-    [T.encargo, `#${e.id}`],
+    [T.encargo, etiquetaTarea(BigInt(e.id))],
     [T.cliente, e.cliente],
     [T.agente, e.agente],
-    [T.importe, `${monto(e.cadena.importe)} ${e.cadena.simbolo}`],
+    [T.importe, `${monto(e.cadena.importe, e.cadena.simbolo)} ${e.cadena.simbolo}`],
     [T.estado, T.estados[e.cadena.estado] ?? String(e.cadena.estado)],
     [T.creado, fecha(e.cadena.creado)],
     [T.plazo, fecha(e.cadena.plazo)],
@@ -307,7 +308,7 @@ export function todoAHtml(expedientes: Expediente[], quien: string): string {
       (e) =>
         `<li><a href="#e${escapar(e.id)}">${escapar(T.titulo(e.id))}</a> · ${escapar(
           fecha(e.cadena.creado),
-        )} · ${escapar(monto(e.cadena.importe))} ${escapar(e.cadena.simbolo)}</li>`,
+        )} · ${escapar(monto(e.cadena.importe, e.cadena.simbolo))} ${escapar(e.cadena.simbolo)}</li>`,
     )
     .join('');
 

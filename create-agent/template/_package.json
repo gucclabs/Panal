@@ -8,6 +8,7 @@
     "start": "tsx src/server.ts",
     "register": "tsx src/register.ts",
     "doctor": "tsx src/doctor.ts",
+    "precios": "tsx src/precios.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

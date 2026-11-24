@@ -416,12 +416,15 @@ export const pt: Textos = {
     dias: (n: number) => `${n} d`,
     plazoPie: 'Se não entregar a tempo, recuperas o pagamento inteiro.',
     precioAgente: 'Preço do agente',
-    protocolo: 'Protocolo · 2,5 %',
+    protocolo: (pct: string) => `Protocolo · ${pct} %`,
     bloqueasAhora: 'Bloqueias agora',
     noResponde:
       'Este agente não responde neste momento: o servidor dele não atende e o encargo não lhe chegaria. O pagamento ficaria bloqueado até o prazo vencer. Tente mais tarde ou escolha outro.',
     retenido:
       'O dinheiro fica retido até aprovares. A entrega é ancorada na cadeia e podes abrir uma disputa.',
+    retenido25:
+      'O dinheiro fica retido até aprovares. Depois da entrega tens 72 h para a rever e, se for preciso, abrir uma disputa; se não fizeres nada, o agente cobra sem a tua avaliação.',
+    bajoMinimo: (minimo: string) => `O escrow não aceita encargos de menos de ${minimo}.`,
     aprobandoToken: 'A aprovar o token…',
     bloqueando: 'A bloquear…',
     bloquear: (cantidad: string, moneda: string) => `Bloquear ${cantidad} ${moneda}`,
@@ -456,6 +459,9 @@ export const pt: Textos = {
   revisar: {
     titulo: 'Rever a entrega',
     seApruebaSolo: 'Aprova-se sozinho em',
+    conCinco: ', com 5 estrelas.',
+    sePagaSinTi: 'Se não fizeres nada, o agente pode cobrá-lo em',
+    sinNota: ', sem a tua avaliação.',
     loQuePediste: 'O que pediste',
     briefPerdido: 'O texto não está neste telemóvel. Na cadeia só viaja o hash dele.',
     tuValoracion: 'A tua avaliação',
@@ -463,7 +469,7 @@ export const pt: Textos = {
     estrellas: (v: number) => `${v} em 5`,
     quedaEnElRegistro: 'Fica no registo do agente. Não se pode mudar depois.',
     alAgente: 'Para o agente',
-    protocolo: 'Protocolo · 2,5 %',
+    protocolo: (pct: string) => `Protocolo · ${pct} %`,
     firmando: 'A assinar…',
     aprobarYPagar: (cantidad: string, moneda: string) => `Aprovar e pagar ${cantidad} ${moneda}`,
     eligeValoracion: 'Escolhe uma avaliação',
@@ -483,6 +489,8 @@ export const pt: Textos = {
     decidePie: 'um 2-de-3, não uma só chave',
     catorceDias:
       'Se o árbitro não resolver em 14 dias, recuperas o pagamento inteiro. Pode reclamá-lo qualquer pessoa e não é preciso a autorização dele.',
+    catorceDias25:
+      'Se ninguém decidir em 14 dias, fecha-se a meias: metade volta para ti e a outra metade vai para o agente. Qualquer pessoa pode fechá-lo.',
     abriendo: 'A abrir…',
     abrirDisputa: 'Abrir disputa',
   },
@@ -793,7 +801,7 @@ export const pt: Textos = {
     explSinCobrar: (cantidad: string, moneda: string) =>
       `Há ${cantidad} ${moneda} liquidados e ainda dentro do depósito. Não caducam, mas também não saem sozinhos.`,
     explSinAprobar: (deposito: string) =>
-      `Já está ancorada. Se o cliente não a aprovar nem a disputar, 3 dias após a entrega podes receber ${deposito} sem ele.`,
+      `Já está ancorada. Se o cliente não a aprovar nem a disputar, quando acabar a revisão dele (72 h por omissão) podes receber ${deposito} sem ele.`,
     explDisputa: (deposito: string) =>
       `Foi o cliente que a abriu. ${deposito[0]!.toUpperCase()}${deposito.slice(1)} está congelado: nem tu nem ele recebem até o árbitro decidir.`,
   },
@@ -1059,6 +1067,8 @@ export const pt: Textos = {
     cuentaAtrasTitulo: (id: string) => `Faltam 6 h para a #${id} se aprovar sozinha`,
     cuentaAtrasCuerpo: (cantidad: string, moneda: string) =>
       `Se não fizeres nada pagam-se ${cantidad} ${moneda} e conta como 5 estrelas.`,
+    cuentaAtrasCuerpo25: (cantidad: string, moneda: string) =>
+      `Se não fizeres nada, o agente poderá cobrar ${cantidad} ${moneda} sem a tua avaliação.`,
     plazoTitulo: (id: string) => `A #${id} expirou sem entrega`,
     plazoCuerpo: (cantidad: string, moneda: string) =>
       `Podes recuperar o depósito de ${cantidad} ${moneda} que bloqueaste.`,
@@ -1304,7 +1314,7 @@ export const pt: Textos = {
       noEntrego: 'O agente não entregou a tempo. Recupera o dinheiro e ele leva uma falta.',
       trabajando: (cuando: string) => `Em trabalho · entrega até ${cuando}`,
       entregada: (cuando: string) => `Entregue. Reveja-o: se não fizer nada, é pago sozinho em ${cuando}.`,
-      entregadaLibre: 'Entregue e passadas 72 h: já pode ser pago sem a sua aprovação.',
+      entregadaLibre: 'Entregue e acabada a revisão: já pode ser pago sem a sua aprovação.',
       enDisputa: 'Em disputa: a multisig da Panal resolve.',
       pagadaSinCerrar: 'O escrow já pagou ao agente. Falta fechar as contas no quadro.',
       canceladaSinCerrar: 'O escrow já devolveu o dinheiro ao quadro. Feche as contas para o receber.',
@@ -1416,7 +1426,7 @@ export const pt: Textos = {
       entregaAntes: (cuando: string) => `Entregue até ${cuando}. Caso contrário, o cliente recupera o dinheiro e leva uma falta.`,
       fueraDePlazo: 'O prazo de entrega passou.',
       entregado: (cuando: string) => `Entregue. Se o cliente não fizer nada, é pago em ${cuando}.`,
-      liberable: 'Passaram 72 h desde a entrega: já pode receber sem o cliente.',
+      liberable: 'Acabou a revisão do cliente: já pode receber sem ele.',
       enDisputa: 'Em disputa: a multisig da Panal resolve.',
       terminado: 'O escrow já terminou. Feche as contas para libertar a sua vaga.',
       cerrar: 'Fechar contas',
@@ -1597,11 +1607,12 @@ export const pt: Textos = {
       permit: 'Pagar uma mensagem a um agente',
       pagoMon: 'Pagar uma mensagem em MON',
       encargo: 'Contratar um trabalho',
-      aprobarEscrow: 'Deixar o escrow usar o teu $PANAL',
-      aprobarTablon: 'Deixar o quadro usar o teu $PANAL',
+      aprobarEscrow: (s: string) => `Deixar o escrow usar o teu ${s}`,
+      aprobarTablon: (s: string) => `Deixar o quadro usar o teu ${s}`,
       escrow: (f: string) => `Escrow · ${f}`,
       tablon: (f: string) => `Quadro · ${f}`,
       registro: (f: string) => `Registo · ${f}`,
+      precios: (m: string, lista: string) => (lista ? `Os teus preços em ${m}: ${lista}` : `Deixar de aceitar ${m}`),
     },
     avisoPagoMon:
       'É uma transferência simples de MON. Aprova-a só se for o pagamento de uma mensagem que acabaste de enviar na web.',

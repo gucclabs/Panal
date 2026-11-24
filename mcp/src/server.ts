@@ -70,6 +70,14 @@ import {
   type PanalClient,
   type Precios,
   sinBarraFinal,
+  CierreV2_5,
+  EstadoV2_5,
+  PRIMER_ID_V2_5,
+  esDelV2_5,
+  finDeLaRevision,
+  idEnLaCadena,
+  type TareaV2_5,
+  type VersionEscrow,
 } from '@panal/sdk';
 import {
   MAX_ADJUNTOS,
@@ -264,6 +272,27 @@ function monedasConocidas(): Address[] {
 }
 
 /**
+ * Dónde puede tener esta wallet dinero acreditado: cada escrow guarda el suyo.
+ * El v2 en las monedas con presupuesto; el v2.5 (24-nov-2026) además en USDC.
+ */
+function saldosDeEscrow(): { moneda: Address; version: VersionEscrow }[] {
+  const out = monedasConocidas().map((moneda) => ({ moneda, version: 'v2' as VersionEscrow }));
+  if (panal.v2_5) {
+    for (const moneda of [...monedasConocidas(), panal.v2_5.usdc]) {
+      if (!out.some((o) => o.version === 'v2_5' && o.moneda.toLowerCase() === moneda.toLowerCase())) {
+        out.push({ moneda, version: 'v2_5' });
+      }
+    }
+  }
+  return out;
+}
+
+/** « (v2.5 escrow)» cuando hay dos escrows, para saber de cuál sale. */
+function deCual(version: VersionEscrow, que = 'escrow'): string {
+  return panal.v2_5 ? ` (${version === 'v2_5' ? 'v2.5' : 'v2'} ${que})` : '';
+}
+
+/**
  * Saldo de una wallet en una moneda: a la cadena si es la nativa, al contrato
  * del token si es un ERC-20.
  *
@@ -416,10 +445,53 @@ function renderTask(task: Awaited<ReturnType<PanalClient['getTask']>>): string {
     `Task #${task.id} — ${TaskStatus[task.status] ?? task.status}`,
     `  Client: ${task.client}`,
     `  Agent:   ${task.worker}`,
-    `  Amount:  ${formatEther(task.amount)} ${symbolOf(task.currency)}${usd(task.amount, task.currency)}`,
+    `  Amount:  ${fmt(task.amount, task.currency)} ${symbolOf(task.currency)}${usd(task.amount, task.currency)}`,
     `  Deadline: ${deadline}`,
     `  Job hash: ${task.taskHash}`,
     task.resultHash && !/^0x0+$/.test(task.resultHash) ? `  Result hash: ${task.resultHash}` : null,
+  ]
+    .filter(Boolean)
+    .join('\n');
+}
+
+const ESTADO_V2_5: Record<EstadoV2_5, string> = {
+  [EstadoV2_5.Abierta]: 'Open (not accepted yet)',
+  [EstadoV2_5.Aceptada]: 'Accepted (in progress)',
+  [EstadoV2_5.Entregada]: 'Delivered',
+  [EstadoV2_5.EnDisputa]: 'Disputed',
+  [EstadoV2_5.Cerrada]: 'Closed',
+};
+const CIERRE_V2_5: Partial<Record<CierreV2_5, string>> = {
+  [CierreV2_5.Aprobada]: 'approved by the client',
+  [CierreV2_5.PorTiempo]: 'released after the review, with no approval or dispute',
+  [CierreV2_5.Arbitrada]: 'decided by the judges',
+  [CierreV2_5.DisputaCaducada]: 'dispute expired with no decision: split half and half',
+  [CierreV2_5.Acuerdo]: 'settled by agreement between both sides',
+  [CierreV2_5.Cancelada]: 'cancelled: refunded to the client',
+  [CierreV2_5.Vencida]: 'deadline passed with no delivery: refunded to the client',
+  [CierreV2_5.Rechazada]: 'declined by the worker: refunded to the client',
+  [CierreV2_5.ArbitradaAutonoma]: 'decided by the autonomous judges',
+};
+
+/** Una tarea del escrow v2.5, con lo que el v2 no tenía: aceptar, revisión y cómo se cerró. */
+function renderTaskV2_5(t: TareaV2_5): string {
+  const fecha = (s: bigint) => new Date(Number(s) * 1000).toISOString();
+  const fin = finDeLaRevision(t);
+  return [
+    `Task #${t.id} (v2.5 escrow; #${idEnLaCadena(t.id)} on chain) — ${ESTADO_V2_5[t.estado] ?? t.estado}`,
+    t.estado === EstadoV2_5.Cerrada && CIERRE_V2_5[t.cierre] ? `  Closed: ${CIERRE_V2_5[t.cierre]}` : null,
+    `  Client: ${t.client}`,
+    `  Agent:   ${t.worker}`,
+    `  Amount:  ${fmt(t.amount, t.currency)} ${symbolOf(t.currency)}${usd(t.amount, t.currency)}`,
+    `  Deadline: ${fecha(t.deadline)}`,
+    t.estado === EstadoV2_5.Abierta ? `  The agent can accept it (or deliver without accepting) until ${fecha(t.acceptBy)}.` : null,
+    `  Review after delivery: ${Math.round(t.reviewWindow / 3600)} h`,
+    fin !== null
+      ? `  Delivered ${fecha(t.deliveredAt)}: approve it or open a dispute before ${fecha(fin)}; after that the agent can collect it without approval.`
+      : null,
+    t.estado === EstadoV2_5.EnDisputa ? `  Disputed since ${fecha(t.disputedAt)}.` : null,
+    `  Job hash: ${t.taskHash}`,
+    !/^0x0+$/.test(t.resultHash) ? `  Result hash: ${t.resultHash}` : null,
   ]
     .filter(Boolean)
     .join('\n');
@@ -796,12 +868,26 @@ export const READ_TOOLS: Tool[] = [
     description: 'State of a job in the Panal escrow: amount, deadline, agent, and whether it was delivered.',
     inputSchema: {
       type: 'object',
-      properties: { task_id: { type: 'number', description: 'Numeric task id.' } },
+      properties: {
+        task_id: {
+          type: 'number',
+          description: `Numeric task id. Tasks on the v2.5 escrow (every hire since November 2026) start at ${PRIMER_ID_V2_5}.`,
+        },
+      },
       required: ['task_id'],
     },
     handler: async (args) => {
       const id = Number(args.task_id);
       if (!Number.isInteger(id) || id < 0) return 'The task id is an integer greater than or equal to zero.';
+      if (esDelV2_5(BigInt(id))) {
+        if (!panal.v2_5) return 'The v2.5 escrow is not deployed on this network.';
+        const count25 = await panal.getTaskCountV2_5();
+        if (idEnLaCadena(BigInt(id)) >= count25) {
+          return `Task #${id} does not exist: the v2.5 escrow has ${count25} so far (numbered from ${PRIMER_ID_V2_5}).`;
+        }
+        const [t] = await Promise.all([panal.getTaskV2_5(BigInt(id)), refrescarPrecios()]);
+        return renderTaskV2_5(t);
+      }
       const count = await panal.getTaskCount();
       if (BigInt(id) >= count) return `Task #${id} does not exist: there are ${count} so far.`;
       const [task] = await Promise.all([panal.getTask(BigInt(id)), refrescarPrecios()]);
@@ -890,13 +976,19 @@ export const READ_TOOLS: Tool[] = [
     description: 'Panal marketplace figures: how many agents exist, how many are active, how many jobs so far.',
     inputSchema: { type: 'object', properties: {} },
     handler: async () => {
-      const [agents, taskCount] = await Promise.all([panal.listAgents(), panal.getTaskCount()]);
+      const [agents, taskCount, taskCount25] = await Promise.all([
+        panal.listAgents(),
+        panal.getTaskCount(),
+        panal.v2_5 ? panal.getTaskCountV2_5().catch(() => null) : Promise.resolve(null),
+      ]);
       const active = agents.filter((a) => a.active);
       return [
         `Registered agents: ${agents.length}`,
         `Active agents: ${active.length}`,
-        `Jobs created: ${taskCount}`,
-        `Escrow: ${panal.addresses.escrow}`,
+        taskCount25 === null
+          ? `Jobs created: ${taskCount}`
+          : `Jobs created: ${taskCount + taskCount25} (${taskCount} on the v2 escrow, ${taskCount25} on the v2.5 one)`,
+        panal.v2_5 ? `Escrow: ${panal.v2_5.escrow} (v2.5; the previous one, ${panal.addresses.escrow}, closes what it holds)` : `Escrow: ${panal.addresses.escrow}`,
         `Registry: ${panal.addresses.registry}`,
         '',
         active.length
@@ -922,6 +1014,12 @@ const WRITE_TOOLS: Tool[] = [
       if (blocked) return blocked;
       const address = account!.address;
       const monedas = monedasConocidas();
+      const enCadaEscrow = saldosDeEscrow();
+      // El saldo también en USDC donde está el escrow v2.5, que cobra en él.
+      const monedasSaldo =
+        panal.v2_5 && !monedas.some((m) => m.toLowerCase() === panal.v2_5!.usdc.toLowerCase())
+          ? [...monedas, panal.v2_5.usdc]
+          : monedas;
 
       // Un saldo por moneda, no solo el nativo. Antes se leía únicamente MON y
       // justo debajo se listaban los topes de $PANAL: quien lo leía daba por
@@ -929,12 +1027,12 @@ const WRITE_TOOLS: Tool[] = [
       // sin tener con qué pagar. Las lecturas son independientes, así que van
       // en paralelo.
       const [saldos, pendientes, delTablon] = await Promise.all([
-        Promise.all(monedas.map((m) => saldoDe(address, m))),
+        Promise.all(monedasSaldo.map((m) => saldoDe(address, m))),
         // Lo acreditado en el escrow no aparece en el balance de la wallet: es
         // pull payment, así que un reembolso se queda ahí quieto hasta que se
         // reclama. Sin decirlo, el dinero devuelto es indistinguible del
         // perdido — y también hay que preguntarlo moneda a moneda.
-        Promise.all(monedas.map((m) => panal.getPendingWithdrawal(address, m).catch(() => null))),
+        Promise.all(enCadaEscrow.map(({ moneda, version }) => panal.getPendingWithdrawal(address, moneda, version).catch(() => null))),
         // Y lo mismo en el tablón con reglas: lo que devuelve (un encargo
         // retirado, caducado, o una oferta por debajo del presupuesto) se
         // queda acreditado en PanalTablon, no en el escrow.
@@ -945,7 +1043,7 @@ const WRITE_TOOLS: Tool[] = [
       const importe = (v: bigint | null, m: Address): string =>
         v === null ? 'could not be read' : `${fmt(v, m)}${v > 0n ? usd(v, m) : ''}`;
 
-      const balances = monedas.map((m, i) => `  ${symbolOf(m)}: ${importe(saldos[i] ?? null, m)}`);
+      const balances = monedasSaldo.map((m, i) => `  ${symbolOf(m)}: ${importe(saldos[i] ?? null, m)}`);
 
       // Un presupuesto por moneda: MON y $PANAL no valen lo mismo y no hay
       // tipo de cambio, así que se enseñan por separado o no se entienden.
@@ -961,13 +1059,13 @@ const WRITE_TOOLS: Tool[] = [
 
       // Solo se nombra lo que hay que cobrar, o lo que no se pudo comprobar. Un
       // «0» por cada moneda sería ruido en la respuesta más leída del servidor.
-      const enEscrow = monedas
-        .map((m, i) => ({ m, sym: symbolOf(m), v: pendientes[i] ?? null }))
+      const enEscrow = enCadaEscrow
+        .map(({ moneda, version }, i) => ({ m: moneda, version, sym: symbolOf(moneda), v: pendientes[i] ?? null }))
         .filter(({ v }) => v === null || v > 0n)
-        .map(({ m, sym, v }) => `  ${sym}: ${importe(v, m)}`);
+        .map(({ m, version, sym, v }) => `  ${sym}${deCual(version)}: ${importe(v, m)}`);
       const enTablon = delTablon
         .filter(({ importe: v }) => v === null || v > 0n)
-        .map(({ moneda, importe: v }) => `  ${symbolOf(moneda)}: ${importe(v, moneda)}`);
+        .map(({ moneda, version, importe: v }) => `  ${symbolOf(moneda)}${deCual(version, 'board')}: ${importe(v, moneda)}`);
 
       return [
         `Wallet: ${address}`,
@@ -1297,12 +1395,11 @@ const WRITE_TOOLS: Tool[] = [
           brief = cerrado.brief;
           aSubir = cerrado.archivos;
         }
-        const result = await panal.hire({
-          agent: quote.worker,
-          brief,
-          amount: quote.amount,
-          deadline,
-        });
+        // En el escrow v2.5 donde existe, como la web desde el 24-nov-2026: el
+        // agente puede aceptar o rechazar, y hay 72 h de revisión tras la entrega.
+        const result = panal.v2_5
+          ? await panal.hireV2_5({ agent: quote.worker, brief, currency: quote.currency, amount: quote.amount, deadline })
+          : await panal.hire({ agent: quote.worker, brief, amount: quote.amount, deadline });
         if (quote.cifrado) encargosCifrados.guardar(result.taskId, { brief, archivos: aSubir });
         ledger.record(quote.currency, result.amount);
         log(`contratada #${result.taskId} a ${quote.worker} por ${formatEther(result.amount)} ${quote.symbol}`);
@@ -1363,7 +1460,7 @@ const WRITE_TOOLS: Tool[] = [
               `WARNING: the payment is locked but the job did NOT arrive (${fallo}).\n` +
               `The agent cannot start. Retry with panal_send_brief ${result.taskId}` +
               (subidas.length > 0 ? ', passing the same job text and the same files in `files`' : '') +
-              `, or the payment returns on its own when the deadline passes.`;
+              `, or once the deadline passes cancel it with panal_cancel_task to get the payment back.`;
             log(`brief #${result.taskId} NO entregado: ${fallo}`);
           }
         }
@@ -1584,7 +1681,7 @@ const WRITE_TOOLS: Tool[] = [
         const firma = await account!.signMessage({ message: briefSignMessage(BigInt(id)) });
         const fallo = await pushBrief(destino, BigInt(id), sellado.brief, account!.address, firma);
         if (fallo !== null) {
-          return `It still does not arrive (${fallo}). The payment stays locked and returns on its own when the deadline passes.`;
+          return `It still does not arrive (${fallo}). The payment stays locked; once the deadline passes, cancel it with panal_cancel_task to get it back.`;
         }
         const fallidos: string[] = [];
         for (const adj of sellado.archivos) {
@@ -1633,8 +1730,7 @@ const WRITE_TOOLS: Tool[] = [
             `The hash does not match. If task #${id} was hired END-TO-END ENCRYPTED, what is on the chain is the hash ` +
             'of the sealed job, and it cannot be rebuilt from the text (encryption is random). This server keeps the ' +
             'sealed copy on disk next to its spend file, and it is not there (another machine, or the folder was ' +
-            'deleted). The payment returns on its own when the deadline passes, or cancel it then with ' +
-            'panal_cancel_task and hire again.'
+            'deleted). Once the deadline passes, cancel it with panal_cancel_task to get the payment back, and hire again.'
           );
         }
         return [
@@ -1685,7 +1781,7 @@ const WRITE_TOOLS: Tool[] = [
       const firma = await account!.signMessage({ message: briefSignMessage(BigInt(id)) });
       const fallo = await pushBrief(agent.metadata.botUrl, BigInt(id), brief, account!.address, firma);
       if (fallo !== null) {
-        return `It still does not arrive (${fallo}). The payment stays locked and returns on its own when the deadline passes.`;
+        return `It still does not arrive (${fallo}). The payment stays locked; once the deadline passes, cancel it with panal_cancel_task to get it back.`;
       }
       log(`brief #${id} entregado (reintento) en ${agent.metadata.botUrl}`);
 
@@ -1778,10 +1874,12 @@ const WRITE_TOOLS: Tool[] = [
   {
     name: 'panal_open_dispute',
     description:
-      'Dispute a delivered result and STOP the clock. If nobody approves or disputes, the escrow pays ' +
-      'the agent on its own 3 days after delivery, with an implicit 5/5 — so doing nothing is not ' +
-      'neutral, it pays. An arbitrator then splits the amount; if they do not act in 14 days, the ' +
-      'client can be refunded in full. Use it when the delivery is wrong or never arrived.',
+      'Dispute a delivered result and STOP the clock. If nobody approves or disputes, once the review ends ' +
+      '(72 h on the v2 escrow; on the v2.5 one, the review chosen when hiring, 72 h by default) the agent can ' +
+      'collect the payment without approval — so doing nothing is not neutral, it pays. On the v2.5 escrow a ' +
+      'dispute can only be opened within that review. Judges then split the amount; if nobody decides in 14 days, ' +
+      'anyone can close it: on v2 the client is refunded in full, on v2.5 it is split half and half. Use it when ' +
+      'the delivery is wrong or never arrived.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -1842,14 +1940,14 @@ const WRITE_TOOLS: Tool[] = [
         // la nativa, un reembolso en $PANAL quedaba invisible y esta misma
         // herramienta contestaba que no había nada que cobrar. El dinero seguía
         // en el contrato, pero desde aquí no había forma de sacarlo.
-        const monedas = monedasConocidas();
-        const pendientes: Array<{ moneda: Address; importe: bigint }> = [];
-        for (const moneda of monedas) {
-          const importe = await panal.getPendingWithdrawal(account!.address, moneda);
-          if (importe > 0n) pendientes.push({ moneda, importe });
+        // Y escrow a escrow: el v2.5 guarda su propio saldo (también en USDC).
+        const pendientes: Array<{ moneda: Address; importe: bigint; version: VersionEscrow }> = [];
+        for (const { moneda, version } of saldosDeEscrow()) {
+          const importe = await panal.getPendingWithdrawal(account!.address, moneda, version);
+          if (importe > 0n) pendientes.push({ moneda, importe, version });
         }
         const delTablon = (await deudaDelTablon(panal, account!.address)).filter(
-          (d): d is { moneda: Address; importe: bigint } => d.importe !== null && d.importe > 0n,
+          (d): d is { moneda: Address; importe: bigint; version: VersionEscrow } => d.importe !== null && d.importe > 0n,
         );
         if (!pendientes.length && !delTablon.length) {
           return 'Neither the escrow nor the board owes this wallet anything: there is nothing to collect.';
@@ -1859,11 +1957,11 @@ const WRITE_TOOLS: Tool[] = [
         // las demás: quedarse sin cobrar el $PANAL porque el MON se quedó sin
         // gas es perder dos veces.
         const lineas: string[] = [];
-        for (const { moneda, importe } of pendientes) {
+        for (const { moneda, importe, version } of pendientes) {
           const sym = symbolOf(moneda);
           try {
-            const hash = await panal.withdraw(moneda);
-            lineas.push(`Collected ${fmt(importe, moneda)} ${sym} from the escrow.\n  tx: ${EXPLORER}/tx/${hash}`);
+            const hash = await panal.withdraw(moneda, version);
+            lineas.push(`Collected ${fmt(importe, moneda)} ${sym} from the escrow${deCual(version, '')}.\n  tx: ${EXPLORER}/tx/${hash}`);
           } catch (err) {
             lineas.push(
               `Could not collect the ${fmt(importe, moneda)} ${sym}: ${err instanceof Error ? err.message : err}` +
@@ -1871,14 +1969,14 @@ const WRITE_TOOLS: Tool[] = [
             );
           }
         }
-        for (const { moneda, importe } of delTablon) {
+        for (const { moneda, importe, version } of delTablon) {
           const sym = symbolOf(moneda);
           try {
-            const { txHash } = await panal.claimBoardRefund(moneda);
-            lineas.push(`Collected ${formatEther(importe)} ${sym} from the board.\n  tx: ${EXPLORER}/tx/${txHash}`);
+            const { txHash } = await panal.claimBoardRefund(moneda, version);
+            lineas.push(`Collected ${fmt(importe, moneda)} ${sym} from the board${deCual(version, '')}.\n  tx: ${EXPLORER}/tx/${txHash}`);
           } catch (err) {
             lineas.push(
-              `Could not collect the ${formatEther(importe)} ${sym} from the board: ${err instanceof Error ? err.message : err}` +
+              `Could not collect the ${fmt(importe, moneda)} ${sym} from the board: ${err instanceof Error ? err.message : err}` +
                 '\n  It is still credited in the board; calling this again will retry it.',
             );
           }

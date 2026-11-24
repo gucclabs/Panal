@@ -2,13 +2,17 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSignMessage, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
 import { keccak256, parseEventLogs, toBytes, type Address } from 'viem';
 import {
+  PANAL_ESCROW_V2_5_ADDRESS,
   PANAL_ESCROW_V2_ADDRESS,
   PANAL_TOKEN_ADDRESS,
   NATIVE_CURRENCY,
+  V2_5_ENABLED,
   currencySymbol,
   activeChain,
 } from '@/contracts/config';
 import { panalEscrowV2Abi, panalTokenAbi } from '@/contracts/abis';
+import { FEE_BPS_V2_5, REVISION_POR_DEFECTO_S, idDelV2_5, panalEscrowV2_5Abi } from '@panal/sdk';
+import { minimoDelEscrowV2_5, tiemposDeEncargo } from '@/lib/monedasDeContratacion';
 import { saveTaskBrief, saveTaskSobre } from '@/lib/taskBriefs';
 import { clavePublicaDe, nombreEnBuzon, publicarMiClave } from '@/lib/cifrado';
 import { respondeElAgente } from '@/lib/reachability';
@@ -48,6 +52,13 @@ import Dolares from '~/componentes/Dolares';
 import Icono from '~/componentes/Icono';
 import { monto } from '~/lib/formato';
 import { useIdioma, useTextos } from '~/i18n/idiomas';
+
+/**
+ * El escrow donde se contrata: el v2.5 donde está desplegado (24-nov-2026),
+ * como la web. Ahí el agente acepta (o rechaza) y hay una revisión de 72 h
+ * tras la entrega; pasada sin aprobar ni disputar, el agente cobra sin nota.
+ */
+const ESCROW = V2_5_ENABLED ? PANAL_ESCROW_V2_5_ADDRESS : PANAL_ESCROW_V2_ADDRESS;
 
 /** El número y su unidad van aparte: en chino «6 h» se escribe «6 小时». */
 const PLAZOS: { horas: number; unidad: 'horas' | 'dias'; cuantos: number }[] = [
@@ -219,8 +230,14 @@ export default function HojaEncargar({
    */
   const precio = elegido?.wei ?? datos?.precioTarea ?? 0n;
   const simbolo = datos ? currencySymbol(datos.moneda) : 'MON';
-  // El 2,5 % sale del precio, no se suma: bloqueas el precio y el agente cobra menos.
-  const comision = (precio * 250n) / 10_000n;
+  // La comisión sale del precio, no se suma: bloqueas el precio y el agente
+  // cobra menos. En el v2.5 es del 1,5 % en $PANAL y del 2,5 % en MON.
+  const bps = V2_5_ENABLED && enPanal ? BigInt(FEE_BPS_V2_5.panal) : 250n;
+  const comision = (precio * bps) / 10_000n;
+  const pctComision = (Number(bps) / 100).toLocaleString(undefined, { maximumFractionDigits: 1 });
+  /** El v2.5 no admite menos de 0,001 MON o 1 $PANAL: el contrato lo rechazaría. */
+  const bajoMinimo =
+    V2_5_ENABLED && precio > 0n && precio < minimoDelEscrowV2_5(enPanal ? PANAL_TOKEN_ADDRESS : NATIVE_CURRENCY);
 
   const T = useTextos();
   const idioma = useIdioma();
@@ -423,26 +440,41 @@ export default function HojaEncargar({
     saveTaskBrief(taskHash, listo.enClaro);
     if (texto !== listo.enClaro) saveTaskSobre(taskHash, texto);
     briefFirmado.current = texto;
-    const plazo = BigInt(Math.floor(Date.now() / 1000) + horas * 3600);
+    const moneda = enPanal ? PANAL_TOKEN_ADDRESS : NATIVE_CURRENCY;
 
     // Lo que esta hoja enseña y la persona ha confirmado. Con la wallet del
     // teléfono, es lo único que el conector acepta firmar como `createTask`.
-    permitirEncargo({
-      worker: agente as `0x${string}`,
-      amount: precio,
-      currency: enPanal ? PANAL_TOKEN_ADDRESS : NATIVE_CURRENCY,
-    });
+    permitirEncargo({ worker: agente as `0x${string}`, amount: precio, currency: moneda });
+    if (V2_5_ENABLED) {
+      // Los tiempos se cuentan desde ahora (tras el approve, si lo hubo): el
+      // contrato mira el reloj al minarse. Aceptar, hasta 15 min antes del plazo.
+      const t = tiemposDeEncargo(Date.now() / 1000, horas, REVISION_POR_DEFECTO_S / 3600);
+      writeContract({
+        address: PANAL_ESCROW_V2_5_ADDRESS,
+        abi: panalEscrowV2_5Abi,
+        functionName: 'createTask',
+        args: [
+          {
+            worker: agente as `0x${string}`,
+            taskHash,
+            deadline: t.deadline,
+            acceptWindow: t.acceptWindow,
+            reviewWindow: t.reviewWindow,
+            currency: moneda,
+            amount: precio,
+          },
+        ],
+        ...(enPanal ? {} : { value: precio }),
+        chainId: activeChain.id,
+      });
+      return;
+    }
+    const plazo = BigInt(Math.floor(Date.now() / 1000) + horas * 3600);
     writeContract({
       address: PANAL_ESCROW_V2_ADDRESS,
       abi: panalEscrowV2Abi,
       functionName: 'createTask',
-      args: [
-        agente as `0x${string}`,
-        taskHash,
-        plazo,
-        enPanal ? PANAL_TOKEN_ADDRESS : NATIVE_CURRENCY,
-        precio,
-      ],
+      args: [agente as `0x${string}`, taskHash, plazo, moneda, precio],
       ...(enPanal ? {} : { value: precio }),
       chainId: activeChain.id,
     });
@@ -467,7 +499,7 @@ export default function HojaEncargar({
       address: PANAL_TOKEN_ADDRESS,
       abi: panalTokenAbi,
       functionName: 'approve',
-      args: [PANAL_ESCROW_V2_ADDRESS, precio],
+      args: [ESCROW, precio],
       chainId: activeChain.id,
     });
   };
@@ -490,6 +522,17 @@ export default function HojaEncargar({
    */
   const idDeTarea = useMemo(() => {
     if (!recibo.data) return undefined;
+    if (V2_5_ENABLED) {
+      // En el v2.5, el número de fuera: el de la cadena más mil millones. Es el
+      // que entienden el buzón, el agente y el resto de la app.
+      const [creada] = parseEventLogs({
+        abi: panalEscrowV2_5Abi,
+        eventName: 'TaskCreated',
+        logs: recibo.data.logs.filter((l) => l.address.toLowerCase() === PANAL_ESCROW_V2_5_ADDRESS.toLowerCase()),
+      });
+      const n = (creada?.args as { taskId?: bigint } | undefined)?.taskId;
+      return n === undefined ? undefined : idDelV2_5(n);
+    }
     const [creada] = parseEventLogs({
       abi: panalEscrowV2Abi,
       eventName: 'TaskCreated',
@@ -740,7 +783,7 @@ export default function HojaEncargar({
                           )}
                         </span>
                         <span className="shrink-0 text-right font-mono text-[12.5px] text-ink">
-                          {monto(n.wei)} {simbolo}
+                          {monto(n.wei, simbolo)} {simbolo}
                           <Dolares wei={n.wei} simbolo={simbolo} className="block" />
                         </span>
                       </button>
@@ -889,19 +932,19 @@ export default function HojaEncargar({
           <Tarjeta>
             <Fila
               etiqueta={T.encargar.precioAgente}
-              valor={`${monto(precio)} ${simbolo}`}
+              valor={`${monto(precio, simbolo)} ${simbolo}`}
               color="text-ink"
             />
             <Fila
-              etiqueta={T.encargar.protocolo}
-              valor={`${monto(comision)} ${simbolo}`}
+              etiqueta={T.encargar.protocolo(pctComision)}
+              valor={`${monto(comision, simbolo)} ${simbolo}`}
               color="text-ink-2"
             />
             <Fila
               etiqueta={T.encargar.bloqueasAhora}
               valor={
                 <span className="text-right">
-                  {monto(precio)} {simbolo}
+                  {monto(precio, simbolo)} {simbolo}
                   <Dolares wei={precio} simbolo={simbolo} avisarSinPrecio className="block" />
                 </span>
               }
@@ -912,8 +955,10 @@ export default function HojaEncargar({
 
           {responde === false ? (
             <Nota tono="miel">{T.encargar.noResponde}</Nota>
+          ) : bajoMinimo ? (
+            <Nota tono="miel">{T.encargar.bajoMinimo(enPanal ? '1 $PANAL' : '0,001 MON')}</Nota>
           ) : (
-            <Nota>{T.encargar.retenido}</Nota>
+            <Nota>{V2_5_ENABLED ? T.encargar.retenido25 : T.encargar.retenido}</Nota>
           )}
           {avisoCifrado && <Nota tono="miel">{avisoCifrado}</Nota>}
           {claveCifrado ? (
@@ -923,12 +968,12 @@ export default function HojaEncargar({
           ) : null}
 
           <div className="mt-[18px] pb-1">
-            <Boton onClick={() => void empezar()} disabled={!brief.trim() || trabajando || responde === false}>
+            <Boton onClick={() => void empezar()} disabled={!brief.trim() || trabajando || responde === false || bajoMinimo}>
               {aprobando
                 ? T.encargar.aprobandoToken
                 : pagando
                   ? T.encargar.bloqueando
-                  : T.encargar.bloquear(monto(precio), simbolo)}
+                  : T.encargar.bloquear(monto(precio, simbolo), simbolo)}
             </Boton>
           </div>
         </>

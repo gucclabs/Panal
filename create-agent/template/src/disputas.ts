@@ -47,8 +47,10 @@ import {
   hashesAnclados,
   llmChat,
   resolverLlm,
+  versionDe,
   type ExpedienteAbierto,
   type PanalClient,
+  type VersionEscrow,
   type PiezaAbierta,
   type TareaDelExpediente,
 } from '@panal/sdk';
@@ -167,19 +169,23 @@ export function arrancarDisputas(deps: DisputasDeps): {
     }
   };
 
-  // Los jueces cambian poco: se releen cada diez minutos.
-  let jueces: { lista: Address[]; hasta: number } | null = null;
-  const losJueces = async (): Promise<Address[]> => {
-    if (jueces && jueces.hasta > Date.now()) return jueces.lista;
-    jueces = { lista: await panal.getArbitrators(), hasta: Date.now() + 10 * 60_000 };
-    return jueces.lista;
+  // Los jueces cambian poco: se releen cada diez minutos. Cada escrow tiene los
+  // suyos (en el v2.5, además, los autónomos si los hay), así que van por versión.
+  const jueces = new Map<VersionEscrow, { lista: Address[]; hasta: number }>();
+  const losJueces = async (version: VersionEscrow): Promise<Address[]> => {
+    const j = jueces.get(version);
+    if (j && j.hasta > Date.now()) return j.lista;
+    const lista = await panal.getArbitrators(version);
+    jueces.set(version, { lista, hasta: Date.now() + 10 * 60_000 });
+    return lista;
   };
 
   /** Las tareas de este agente en disputa: el indexador y, si no contesta, el disco. */
   async function candidatas(): Promise<bigint[]> {
     if (panal.indexerUrl) {
       try {
-        const res = await fetch(`${panal.indexerUrl}/index/tasks?address=${yo}&role=worker&limit=500`, {
+        // `v=all`: las del escrow v2 y las del v2.5 (con su número de fuera de la cadena).
+        const res = await fetch(`${panal.indexerUrl}/index/tasks?address=${yo}&role=worker&limit=500&v=all`, {
           signal: AbortSignal.timeout(15_000),
         });
         if (res.ok) {
@@ -470,7 +476,7 @@ export function arrancarDisputas(deps: DisputasDeps): {
 
   const ultimoPing = new Map<string, number>();
   async function ping(taskId: bigint, cred: { address: string; firma: string; expira: string }): Promise<number> {
-    const ok = await esCredencialDeJuez({ ...cred, taskId }, await losJueces(), (a) => verifyMessage(a));
+    const ok = await esCredencialDeJuez({ ...cred, taskId }, await losJueces(versionDe(taskId)), (a) => verifyMessage(a));
     if (!ok) return 403;
     const id = taskId.toString();
     if ((ultimoPing.get(id) ?? 0) + ENTRE_PINGS_MS > Date.now()) return 202;

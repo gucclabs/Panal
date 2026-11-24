@@ -16,7 +16,17 @@
  */
 
 import { parseEther, type Address, type Hex } from 'viem';
-import { gasConMargen, opcionesDelEntorno, repasarRetirada, RETIRADA_POR_DEFECTO, TOPE_GAS } from '../template/src/retirada.js';
+import { EstadoV2_5, idDelV2_5, type TareaV2_5 } from '@panal/sdk';
+import {
+  compensaLiberar,
+  gasConMargen,
+  liberarRevisadas,
+  MAX_POR_LIBERACION,
+  opcionesDelEntorno,
+  repasarRetirada,
+  RETIRADA_POR_DEFECTO,
+  TOPE_GAS,
+} from '../template/src/retirada.js';
 
 let fallos = 0;
 const check = (nombre: string, ok: boolean, detalle = ''): void => {
@@ -169,6 +179,111 @@ console.log('\nlas opciones del .env');
   const malas = opcionesDelEntorno({ RETIRADA_MINUTOS: '1', RETIRADA_MAX_GAS_PCT: 'mucho', RETIRADA_PANAL_DESDE: 'mil' }, avisar)!;
   check('una errata no apaga ni rompe: vuelve al defecto', malas.minutos === 60 && malas.maxGasPct === 2 && malas.panalDesde === parseEther('1000'));
   check('  y lo avisa', avisos.length === 3, avisos.join(' | '));
+}
+
+console.log('\nel escrow v2.5: su saldo aparte, y USDC');
+{
+  const USDC = '0x754704Bc059F8C67012fEd69BC8A327a5aafb603' as Address;
+  const ESCROW25 = '0x1800225eac5cEF7798e2A926AE243F2a4a42D440' as Address;
+  const saldos: Record<string, bigint> = {
+    [`v2:${MON}`]: 0n,
+    [`v2_5:${MON}`]: parseEther('2'),
+    [`v2_5:${PANAL}`]: parseEther('10'),
+    [`v2_5:${USDC}`]: 3_000_000n,
+  };
+  const envios: string[] = [];
+  const panal = {
+    addresses: { escrow: '0xe138A9A492CFe27A13f8b7A6D312DA831791bCe9', panalToken: PANAL },
+    v2_5: { escrow: ESCROW25, usdc: USDC },
+    getPendingWithdrawal: async (_yo: Address, moneda: Address, version = 'v2') => saldos[`${version}:${moneda}`] ?? 0n,
+    publicClient: {
+      chain: { id: 143 },
+      estimateContractGas: async () => 60_000n,
+      estimateFeesPerGas: async () => ({ maxFeePerGas: MAX_FEE, maxPriorityFeePerGas: 2_000_000_000n }),
+      getBalance: async () => parseEther('1'),
+      waitForTransactionReceipt: async () => ({ status: 'success' }),
+    },
+    walletClient: {
+      account: { address: YO },
+      writeContract: async (a: { address: Address; args: [Address] }) => {
+        envios.push(`${a.address === ESCROW25 ? 'v2.5' : 'v2'}:${a.args[0] === MON ? 'MON' : a.args[0] === USDC ? 'USDC' : '$PANAL'}`);
+        return '0xabc' as Hex;
+      },
+    },
+  };
+  await repasarRetirada({
+    panal: panal as never,
+    yo: YO,
+    opciones: RETIRADA_POR_DEFECTO,
+    ocupado: () => false,
+    esperar: async () => {},
+    log: () => {},
+  });
+  check('retira del escrow v2.5 lo que compensa: MON y USDC', envios.join() === 'v2.5:MON,v2.5:USDC', envios.join());
+  check('  y no 10 $PANAL (por debajo del umbral)', !envios.some((e) => e.includes('$PANAL')));
+  const o = opcionesDelEntorno({ RETIRADA_USDC_DESDE: '0.5' }, () => {})!;
+  check('el umbral de USDC se cambia en el .env (6 decimales)', o.usdcDesde === 500_000n && RETIRADA_POR_DEFECTO.usdcDesde === 1_000_000n);
+}
+
+console.log('\ncobrar lo que pasó la revisión (v2.5)');
+{
+  const AHORA = 2_000_000_000n;
+  const t = (p: Partial<TareaV2_5>): TareaV2_5 =>
+    ({
+      id: idDelV2_5(1n),
+      currency: MON,
+      amount: parseEther('0.05'),
+      estado: EstadoV2_5.Entregada,
+      deliveredAt: AHORA - 100_000n,
+      reviewWindow: 86_400,
+      ...p,
+    }) as TareaV2_5;
+  // Una liberación de ~120k de gas a 122 gwei: ~0,0146 MON de reserva.
+  const reserva = 120_000n * MAX_FEE;
+  check('0,05 MON no compensan esa reserva (más del 20 %)', !compensaLiberar([t({})], reserva, AHORA));
+  check('tres juntas sí: juntarlas reparte el gas (0,15 MON)', compensaLiberar([t({}), t({}), t({})], reserva, AHORA));
+  check('0,1 MON sí (gas por debajo del 20 %)', compensaLiberar([t({ amount: parseEther('0.1') })], reserva, AHORA));
+  check('en tokens, siempre', compensaLiberar([t({ currency: PANAL, amount: 1n })], reserva, AHORA));
+  check(
+    'pasada una semana, con que el gas no se lo coma entero',
+    compensaLiberar([t({ deliveredAt: AHORA - 86_400n - 8n * 86_400n })], reserva, AHORA),
+  );
+  check(
+    '…pero nunca si el gas cuesta más que lo liberado',
+    !compensaLiberar([t({ deliveredAt: AHORA - 30n * 86_400n, amount: parseEther('0.01') })], reserva, AHORA),
+  );
+
+  const firmadas: bigint[][] = [];
+  const panal = {
+    v2_5: { escrow: '0x1800225eac5cEF7798e2A926AE243F2a4a42D440' },
+    publicClient: {
+      estimateContractGas: async () => 120_000n,
+      estimateFeesPerGas: async () => ({ maxFeePerGas: MAX_FEE }),
+    },
+    releaseV2_5: async (ids: bigint[]) => (firmadas.push(ids), '0xdef' as Hex),
+  };
+  const ok = await liberarRevisadas({
+    panal: panal as never,
+    yo: YO,
+    tareas: [t({ amount: parseEther('0.2') }), t({ id: idDelV2_5(2n), amount: parseEther('0.2') })],
+    ocupado: () => false,
+    log: () => {},
+    ahora: () => AHORA,
+  });
+  check('libera en una transacción, con los números de fuera de la cadena', ok && firmadas.length === 1 && firmadas[0]!.join() === '1000000001,1000000002', JSON.stringify(firmadas.map(String)));
+  const ocupada = await liberarRevisadas({ panal: panal as never, yo: YO, tareas: [t({})], ocupado: () => true, log: () => {} });
+  check('con un encargo en marcha no toca la wallet', !ocupada && firmadas.length === 1);
+  const muchas = Array.from({ length: MAX_POR_LIBERACION + 5 }, (_, i) => t({ id: idDelV2_5(BigInt(i)), currency: PANAL }));
+  await liberarRevisadas({ panal: panal as never, yo: YO, tareas: muchas, ocupado: () => false, log: () => {}, ahora: () => AHORA });
+  check(`como mucho ${MAX_POR_LIBERACION} por transacción`, firmadas[1]?.length === MAX_POR_LIBERACION);
+  const falla = await liberarRevisadas({
+    panal: { ...panal, releaseV2_5: async () => { throw new Error('revirtió'); } } as never,
+    yo: YO,
+    tareas: [t({ currency: PANAL })],
+    ocupado: () => false,
+    log: () => {},
+  });
+  check('un fallo no lanza: devuelve false y se reintenta luego', falla === false);
 }
 
 console.log(fallos === 0 ? '\n✅ retirada: todo bien' : `\n❌ retirada: ${fallos} fallo(s)`);

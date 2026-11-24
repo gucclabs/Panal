@@ -182,6 +182,112 @@ dice('el MON aceptado pasa por el importe exacto', !lanza(() => politica.revisar
 pu.armar(pu.describir('eth_sendTransaction', [{ from: yo, to: agente, value: '0x6f05b59d3b20000' }], yo));
 dice('y por uno más alto, no', lanza(() => politica.revisarTransaccion({ to: agente, value: 500000000000000001n })));
 
+console.log('\nel escrow v2.5 y su tablón (24-nov-2026)');
+const sdk = await import('@panal/sdk');
+const usdc = cfg.USDC_TOKEN_ADDRESS;
+const crear25 = encodeFunctionData({
+  abi: sdk.panalEscrowV2_5Abi,
+  functionName: 'createTask',
+  args: [{
+    worker: agente, taskHash: `0x${'cd'.repeat(32)}`, deadline: 1800000000n,
+    acceptWindow: 3600, reviewWindow: 259200, currency: usdc, amount: 2_500_000n,
+  }],
+});
+d = pu.describir('eth_sendTransaction', [{ from: yo, to: cfg.PANAL_ESCROW_V2_5_ADDRESS, data: crear25 }], yo);
+dice('contratar en el v2.5 se lee: agente, importe y USDC', d.tipo === 'encargo' && d.agente === getAddress(agente) && d.importe === 2_500_000n && d.moneda === getAddress(usdc));
+dice('sin aceptar, no pasa la política', lanza(() => politica.revisarTransaccion({ to: cfg.PANAL_ESCROW_V2_5_ADDRESS, data: crear25, value: 0n })));
+pu.armar(d);
+dice('aceptado, pasa', !lanza(() => politica.revisarTransaccion({ to: cfg.PANAL_ESCROW_V2_5_ADDRESS, data: crear25, value: 0n })));
+dice('y vale para una sola firma', lanza(() => politica.revisarTransaccion({ to: cfg.PANAL_ESCROW_V2_5_ADDRESS, data: crear25, value: 0n })));
+pu.armar(d);
+dice('con MON pegado a un encargo en USDC, no', lanza(() => politica.revisarTransaccion({ to: cfg.PANAL_ESCROW_V2_5_ADDRESS, data: crear25, value: 1n })));
+pu.armar(d);
+const crear25Mas = encodeFunctionData({
+  abi: sdk.panalEscrowV2_5Abi,
+  functionName: 'createTask',
+  args: [{
+    worker: agente, taskHash: `0x${'cd'.repeat(32)}`, deadline: 1800000000n,
+    acceptWindow: 3600, reviewWindow: 259200, currency: usdc, amount: 9_000_000n,
+  }],
+});
+dice('por otro importe que el aceptado, no', lanza(() => politica.revisarTransaccion({ to: cfg.PANAL_ESCROW_V2_5_ADDRESS, data: crear25Mas, value: 0n })));
+politica.olvidarPermisos();
+
+const conPermit = encodeFunctionData({
+  abi: sdk.panalEscrowV2_5Abi,
+  functionName: 'createTaskWithPermit',
+  args: [
+    { worker: agente, taskHash: `0x${'cd'.repeat(32)}`, deadline: 1800000000n, acceptWindow: 3600, reviewWindow: 259200, currency: usdc, amount: 1n },
+    { deadline: 1800000000n, v: 27, r: `0x${'11'.repeat(32)}`, s: `0x${'22'.repeat(32)}` },
+  ],
+});
+dice('createTaskWithPermit, no', pu.describir('eth_sendTransaction', [{ from: yo, to: cfg.PANAL_ESCROW_V2_5_ADDRESS, data: conPermit }], yo).tipo === 'bloqueada');
+
+const aceptar = encodeFunctionData({ abi: sdk.panalEscrowV2_5Abi, functionName: 'acceptTask', args: [5n] });
+d = pu.describir('eth_sendTransaction', [{ from: yo, to: cfg.PANAL_ESCROW_V2_5_ADDRESS, data: aceptar }], yo);
+dice('lo que no pone dinero en el v2.5 pasa sin armar', d.tipo === 'escrow' && d.funcion === 'acceptTask');
+const retirar25 = encodeFunctionData({ abi: sdk.panalEscrowV2_5Abi, functionName: 'withdraw', args: [usdc] });
+dice('retirar USDC del v2.5, también', pu.describir('eth_sendTransaction', [{ from: yo, to: cfg.PANAL_ESCROW_V2_5_ADDRESS, data: retirar25 }], yo).tipo === 'escrow');
+
+const erc20 = (await import('viem')).erc20Abi;
+const aprobarUsdc = encodeFunctionData({ abi: erc20, functionName: 'approve', args: [cfg.PANAL_ESCROW_V2_5_ADDRESS, 2_500_000n] });
+d = pu.describir('eth_sendTransaction', [{ from: yo, to: usdc, data: aprobarUsdc }], yo);
+dice('aprobar USDC al escrow v2.5 se lee, con su moneda', d.tipo === 'aprobar' && d.para === 'escrow' && d.moneda === getAddress(usdc));
+const usdcAlV2 = encodeFunctionData({ abi: erc20, functionName: 'approve', args: [cfg.PANAL_ESCROW_V2_ADDRESS, 1n] });
+dice('aprobar USDC al escrow v2 (que no lo cobra), no', pu.describir('eth_sendTransaction', [{ from: yo, to: usdc, data: usdcAlV2 }], yo).tipo === 'bloqueada');
+const usdcAOtro = encodeFunctionData({ abi: erc20, functionName: 'approve', args: [otro, 1n] });
+dice('aprobar USDC a cualquiera, no', pu.describir('eth_sendTransaction', [{ from: yo, to: usdc, data: usdcAOtro }], yo).tipo === 'bloqueada');
+const usdcFuera = encodeFunctionData({ abi: erc20, functionName: 'transfer', args: [otro, 1n] });
+dice('mandar USDC a otro, no', pu.describir('eth_sendTransaction', [{ from: yo, to: usdc, data: usdcFuera }], yo).tipo === 'bloqueada');
+const panalAl25 = encodeFunctionData({ abi: panalTokenAbi, functionName: 'approve', args: [cfg.PANAL_ESCROW_V2_5_ADDRESS, 10n ** 18n] });
+dice('aprobar $PANAL al escrow v2.5, sí', pu.describir('eth_sendTransaction', [{ from: yo, to: cfg.PANAL_TOKEN_ADDRESS, data: panalAl25 }], yo).tipo === 'aprobar');
+
+const usdcAlTablon = encodeFunctionData({ abi: erc20, functionName: 'approve', args: [cfg.PANAL_TABLON_V2_5_ADDRESS, 5_000_000n] });
+d = pu.describir('eth_sendTransaction', [{ from: yo, to: usdc, data: usdcAlTablon }], yo);
+dice('aprobar USDC al tablón v2.5 se lee', d.tipo === 'aprobar' && d.para === 'tablon');
+dice('sin aceptar, no pasa', lanza(() => politica.revisarTransaccion({ to: usdc, data: usdcAlTablon, value: 0n })));
+pu.armar(d);
+dice('aceptado, pasa por ese importe y en USDC', !lanza(() => politica.revisarTransaccion({ to: usdc, data: usdcAlTablon, value: 0n })));
+const panalAlTablonMismo = encodeFunctionData({ abi: panalTokenAbi, functionName: 'approve', args: [cfg.PANAL_TABLON_V2_5_ADDRESS, 5_000_000n] });
+pu.armar(d);
+dice('el mismo importe en $PANAL no vale por lo aceptado en USDC', lanza(() => politica.revisarTransaccion({ to: cfg.PANAL_TOKEN_ADDRESS, data: panalAlTablonMismo, value: 0n })));
+politica.olvidarPermisos();
+
+const post25 = encodeFunctionData({
+  abi: sdk.panalTablonV2_5Abi,
+  functionName: 'post',
+  args: [{
+    taskHash: `0x${'01'.repeat(32)}`, advertHash: `0x${'02'.repeat(32)}`, category: 1, currency: cfg.NATIVE_CURRENCY,
+    amount: 10n ** 17n, workDuration: 3600n, expiresAt: 1800000000n, mode: 0, applyWindow: 0n, chooseWindow: 0n,
+    experiencedOnly: false, relist: false, campaignId: `0x${'0'.repeat(64)}`, campaignCapPerAgent: 0, reviewWindow: 259200,
+  }],
+});
+d = pu.describir('eth_sendTransaction', [{ from: yo, to: cfg.PANAL_TABLON_V2_5_ADDRESS, data: post25, value: '0x16345785d8a0000' }], yo);
+dice('publicar en el tablón v2.5 se lee con su importe', d.tipo === 'tablon' && d.funcion === 'post' && d.importe === 10n ** 17n);
+pu.armar(d);
+dice('aceptado, pasa con el MON justo', !lanza(() => politica.revisarTransaccion({ to: cfg.PANAL_TABLON_V2_5_ADDRESS, data: post25, value: 10n ** 17n })));
+
+const elegir25 = encodeFunctionData({ abi: sdk.panalTablonV2_5Abi, functionName: 'choose', args: [7n, agente] });
+d = pu.describir('eth_sendTransaction', [{ from: yo, to: cfg.PANAL_TABLON_V2_5_ADDRESS, data: elegir25 }], yo);
+dice('elegir en el v2.5 se lee con el número de fuera', d.tipo === 'tablon' && d.funcion === 'choose' && d.jobId === 1_000_000_007n);
+pu.armar(d);
+dice('aceptado, pasa', !lanza(() => politica.revisarTransaccion({ to: cfg.PANAL_TABLON_V2_5_ADDRESS, data: elegir25, value: 0n })));
+politica.permitirTablon({ funcion: 'choose', amount: 0n, currency: cfg.NATIVE_CURRENCY, jobId: 1_000_000_007n, agente });
+dice('lo que arma una hoja de la app con el número de fuera, también', !lanza(() => politica.revisarTransaccion({ to: cfg.PANAL_TABLON_V2_5_ADDRESS, data: elegir25, value: 0n })));
+politica.permitirTablon({ funcion: 'choose', amount: 0n, currency: cfg.NATIVE_CURRENCY, jobId: 7n, agente });
+dice('pero el 7 del v2 no vale por el 7 del v2.5', lanza(() => politica.revisarTransaccion({ to: cfg.PANAL_TABLON_V2_5_ADDRESS, data: elegir25, value: 0n })));
+politica.olvidarPermisos();
+
+const pactar = encodeFunctionData({ abi: sdk.panalTablonV2_5Abi, functionName: 'proposeSettlement', args: [7n, 5000] });
+dice('pactar un reparto en el tablón v2.5 pasa sin armar', pu.describir('eth_sendTransaction', [{ from: yo, to: cfg.PANAL_TABLON_V2_5_ADDRESS, data: pactar }], yo).tipo === 'tablon');
+const topes = encodeFunctionData({ abi: sdk.panalTablonV2_5Abi, functionName: 'setCaps', args: [usdc, 1n, 1n] });
+dice('lo del dueño del tablón, no', pu.describir('eth_sendTransaction', [{ from: yo, to: cfg.PANAL_TABLON_V2_5_ADDRESS, data: topes }], yo).tipo === 'bloqueada');
+
+const precios = encodeFunctionData({ abi: sdk.panalPricesAbi, functionName: 'setPrices', args: [usdc, [1_000_000n, 2_500_000n]] });
+d = pu.describir('eth_sendTransaction', [{ from: yo, to: cfg.PANAL_PRICES_ADDRESS, data: precios }], yo);
+dice('los precios propios en USDC se leen', d.tipo === 'precios' && d.importes.length === 2 && d.moneda === getAddress(usdc));
+dice('con MON pegado, no', pu.describir('eth_sendTransaction', [{ from: yo, to: cfg.PANAL_PRICES_ADDRESS, data: precios, value: '0x1' }], yo).tipo === 'bloqueada');
+
 politica.olvidarPermisos();
 ses.cerrarSesion();
 

@@ -1,4 +1,4 @@
-import { formatEther, formatUnits } from 'viem';
+import { formatUnits } from 'viem';
 import { etiquetaIdioma, textos } from '~/i18n/idiomas';
 
 /**
@@ -32,6 +32,12 @@ function escribir(n: number): string {
   });
 }
 
+/** Los decimales de una moneda por su símbolo: 6 en USDC y AUSD, 18 en las demás. */
+export function decimalesDeSimbolo(simbolo: string): number {
+  const s = simbolo.replace('$', '').toUpperCase();
+  return s === 'USDC' || s === 'AUSD' ? 6 : 18;
+}
+
 /**
  * Una cantidad de dinero en unidades mínimas, como la escribe un español y sin
  * redondearla a algo que no es.
@@ -40,10 +46,12 @@ function escribir(n: number): string {
  * escribir dice «menos de», porque un cero delante de alguien que está a punto
  * de firmar es peor que un número largo.
  */
-export function monto(wei: bigint | string, decimales = 18): string {
-  // 18 en MON, $PANAL y GHO; 6 en USDC y AUSD. Por defecto 18, que es lo de
-  // siempre: solo el pago por mensaje puede ir en otra.
-  const n = Number(formatUnits(typeof wei === 'string' ? BigInt(wei) : wei, decimales));
+export function monto(wei: bigint | string, decimales: number | string = 18): string {
+  // 18 en MON, $PANAL y GHO; 6 en USDC y AUSD. Se puede pasar el símbolo en
+  // vez de los decimales: desde el escrow v2.5 (24-nov-2026) un encargo puede
+  // ir en USDC, y con 18 un dólar salía como «<0,0001».
+  const d = typeof decimales === 'string' ? decimalesDeSimbolo(decimales) : decimales;
+  const n = Number(formatUnits(typeof wei === 'string' ? BigInt(wei) : wei, d));
   if (n === 0) return '0';
   if (n < 0.0001) return `<${separar('0', '0001')}`;
   return escribir(n);
@@ -64,8 +72,9 @@ export function monto(wei: bigint | string, decimales = 18): string {
  * justo el caso en que sí se pone. Solo para tablas: en un botón de firmar se
  * usa `monto`, que es el que decide toda la app.
  */
-export function montoCuadro(wei: bigint | string): string {
-  const n = Number(formatEther(typeof wei === 'string' ? BigInt(wei) : wei));
+export function montoCuadro(wei: bigint | string, decimales: number | string = 18): string {
+  const d = typeof decimales === 'string' ? decimalesDeSimbolo(decimales) : decimales;
+  const n = Number(formatUnits(typeof wei === 'string' ? BigInt(wei) : wei, d));
   if (n === 0) return '0';
   if (n < 0.0001) return `<${separar('0', '0001')}`;
   return n.toLocaleString(etiquetaIdioma(), {
@@ -103,8 +112,13 @@ export function cuando(ms: number, ahora = Date.now()): string {
  */
 export const AUTO_RELEASE_MS = 3 * 24 * 60 * 60 * 1000;
 
-export function restante(entregadoMs: number, ahora = Date.now()): string {
-  const queda = entregadoMs + AUTO_RELEASE_MS - ahora;
+/**
+ * Lo que queda de revisión. `revisionMs`: la del encargo en el escrow v2.5,
+ * que la elige el cliente al contratar (24 h a 7 días); sin ella, las 72 h
+ * del v2.
+ */
+export function restante(entregadoMs: number, ahora = Date.now(), revisionMs = AUTO_RELEASE_MS): string {
+  const queda = entregadoMs + revisionMs - ahora;
   const T = textos().tiempo;
   if (queda <= 0) return T.yaSePuedeLiberar;
   const h = Math.floor(queda / 3_600_000);

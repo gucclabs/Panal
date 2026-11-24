@@ -4,15 +4,15 @@ import { useWaitForTransactionReceipt, useWriteContract } from 'wagmi';
 import { parseEther } from 'viem';
 import type { Address } from 'viem';
 import { useWallet } from '@/hooks/useWallet';
-import { panalEscrowV2Abi, panalRegistryV2Abi } from '@/contracts/abis';
+import { panalRegistryV2Abi } from '@/contracts/abis';
 import {
   NATIVE_CURRENCY,
-  PANAL_ESCROW_V2_ADDRESS,
   PANAL_REGISTRY_V2_ADDRESS,
   PANAL_TOKEN_ADDRESS,
   currencySymbol,
   publicClient,
 } from '@/contracts/config';
+import { escrowDe, numeroVisible } from '@/lib/escrow';
 import { gasDeRetirada } from '@/lib/reservaDeGas';
 import { ESTADO } from '@/lib/conversaciones';
 import { getTaskBrief } from '@/lib/taskBriefs';
@@ -22,7 +22,17 @@ import CamposMarca from '~/componentes/CamposMarca';
 import type { Marca } from '@/lib/marca';
 import { falloDePregunta, resumirFicha } from '@/lib/agentMetadata';
 import { EJEMPLOS_EDITABLES, falloDeEjemplo, MAX_EJEMPLO, PLAZO_DE_PREGUNTA_HORAS } from '@panal/sdk';
-import { armarFicha, partirFicha, useFicha, usePendiente, useTareasDe, type TareaDeAgente } from '~/lib/agentes';
+import {
+  armarFicha,
+  direccionEscrow,
+  partirFicha,
+  useFicha,
+  usePendiente,
+  useTareasDe,
+  type Pendiente,
+  type SaldoEnEscrow,
+  type TareaDeAgente,
+} from '~/lib/agentes';
 import HojaConversacion from '~/componentes/HojaConversacion';
 import HojaPruebas from '~/componentes/HojaPruebas';
 import { esBuzon } from '@/lib/botEndpoint';
@@ -123,6 +133,7 @@ export default function PanelAgente(): React.ReactElement {
               <div className="mt-2.5 flex flex-col gap-1.5">
                 {pendiente.panal > 0n && <Cantidad valor={pendiente.panal} simbolo="$PANAL" />}
                 {pendiente.mon > 0n && <Cantidad valor={pendiente.mon} simbolo="MON" />}
+                {pendiente.usdc > 0n && <Cantidad valor={pendiente.usdc} simbolo="USDC" />}
               </div>
               {mando ? (
                 <button
@@ -276,12 +287,12 @@ export default function PanelAgente(): React.ReactElement {
                   />
                   <div className="min-w-0 grow">
                     <p className="truncate text-[13px]">
-                      {getTaskBrief(t.taskHash) ?? T.panel.encargoNumero(String(t.id))}
+                      {getTaskBrief(t.taskHash) ?? T.panel.encargoNumero(numeroVisible(t.id))}
                     </p>
                     <p className="mt-0.5 text-[11px] text-ink-3">{e.texto}</p>
                   </div>
                   <span className="shrink-0 font-mono text-[12.5px]" style={{ color: e.color }}>
-                    {monto(t.amountWei)}
+                    {monto(t.amountWei, currencySymbol(t.currency))}
                   </span>
                   {mando && esBuzon(ficha.botUrl ?? null) && !esDelTablon(t.client) && (
                     <button
@@ -362,18 +373,19 @@ export default function PanelAgente(): React.ReactElement {
 /* ── cobrar ──────────────────────────────────────────────────────────────── */
 
 /**
- * Dos monedas son DOS firmas.
+ * Cada moneda de cada escrow es UNA firma.
  *
- * `withdraw(token)` recibe UN token: no hay forma de sacar las dos de una vez.
- * Sale escrito en la hoja porque esconderlo haría que la segunda petición de
- * firma pareciera un fallo de la app.
+ * `withdraw(token)` recibe UN token y vacía solo el escrow al que se llama:
+ * no hay forma de sacarlo todo de una vez, y desde el escrow v2.5 (24-nov-2026)
+ * puede haber MON en los dos. Sale escrito en la hoja porque esconderlo haría
+ * que la segunda petición de firma pareciera un fallo de la app.
  */
 function HojaCobrar({
   pendiente,
   onCerrar,
   onHecho,
 }: {
-  pendiente: { panal: bigint; mon: bigint };
+  pendiente: Pendiente;
   onCerrar: () => void;
   onHecho: () => void;
 }): React.ReactElement {
@@ -397,12 +409,11 @@ function HojaCobrar({
    * de 1,092 MON llegó a pagar 1,096 de gas. Ver `gasDeRetirada`.
    */
   const [sinFirmar, setSinFirmar] = useState(false);
-  const sacar = async (token: Address): Promise<void> => {
+  const sacar = async (s: SaldoEnEscrow): Promise<void> => {
     const llamada = {
-      address: PANAL_ESCROW_V2_ADDRESS,
-      abi: panalEscrowV2Abi,
+      ...escrowDe(s.version),
       functionName: 'withdraw',
-      args: [token],
+      args: [s.moneda],
     } as const;
     setSinFirmar(false);
     try {
@@ -413,9 +424,13 @@ function HojaCobrar({
     }
   };
 
-  // Cuál se está sacando lo dice la propia llamada en curso, no un estado
-  // paralelo que haya que acordarse de limpiar.
-  const enCurso = (variables?.args as readonly string[] | undefined)?.[0]?.toLowerCase();
+  // Cuál se está sacando lo dice la propia llamada en curso (escrow y
+  // moneda), no un estado paralelo que haya que acordarse de limpiar.
+  const enCurso = `${String(variables?.address ?? '').toLowerCase()}:${String(
+    (variables?.args as readonly string[] | undefined)?.[0] ?? '',
+  ).toLowerCase()}`;
+  const claveDe = (s: SaldoEnEscrow) => `${direccionEscrow(s.version).toLowerCase()}:${s.moneda.toLowerCase()}`;
+  const dosEscrows = new Set(pendiente.lista.map((s) => s.version)).size > 1;
   const trabajando = isPending || recibo.isLoading;
   const T = useTextos();
 
@@ -425,26 +440,18 @@ function HojaCobrar({
       {sinFirmar && <p className="mt-2 px-1 text-[12px] leading-[1.5] text-terra">{T.panel.retiradaNoSeFirmo}</p>}
 
       <div className="mt-3.5 flex flex-col gap-2.5">
-        {pendiente.panal > 0n && (
+        {pendiente.lista.map((s) => (
           <LineaCobro
-            valor={pendiente.panal}
-            simbolo="$PANAL"
-            trabajando={trabajando && enCurso === PANAL_TOKEN_ADDRESS.toLowerCase()}
+            key={claveDe(s)}
+            valor={s.importe}
+            simbolo={s.simbolo}
+            escrow={dosEscrows || s.version === 'v2_5' ? (s.version === 'v2_5' ? 'v2.5' : 'v2') : null}
+            trabajando={trabajando && enCurso === claveDe(s)}
             deshabilitado={trabajando}
-            onSacar={() => void sacar(PANAL_TOKEN_ADDRESS)}
+            onSacar={() => void sacar(s)}
             T={T}
           />
-        )}
-        {pendiente.mon > 0n && (
-          <LineaCobro
-            valor={pendiente.mon}
-            simbolo="MON"
-            trabajando={trabajando && enCurso === NATIVE_CURRENCY.toLowerCase()}
-            deshabilitado={trabajando}
-            onSacar={() => void sacar(NATIVE_CURRENCY)}
-            T={T}
-          />
-        )}
+        ))}
       </div>
 
       <p className="mt-3.5 text-[11.5px] leading-[1.5] text-ink-3">
@@ -463,6 +470,7 @@ function HojaCobrar({
 function LineaCobro({
   valor,
   simbolo,
+  escrow,
   trabajando,
   deshabilitado,
   onSacar,
@@ -470,6 +478,8 @@ function LineaCobro({
 }: {
   valor: bigint;
   simbolo: string;
+  /** «v2» o «v2.5» cuando hay saldo en los dos escrows (o solo en el nuevo). */
+  escrow: string | null;
   trabajando: boolean;
   deshabilitado: boolean;
   onSacar: () => void;
@@ -479,9 +489,11 @@ function LineaCobro({
     <div className="flex items-center gap-3 rounded-[14px] border border-line p-3.5">
       <div className="min-w-0 grow">
         <p className="font-mono text-[17px] text-ink">
-          {monto(valor)} <span className="text-[13px] text-ink-2">{simbolo}</span>
+          {monto(valor, simbolo)} <span className="text-[13px] text-ink-2">{simbolo}</span>
         </p>
-        <p className="mt-0.5 text-[11px] text-ink-3">{T.panel.unaFirma}</p>
+        <p className="mt-0.5 text-[11px] text-ink-3">
+          {escrow ? `${T.panel.unaFirma} · escrow ${escrow}` : T.panel.unaFirma}
+        </p>
       </div>
       <button
         type="button"
@@ -862,7 +874,7 @@ function Cantidad({ valor, simbolo }: { valor: bigint; simbolo: string }): React
   return (
     <div className="flex items-baseline gap-2">
       <span className="font-mono text-[26px] font-medium leading-none text-honey">
-        {monto(valor)}
+        {monto(valor, simbolo)}
       </span>
       <span className="text-[13px] font-semibold text-honey">{simbolo}</span>
     </div>

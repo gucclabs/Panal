@@ -16,7 +16,7 @@ export function Importe({ wei, moneda, alineado = 'derecha' }: { wei: bigint; mo
   return (
     <span className={`flex shrink-0 flex-col ${alineado === 'derecha' ? 'items-end' : 'items-start'}`}>
       <bdi className="font-mono text-[14px] font-semibold text-ink">
-        {monto(wei)} {simbolo}
+        {monto(wei, simbolo)} {simbolo}
       </bdi>
       <Dolares wei={wei} simbolo={simbolo} />
     </span>

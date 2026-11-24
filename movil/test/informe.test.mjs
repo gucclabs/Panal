@@ -122,5 +122,31 @@ dice('todas con hash de entrega', c[0].lineas.every((l) => l.resultHash));
 dice('todas con cliente', c[0].lineas.every((l) => l.cliente === CLI));
 dice('ordenadas de más nueva a más vieja', c[0].lineas.every((l, i, a) => i === 0 || a[i - 1].ts >= l.ts));
 
+console.log('\nel escrow v2.5: TaskClosed, también en USDC');
+{
+  const cerrada = (id, motivo, pagado, comision, devuelto, rating = 0) => ({
+    id: `0xtx${id}-1`, contract: 'escrow25', event: 'TaskClosed', blockNumber: 1, logIndex: 1,
+    txHash: `0xtx${id}`, ts: AGO(22),
+    args: { taskId: id, reason: motivo, workerPaid: pagado.toString(), fee: comision.toString(), clientRefund: devuelto.toString(), rating },
+  });
+  const t = [
+    tarea('1000000001', 0, { coin: 'USDC', amount: '10000000' }),
+    tarea('1000000002', 0, { coin: 'USDC', amount: '4000000' }),
+    tarea('1000000003', 0, { coin: 'USDC', amount: '8000000' }),
+  ];
+  const ev = [
+    cerrada('1000000001', 1, 9_750_000n, 250_000n, 0n, 4),
+    cerrada('1000000002', 7, 0n, 0n, 4_000_000n),
+    cerrada('1000000003', 4, 3_900_000n, 100_000n, 4_000_000n),
+  ];
+  const u = armar(t, ev, AUDIT);
+  dice('va en su propia moneda', u.length === 1 && u[0].moneda === 'USDC');
+  dice('la vencida sin entrega no cuenta', u[0].lineas.length === 2);
+  dice('lo pagado sale del evento', u[0].neto === 9_750_000n + 3_900_000n);
+  dice('la comisión también', u[0].comision === 350_000n);
+  dice('la disputa caducada devuelve la mitad y se marca', u[0].lineas.find((l) => l.id === '1000000003')?.disputada === true && u[0].devuelto === 4_000_000n);
+  dice('la nota del evento', u[0].lineas.find((l) => l.id === '1000000001')?.rating === 4);
+}
+
 console.log(`\n${bien} bien, ${mal} mal\n`);
 process.exit(mal ? 1 : 0);

@@ -3107,6 +3107,7 @@
     "bajoMinimo": "Un prix est inférieur au minimum de l’escrow (0,001 MON, 1 $PANAL ou 0,01 USDC).",
     "guardar": "Publier les prix en {{moneda}}",
     "noAceptar": "Ne pas accepter {{moneda}}",
-    "nota": "Une transaction par devise. Si vous changez vos niveaux, publiez à nouveau ces prix : s’ils ne correspondent pas, le site ne propose pas cette devise."
+    "nota": "Une transaction par devise. Si vous changez vos niveaux, publiez à nouveau ces prix : s’ils ne correspondent pas, le site ne propose pas cette devise.",
+    "desordenados": "Ils vont du plus bas au plus haut, comme vos niveaux."
   }
 }

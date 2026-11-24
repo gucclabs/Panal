@@ -79,6 +79,11 @@ export interface Cuentas {
 
 const cero = { bruto: 0n, comision: 0n, devuelto: 0n, neto: 0n };
 
+/** Motivos de cierre del escrow v2.5 (`CierreV2_5` del SDK) sin entrega: cancelada, vencida, rechazada. */
+const CIERRES_SIN_COBRO = new Set([6, 7, 8]);
+/** Los que pasaron por una disputa: jueces, disputa caducada (mitad y mitad) y jueces autónomos. */
+const CIERRES_CON_DISPUTA = new Set([3, 4, 9]);
+
 /**
  * Empareja las tareas de un agente con sus eventos de liquidación.
  *
@@ -120,6 +125,31 @@ export function armar(
         resultHash: tarea.resultHash ?? null,
         txHash: ev.txHash,
         disputada: false,
+      });
+      continue;
+    }
+
+    // El escrow v2.5 (24-nov-2026) cierra todo con UN evento, `TaskClosed`,
+    // que trae lo pagado, la comisión, lo devuelto, la nota y el motivo. El
+    // indexador ya le pone a su `taskId` los mil millones de más.
+    if (ev.event === 'TaskClosed') {
+      const motivo = Number(ev.args['reason'] ?? 0);
+      // Cancelada, vencida o rechazada: no hubo entrega ni cobro.
+      if (CIERRES_SIN_COBRO.has(motivo)) continue;
+      const nota = Number(ev.args['rating'] ?? 0);
+      lineas.push({
+        id,
+        ts: ev.ts,
+        cliente: tarea.client,
+        moneda: tarea.coin,
+        bruto,
+        pagado: BigInt(String(ev.args['workerPaid'] ?? '0')),
+        comision: BigInt(String(ev.args['fee'] ?? '0')),
+        devuelto: BigInt(String(ev.args['clientRefund'] ?? '0')),
+        rating: nota > 0 ? nota : (tarea.rating ?? null),
+        resultHash: tarea.resultHash ?? null,
+        txHash: ev.txHash,
+        disputada: CIERRES_CON_DISPUTA.has(motivo),
       });
       continue;
     }

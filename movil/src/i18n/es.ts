@@ -422,12 +422,15 @@ export const es = {
     dias: (n: number) => `${n} d`,
     plazoPie: 'Si no entrega a tiempo, recuperas el pago entero.',
     precioAgente: 'Precio del agente',
-    protocolo: 'Protocolo · 2,5 %',
+    protocolo: (pct: string) => `Protocolo · ${pct} %`,
     bloqueasAhora: 'Bloqueas ahora',
     noResponde:
       'Este agente no responde ahora mismo: su servidor no contesta y el encargo no le llegaría. El pago se quedaría bloqueado hasta que venciera el plazo. Prueba más tarde o elige otro.',
     retenido:
       'El dinero queda retenido hasta que apruebes. La entrega se ancla en la cadena y puedes abrir una disputa.',
+    retenido25:
+      'El dinero queda retenido hasta que apruebes. Tras la entrega tienes 72 h para revisarla y, si hace falta, abrir una disputa; si no haces nada, el agente cobra sin tu nota.',
+    bajoMinimo: (minimo: string) => `El escrow no admite encargos de menos de ${minimo}.`,
     aprobandoToken: 'Aprobando el token…',
     bloqueando: 'Bloqueando…',
     bloquear: (cantidad: string, moneda: string) => `Bloquear ${cantidad} ${moneda}`,
@@ -462,6 +465,9 @@ export const es = {
   revisar: {
     titulo: 'Revisar la entrega',
     seApruebaSolo: 'Se aprueba solo en',
+    conCinco: ', con 5 estrellas.',
+    sePagaSinTi: 'Si no haces nada, el agente puede cobrarlo en',
+    sinNota: ', sin tu nota.',
     loQuePediste: 'Lo que pediste',
     briefPerdido: 'El texto no está en este teléfono. En la cadena solo viaja su hash.',
     tuValoracion: 'Tu valoración',
@@ -469,7 +475,7 @@ export const es = {
     estrellas: (v: number) => `${v} de 5`,
     quedaEnElRegistro: 'Queda en el registro del agente. No se puede cambiar después.',
     alAgente: 'Al agente',
-    protocolo: 'Protocolo · 2,5 %',
+    protocolo: (pct: string) => `Protocolo · ${pct} %`,
     firmando: 'Firmando…',
     aprobarYPagar: (cantidad: string, moneda: string) => `Aprobar y pagar ${cantidad} ${moneda}`,
     eligeValoracion: 'Elige una valoración',
@@ -489,6 +495,8 @@ export const es = {
     decidePie: 'un 2-de-3, no una sola clave',
     catorceDias:
       'Si el árbitro no resuelve en 14 días, recuperas el pago entero. Lo puede reclamar cualquiera y no hace falta su permiso.',
+    catorceDias25:
+      'Si nadie decide en 14 días, se cierra a mitad y mitad: la mitad vuelve a ti y la otra va al agente. Lo puede cerrar cualquiera.',
     abriendo: 'Abriendo…',
     abrirDisputa: 'Abrir disputa',
   },
@@ -801,7 +809,7 @@ export const es = {
     explSinCobrar: (cantidad: string, moneda: string) =>
       `Hay ${cantidad} ${moneda} liquidados y todavía dentro del depósito. No caducan, pero tampoco salen solos.`,
     explSinAprobar: (deposito: string) =>
-      `Ya está anclada. Si el cliente no la aprueba ni la disputa, a los 3 días de la entrega puedes cobrar ${deposito} sin él.`,
+      `Ya está anclada. Si el cliente no la aprueba ni la disputa, al acabar su revisión (72 h por defecto) puedes cobrar ${deposito} sin él.`,
     explDisputa: (deposito: string) =>
       `El cliente la abrió. ${deposito[0]!.toUpperCase()}${deposito.slice(1)} está congelado: ni tú ni él cobráis hasta que el árbitro decida.`,
   },
@@ -1065,6 +1073,8 @@ export const es = {
     cuentaAtrasTitulo: (id: string) => `Quedan 6 h para que #${id} se apruebe solo`,
     cuentaAtrasCuerpo: (cantidad: string, moneda: string) =>
       `Si no haces nada se pagan ${cantidad} ${moneda} y cuenta como 5 estrellas.`,
+    cuentaAtrasCuerpo25: (cantidad: string, moneda: string) =>
+      `Si no haces nada, el agente podrá cobrar ${cantidad} ${moneda} sin tu nota.`,
     plazoTitulo: (id: string) => `#${id} venció sin entrega`,
     plazoCuerpo: (cantidad: string, moneda: string) =>
       `Puedes recuperar el depósito de ${cantidad} ${moneda} que bloqueaste.`,
@@ -1310,7 +1320,7 @@ export const es = {
       noEntrego: 'El agente no entregó a tiempo. Recuperas el dinero y él se lleva una falta.',
       trabajando: (cuando: string) => `Trabajando · entrega como tarde el ${cuando}`,
       entregada: (cuando: string) => `Entregado. Revísalo: si no haces nada, se paga solo el ${cuando}.`,
-      entregadaLibre: 'Entregado y pasadas las 72 h: ya se puede pagar sin tu aprobación.',
+      entregadaLibre: 'Entregado y acabada la revisión: ya se puede pagar sin tu aprobación.',
       enDisputa: 'En disputa: la resuelve la multifirma de Panal.',
       pagadaSinCerrar: 'El escrow ya pagó al agente. Falta cerrar las cuentas en el tablón.',
       canceladaSinCerrar: 'El escrow ya devolvió el dinero al tablón. Cierra las cuentas para cobrarlo.',
@@ -1422,7 +1432,7 @@ export const es = {
       entregaAntes: (cuando: string) => `Entrega como tarde el ${cuando}. Si no, el cliente recupera el dinero y te llevas una falta.`,
       fueraDePlazo: 'Se pasó el plazo de entrega.',
       entregado: (cuando: string) => `Entregado. Si el cliente no hace nada, se te paga el ${cuando}.`,
-      liberable: 'Pasaron 72 h desde la entrega: ya puedes cobrarlo sin el cliente.',
+      liberable: 'Acabó la revisión del cliente: ya puedes cobrarlo sin él.',
       enDisputa: 'En disputa: la resuelve la multifirma de Panal.',
       terminado: 'El escrow ya terminó. Cierra las cuentas para liberar tu hueco.',
       cerrar: 'Cerrar cuentas',
@@ -1604,11 +1614,12 @@ export const es = {
       permit: 'Pagar un mensaje a un agente',
       pagoMon: 'Pagar un mensaje en MON',
       encargo: 'Contratar un encargo',
-      aprobarEscrow: 'Dejar que el escrow use tu $PANAL',
-      aprobarTablon: 'Dejar que el tablón use tu $PANAL',
+      aprobarEscrow: (s: string) => `Dejar que el escrow use tu ${s}`,
+      aprobarTablon: (s: string) => `Dejar que el tablón use tu ${s}`,
       escrow: (f: string) => `Escrow · ${f}`,
       tablon: (f: string) => `Tablón · ${f}`,
       registro: (f: string) => `Registro · ${f}`,
+      precios: (m: string, lista: string) => (lista ? `Tus precios en ${m}: ${lista}` : `Dejar de aceptar ${m}`),
     },
     avisoPagoMon:
       'Es una transferencia de MON a secas. Apruébala solo si es el pago de un mensaje que acabas de mandar en la web.',

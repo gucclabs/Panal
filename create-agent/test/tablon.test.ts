@@ -469,5 +469,81 @@ console.log('\napagado salvo TABLON=on, y las categorías');
   check('TABLON_MINIMO_USD=1,5 se entiende', opcionesDelEntorno({ TABLON: 'on', TABLON_MINIMO_USD: '1,5' }, avisar)!.minimoUsd === 1.5);
 }
 
+console.log('\nlos dos tablones (v2 y v2.5)');
+{
+  const V25 = 1_000_000_000n;
+  // En el tablón v2.5, el encargo 1 es el de la tarea 1.000.000.007 de este agente.
+  const delV25 = [0, 1, 2].map((i) =>
+    encargo(0, {
+      id: V25 + BigInt(i),
+      escrowTaskId: i === 1 ? V25 + 7n : V25 + 50n + BigInt(i),
+      agente: YO,
+      estado: EstadoTablon.Asignado,
+    }),
+  );
+  const pedidas: string[] = [];
+  const panalBusca = {
+    getBoardJobCount: async (version = 'v2') => (pedidas.push(version), version === 'v2_5' ? 3n : 0n),
+    getBoardJob: async (id: bigint) => delV25[Number(id - V25)]!,
+  };
+  const j = await buscarEncargoDeTarea(panalBusca as never, V25 + 7n, YO);
+  check('una tarea del escrow v2.5 se busca en el tablón v2.5', j?.id === V25 + 1n && pedidas.join() === 'v2_5', `${j?.id} · ${pedidas.join()}`);
+
+  // La ronda lee los dos tablones y elige del conjunto: el que más paga.
+  const leidos: string[] = [];
+  const panal = {
+    listBoardJobAdverts: async (o: { version?: string } = {}) => {
+      leidos.push(o.version ?? 'v2');
+      return o.version === 'v2_5' ? [encargo(0, { id: V25 + 4n, importe: 5n * UNO, version: 'v2_5' } as never)] : [encargo(8, { importe: 2n * UNO })];
+    },
+  };
+  const hecho: string[] = [];
+  const cogidos: bigint[] = [];
+  await repasarTablon({
+    ...base,
+    versiones: ['v2_5', 'v2'],
+    panal: {
+      ...panal,
+      getBoardOffers: async () => [],
+      canTakeBoardJob: async () => ({ ok: true, motivo: '' }),
+      takeBoardJob: async (id: bigint) => (cogidos.push(id), { txHash: '0x1', escrowTaskId: V25 + 9n }),
+      readBoardJobBrief: async () => 'el encargo',
+    } as never,
+    ocupado: () => false,
+    marcar: () => {},
+    trabajar: async () => true,
+    propios: { anotar: () => {}, quitar: () => {}, lista: () => [] },
+    esperar: async () => {},
+    log: (m) => hecho.push(m),
+  });
+  check('la ronda lee los dos tablones', leidos.join() === 'v2_5,v2', leidos.join());
+  check('  y coge el que más paga de los dos (el del v2.5)', cogidos.join() === String(V25 + 4n), cogidos.join() + ' | ' + hecho.join(' | '));
+
+  const caido: string[] = [];
+  await repasarTablon({
+    ...base,
+    versiones: ['v2_5', 'v2'],
+    panal: {
+      listBoardJobAdverts: async (o: { version?: string } = {}) => {
+        if (o.version === 'v2_5') throw new Error('buzón caído');
+        return [];
+      },
+    } as never,
+    ocupado: () => false,
+    marcar: () => {},
+    trabajar: async () => true,
+    propios: { anotar: () => {}, quitar: () => {}, lista: () => [] },
+    log: (m) => caido.push(m),
+  });
+  check('si un tablón no contesta, se dice y se sigue con el otro', caido.some((l) => l.includes('tablón v2.5')) && !caido.some((l) => l.includes('la ronda falló')), caido.join(' | '));
+}
+{
+  const panal = { precios: async () => ({ mon: { valor: 0.025, actualizado: Math.floor(Date.now() / 1000) - 20, fuente: 'pyth' as const } }), valorDeVentaPanal: async (c: bigint) => (c * 237n) / 1_000_000n };
+  const enPanal25 = await dolaresNetos(panal as never, { amount: 100_000n * UNO, currency: PANAL, version: 'v2_5' });
+  check('en el v2.5, $PANAL paga 1,5 % de comisión y no 2,5 %', enPanal25 !== null && Math.abs(enPanal25 - (98_500 * 237 / 1_000_000) * 0.025) < 1e-6, String(enPanal25));
+  const usdc = await dolaresNetos(panal as never, { amount: 2_000_000n, currency: '0x754704Bc059F8C67012fEd69BC8A327a5aafb603' as Address, version: 'v2_5' });
+  check('en USDC ya son dólares: 2 USDC dejan 1,95', usdc === 1.95, String(usdc));
+}
+
 console.log(fallos === 0 ? '\n✅ tablón: todo bien' : `\n❌ tablón: ${fallos} fallo(s)`);
 process.exit(fallos === 0 ? 0 : 1);

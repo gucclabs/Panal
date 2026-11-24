@@ -382,11 +382,13 @@ export const zh: Textos = {
     dias: (n: number) => `${n} 天`,
     plazoPie: '如果没有按时交付，付款全额退回。',
     precioAgente: '代理的报价',
-    protocolo: '协议费 · 2.5%',
+    protocolo: (pct: string) => `协议费 · ${pct}%`,
     bloqueasAhora: '现在锁定',
     noResponde:
       '该代理目前没有响应：它的服务器不应答，委托送不到它那里。款项会一直锁到期限到期。请稍后再试，或换一个代理。',
     retenido: '钱会一直托管到你确认为止。交付内容会上链，你也可以发起申诉。',
+    retenido25: '钱会一直托管到你确认为止。交付后你有 72 小时审核，必要时可以发起申诉；如果你什么都不做，智能体将在没有你评分的情况下收款。',
+    bajoMinimo: (minimo: string) => `托管合约不接受低于 ${minimo} 的任务。`,
     aprobandoToken: '正在授权代币…',
     bloqueando: '锁定中…',
     bloquear: (cantidad: string, moneda: string) => `锁定 ${cantidad} ${moneda}`,
@@ -420,6 +422,9 @@ export const zh: Textos = {
   revisar: {
     titulo: '查看交付内容',
     seApruebaSolo: '将自动确认，剩余',
+    conCinco: '，记为 5 星。',
+    sePagaSinTi: '如果你什么都不做，智能体可在以下时间后收款：',
+    sinNota: '，不计入你的评分。',
     loQuePediste: '你当初要求的',
     briefPerdido: '正文不在这台手机上。链上只有它的哈希。',
     tuValoracion: '你的评价',
@@ -427,7 +432,7 @@ export const zh: Textos = {
     estrellas: (v: number) => `5 分里的 ${v} 分`,
     quedaEnElRegistro: '会留在代理的记录里，之后改不了。',
     alAgente: '给代理',
-    protocolo: '协议费 · 2.5%',
+    protocolo: (pct: string) => `协议费 · ${pct}%`,
     firmando: '签名中…',
     aprobarYPagar: (cantidad: string, moneda: string) => `确认并支付 ${cantidad} ${moneda}`,
     eligeValoracion: '先选一个评价',
@@ -446,6 +451,7 @@ export const zh: Textos = {
     decide: '由谁裁决',
     decidePie: '2/3 多签，不是单独一把私钥',
     catorceDias: '如果仲裁方 14 天内没有裁决，你可以拿回全部款项。任何人都能发起，不需要它同意。',
+    catorceDias25: '如果 14 天内无人裁决，将按一半一半结案：一半退还给你，另一半给智能体。任何人都可以结案。',
     abriendo: '发起中…',
     abrirDisputa: '发起申诉',
   },
@@ -748,7 +754,7 @@ export const zh: Textos = {
     explSinCobrar: (cantidad: string, moneda: string) =>
       `有 ${cantidad} ${moneda} 已结算，还留在托管里。它们不会过期，但也不会自己出来。`,
     explSinAprobar: (deposito: string) =>
-      `已经上链了。如果客户既不确认也不申诉，交付 3 天后你可以不经客户直接领取${deposito}。`,
+      `已经上链了。如果客户既不确认也不申诉，审核期结束后（默认 72 小时）你可以不经客户直接领取${deposito}。`,
     explDisputa: (deposito: string) =>
       `是客户发起的。${deposito}已被冻结：在仲裁方裁决之前，你和他谁都拿不到。`,
   },
@@ -989,6 +995,8 @@ export const zh: Textos = {
     cuentaAtrasTitulo: (id: string) => `还有 6 小时 #${id} 就会自动确认`,
     cuentaAtrasCuerpo: (cantidad: string, moneda: string) =>
       `如果你什么都不做，会付出 ${cantidad} ${moneda}，并按 5 星记录。`,
+    cuentaAtrasCuerpo25: (cantidad: string, moneda: string) =>
+      `如果你什么都不做，智能体将可以在没有你评分的情况下领取 ${cantidad} ${moneda}。`,
     plazoTitulo: (id: string) => `#${id} 到期了，没有交付`,
     plazoCuerpo: (cantidad: string, moneda: string) =>
       `你可以取回当初锁定的 ${cantidad} ${moneda} 托管。`,
@@ -1227,7 +1235,7 @@ export const zh: Textos = {
       noEntrego: '代理没有按时交付。你取回资金，代理记一次违规。',
       trabajando: (cuando: string) => `进行中 · 最晚 ${cuando} 交付`,
       entregada: (cuando: string) => `已交付。请查看：如果你不操作，将在 ${cuando} 自动付款。`,
-      entregadaLibre: '已交付且已过 72 小时：无需你的批准即可付款。',
+      entregadaLibre: '已交付且审核期已结束：无需你的批准即可付款。',
       enDisputa: '争议中：由 Panal 的多签裁决。',
       pagadaSinCerrar: '托管已付款给代理。任务板还需要结账。',
       canceladaSinCerrar: '托管已把钱退回任务板。结账后即可领取。',
@@ -1339,7 +1347,7 @@ export const zh: Textos = {
       entregaAntes: (cuando: string) => `最晚在 ${cuando} 交付。否则委托人取回资金，你会记一次违规。`,
       fueraDePlazo: '交付期限已过。',
       entregado: (cuando: string) => `已交付。如果委托人不操作，你将在 ${cuando} 收到付款。`,
-      liberable: '交付已超过 72 小时：无需委托人即可收款。',
+      liberable: '委托人的审核期已结束：无需委托人即可收款。',
       enDisputa: '争议中：由 Panal 的多签裁决。',
       terminado: '托管已结束。结账以释放你的名额。',
       cerrar: '结账',
@@ -1516,11 +1524,12 @@ export const zh: Textos = {
       permit: '为一条消息付款给代理',
       pagoMon: '用 MON 为一条消息付款',
       encargo: '委托一项任务',
-      aprobarEscrow: '允许托管合约使用你的 $PANAL',
-      aprobarTablon: '允许任务板使用你的 $PANAL',
+      aprobarEscrow: (s: string) => `允许托管合约使用你的 ${s}`,
+      aprobarTablon: (s: string) => `允许任务板使用你的 ${s}`,
       escrow: (f: string) => `托管 · ${f}`,
       tablon: (f: string) => `任务板 · ${f}`,
       registro: (f: string) => `注册表 · ${f}`,
+      precios: (m: string, lista: string) => (lista ? `你的 ${m} 价格：${lista}` : `不再接受 ${m}`),
     },
     avisoPagoMon: '这是一笔普通的 MON 转账。只有当它是你刚在网页上发送的消息的付款时才批准。',
     avisos: {

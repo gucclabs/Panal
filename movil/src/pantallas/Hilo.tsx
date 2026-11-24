@@ -40,6 +40,7 @@ import HojaRevisar from '~/componentes/HojaRevisar';
 import { monto } from '~/lib/formato';
 import { etiquetaIdioma, useTextos } from '~/i18n/idiomas';
 import type { Textos } from '~/i18n/idiomas';
+import { etiquetaTarea, numeroVisible } from '@/lib/escrow';
 
 type Abierta = null | 'firmar' | 'encargar' | 'revisar';
 
@@ -720,18 +721,18 @@ function EntradaHilo({
       </div>
       <div className="px-3.5 py-3">
         <p className="seleccionable break-words text-[14px] font-medium leading-[1.5]">
-          {e.brief ?? T.hilo.encargoNumero(String(e.id))}
+          {e.brief ?? T.hilo.encargoNumero(numeroVisible(BigInt(e.id)))}
         </p>
         <div className="mt-3 flex gap-5">
           <div>
             <p className="text-[10.5px] uppercase tracking-[0.08em] text-ink-3">{T.hilo.precio}</p>
             <p className="mt-0.5 font-mono text-[15px]">
-              {monto(e.importe)} {e.simbolo}
+              {monto(e.importe, e.simbolo)} {e.simbolo}
             </p>
           </div>
           <div>
             <p className="text-[10.5px] uppercase tracking-[0.08em] text-ink-3">{T.hilo.numero}</p>
-            <p className="mt-0.5 font-mono text-[15px]">#{e.id}</p>
+            <p className="mt-0.5 font-mono text-[15px]">{etiquetaTarea(BigInt(e.id))}</p>
           </div>
         </div>
         {/* `stopPropagation` para que revisar no acabe abriendo el expediente:

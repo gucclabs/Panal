@@ -17,6 +17,8 @@ import {
   attachmentFrom,
   cifrarTexto,
   panalTablonAbi,
+  panalTablonV2_5Abi,
+  idDelV2_5,
   parseAttachmentsManifest,
   parseFilesManifest,
   problemaConArchivos,
@@ -42,8 +44,11 @@ import {
   firmarYEsperar,
   guardarTextos,
   leerEncargoConFirma,
-  permitirPanal,
+  permitirToken,
+  REVISION_AL_PUBLICAR_S,
   simboloDe,
+  VERSION_PARA_PUBLICAR,
+  versionDelEncargo,
   subirArchivosDelTablon,
   type CredencialTablon,
 } from '@/lib/tablonReglas';
@@ -264,7 +269,7 @@ function HojaElegir({
     const hecho = await firma.ejecutar(clave, async (e, c) => {
       // Lo que esta hoja enseña, y nada más: la wallet del teléfono no firma otro.
       permitirTablon({ funcion: 'choose', amount: diferencia, currency: job.moneda, jobId: job.id, agente: oferta.agente });
-      if (diferencia > 0n && !nativa) await permitirPanal(e, c, diferencia);
+      if (diferencia > 0n && !nativa) await permitirToken(e, c, job.moneda, diferencia, versionDelEncargo(job.id));
       await firmarYEsperar(e, c, enTablon('choose', [job.id, oferta.agente], nativa && diferencia > 0n ? diferencia : undefined));
       return true;
     });
@@ -303,7 +308,7 @@ function HojaElegir({
       <Tarjeta>
         <Fila etiqueta={nombre} pie={T.tablon.entregaEn(duracion(oferta.plazoEntregaS))} valor={<Importe wei={oferta.precio} moneda={job.moneda} />} />
         {diferencia > 0n && (
-          <Fila etiqueta={T.tablon.elegir.pones} valor={`${monto(diferencia)} ${simboloDe(job.moneda)}`} color="text-honey" destacada />
+          <Fila etiqueta={T.tablon.elegir.pones} valor={`${monto(diferencia, simboloDe(job.moneda))} ${simboloDe(job.moneda)}`} color="text-honey" destacada />
         )}
       </Tarjeta>
       <Nota>{T.tablon.elegir.nota}</Nota>
@@ -714,12 +719,12 @@ function HojaPublicar({ firma, onCerrar }: { firma: Firma; onCerrar: () => void 
     if (categoria === null) return P.faltaCategoria;
     if (wei === null || wei === 0n) return importe ? P.importeMal : null;
     if (reglas) {
-      const minimo = enPanal ? reglas.minimoPanal : reglas.minimoMon;
-      if (wei < minimo) return P.minimo(monto(minimo), simbolo);
+      const minimo = reglas.minimos[moneda.toLowerCase()] ?? 0n;
+      if (wei < minimo) return P.minimo(monto(minimo, simbolo), simbolo);
       const tope = reglas.topes[moneda.toLowerCase()];
-      if (tope && tope.porEncargo !== 0n && wei > tope.porEncargo) return P.topeEncargo(monto(tope.porEncargo), simbolo);
+      if (tope && tope.porEncargo !== 0n && wei > tope.porEncargo) return P.topeEncargo(monto(tope.porEncargo, simbolo), simbolo);
       if (tope && tope.total !== 0n && tope.ocupado + wei > tope.total) {
-        return P.topeTotal(monto(tope.total), monto(tope.total > tope.ocupado ? tope.total - tope.ocupado : 0n), simbolo);
+        return P.topeTotal(monto(tope.total, simbolo), monto(tope.total > tope.ocupado ? tope.total - tope.ocupado : 0n, simbolo), simbolo);
       }
     }
     if (seleccion && caduca < ofertas + eleccion) return P.caducaCorta;
@@ -782,7 +787,7 @@ function HojaPublicar({ firma, onCerrar }: { firma: Firma; onCerrar: () => void 
         permitirTablon({ funcion: 'post', amount: wei, currency: moneda });
         if (enPanal) {
           setPaso('permiso');
-          await permitirPanal(e, c, wei);
+          await permitirToken(e, c, moneda, wei);
         }
         setPaso('publicando');
         const params = {
@@ -800,11 +805,18 @@ function HojaPublicar({ firma, onCerrar }: { firma: Firma; onCerrar: () => void 
           relist: republicar,
           campaignId: `0x${'0'.repeat(64)}` as Hex,
           campaignCapPerAgent: 0,
+          // En el tablón v2.5 (donde se publica desde el 24-nov-2026), la revisión de la entrega: 72 h.
+          ...(VERSION_PARA_PUBLICAR === 'v2_5' ? { reviewWindow: REVISION_AL_PUBLICAR_S } : {}),
         };
         const hash = await firmarYEsperar(e, c, enTablon('post', [params], enPanal ? undefined : wei));
         const recibo = await publicClient.getTransactionReceipt({ hash });
-        const [ev] = parseEventLogs({ abi: panalTablonAbi, logs: recibo.logs, eventName: 'JobPosted' });
-        if (!ev) throw new Error('JobPosted');
+        // El número del encargo: en el v2.5, el de fuera de la cadena (más mil millones).
+        const enLaCadena =
+          VERSION_PARA_PUBLICAR === 'v2_5'
+            ? parseEventLogs({ abi: panalTablonV2_5Abi, logs: recibo.logs, eventName: 'JobPosted' })[0]?.args.jobId
+            : parseEventLogs({ abi: panalTablonAbi, logs: recibo.logs, eventName: 'JobPosted' })[0]?.args.jobId;
+        if (enLaCadena === undefined) throw new Error('JobPosted');
+        const ev = { args: { jobId: VERSION_PARA_PUBLICAR === 'v2_5' ? idDelV2_5(enLaCadena) : enLaCadena } };
         setPaso('textos');
         let textos = true;
         try {

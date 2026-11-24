@@ -61,6 +61,11 @@ export interface EncargoEnHilo {
   importe: string;
   simbolo: string;
   estado: number;
+  /**
+   * Segundos de revisión tras la entrega, solo en el escrow v2.5 (los elige el
+   * cliente al contratar). Sin él, las 72 h fijas del v2.
+   */
+  revisionS?: number;
 }
 
 /**
@@ -79,6 +84,8 @@ export interface TareaCruda {
   deliveredAt?: bigint;
   status: number;
   role: 'client' | 'worker';
+  /** Solo en el v2.5. */
+  reviewWindow?: number;
 }
 
 /**
@@ -106,6 +113,7 @@ export function encargosDelCliente(
       importe: t.amountWei.toString(),
       simbolo: simboloDe(t.currency),
       estado: t.status,
+      ...(t.reviewWindow !== undefined ? { revisionS: t.reviewWindow } : {}),
     }));
 }
 

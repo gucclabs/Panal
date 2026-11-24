@@ -81,5 +81,13 @@ console.log('\nvacío');
 t = totales([]);
 dice('todo a cero sin reventar', t.panal === 0n && t.mon === 0n && t.firmas === 0 && t.activos === 0);
 
+console.log('\nel escrow v2.5: USDC y una firma por escrow');
+{
+  const t2 = totales([agente({ mon: 3n, usdc: 5n, firmas: 3 }), agente({ panal: 1n })]);
+  dice('el USDC se suma aparte', t2.usdc === 5n && t2.mon === 3n);
+  dice('las firmas las cuenta cada agente (MON en dos escrows son dos)', t2.firmas === 4);
+  dice('pausado con solo USDC dentro sigue siendo «con dinero»', avisar(agente({ activo: false, usdc: 1n }))?.clave.startsWith('pausado-con-dinero'));
+}
+
 console.log(`\n${bien} bien, ${mal} mal\n`);
 process.exit(mal ? 1 : 0);

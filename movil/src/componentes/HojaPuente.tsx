@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import type { Address } from 'viem';
 import { isAddressEqual } from 'viem';
 import { x402Currency } from '@panal/sdk';
-import { NATIVE_CURRENCY, PANAL_TOKEN_ADDRESS } from '@/contracts/config';
+import { NATIVE_CURRENCY } from '@/contracts/config';
 import Icono from '~/componentes/Icono';
 import { Boton, Fila, Nota, Tarjeta } from '~/componentes/Hoja';
 import { useFicha } from '~/lib/agentes';
@@ -236,12 +236,19 @@ function Detalle({ d }: { d: Peticion }): React.ReactElement | null {
     case 'encargo':
       filas.push(que(T.puente.tipos.encargo), <Agente key="a" direccion={d.agente} />, importe(d.importe, d.moneda));
       break;
-    case 'aprobar':
+    case 'aprobar': {
+      const s = moneda(d.moneda).simbolo;
       filas.push(
-        que(d.para === 'escrow' ? T.puente.tipos.aprobarEscrow : T.puente.tipos.aprobarTablon),
-        importe(d.importe, PANAL_TOKEN_ADDRESS),
+        que(d.para === 'escrow' ? T.puente.tipos.aprobarEscrow(s) : T.puente.tipos.aprobarTablon(s)),
+        importe(d.importe, d.moneda),
       );
       break;
+    }
+    case 'precios': {
+      const { simbolo, decimales } = moneda(d.moneda);
+      filas.push(que(T.puente.tipos.precios(simbolo, d.importes.map((x) => monto(x, decimales)).join(' · '))));
+      break;
+    }
     case 'escrow':
       filas.push(que(T.puente.tipos.escrow(d.funcion)));
       break;

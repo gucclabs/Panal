@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useMyTasks } from '@/hooks/useMyTasks';
+import { numeroVisible } from '@/lib/escrow';
 import { useWallet } from '@/hooks/useWallet';
 import { esBuzon } from '@/lib/botEndpoint';
 import { leerTipo } from '@panal/sdk';
@@ -160,8 +161,8 @@ export function useAvisos(): void {
               const horas = Math.max(0, Math.floor((Number(t.deadline) * 1000 - ahora) / 3_600_000));
               nuevos.push({
                 id: aviso,
-                titulo: T.avisos.encargoNuevoTitulo(id),
-                cuerpo: T.avisos.encargoNuevoCuerpo(monto(t.amountWei), simbolo, horas),
+                titulo: T.avisos.encargoNuevoTitulo(numeroVisible(t.id)),
+                cuerpo: T.avisos.encargoNuevoCuerpo(monto(t.amountWei, simbolo), simbolo, horas),
                 ruta: `/guardia/${t.worker.toLowerCase()}`,
               });
             }
@@ -184,8 +185,8 @@ export function useAvisos(): void {
               yaAvisado.current.add(aviso);
               nuevos.push({
                 id: aviso,
-                titulo: T.avisos.aprobadoTitulo(id),
-                cuerpo: T.avisos.aprobadoCuerpo(monto((BigInt(t.amountWei) * 975n) / 1000n), simbolo),
+                titulo: T.avisos.aprobadoTitulo(numeroVisible(t.id)),
+                cuerpo: T.avisos.aprobadoCuerpo(monto(t.amountWei - (t.amountWei * (t.version === 'v2_5' && simbolo === '$PANAL' ? 150n : 250n)) / 10_000n, simbolo), simbolo),
                 ruta: `/panel/${t.worker.toLowerCase()}`,
               });
             }
@@ -201,10 +202,10 @@ export function useAvisos(): void {
               const restan = Math.max(0, Math.floor((Number(t.deadline) * 1000 - ahora) / 3_600_000));
               nuevos.push({
                 id: aviso,
-                titulo: T.avisos.sinEntregarTitulo(id),
+                titulo: T.avisos.sinEntregarTitulo(numeroVisible(t.id)),
                 cuerpo: restan
-                  ? T.avisos.sinEntregarCuerpo(restan, monto(t.amountWei), simbolo)
-                  : T.avisos.sinEntregarVencido(monto(t.amountWei), simbolo),
+                  ? T.avisos.sinEntregarCuerpo(restan, monto(t.amountWei, simbolo), simbolo)
+                  : T.avisos.sinEntregarVencido(monto(t.amountWei, simbolo), simbolo),
                 ruta: `/guardia/${t.worker.toLowerCase()}`,
               });
             }
@@ -216,8 +217,8 @@ export function useAvisos(): void {
               yaAvisado.current.add(aviso);
               nuevos.push({
                 id: aviso,
-                titulo: T.avisos.disputaTitulo(id),
-                cuerpo: T.avisos.disputaCuerpo(monto(t.amountWei), simbolo),
+                titulo: T.avisos.disputaTitulo(numeroVisible(t.id)),
+                cuerpo: T.avisos.disputaCuerpo(monto(t.amountWei, simbolo), simbolo),
                 ruta: `/guardia/${t.worker.toLowerCase()}`,
               });
             }
@@ -235,7 +236,7 @@ export function useAvisos(): void {
             yaAvisado.current.add(entrega);
             nuevos.push({
               id: entrega,
-              titulo: T.avisos.entregaTitulo(id),
+              titulo: T.avisos.entregaTitulo(numeroVisible(t.id)),
               cuerpo: brief ?? T.avisos.entregaCuerpo,
               ruta: `/chat/${t.worker.toLowerCase()}`,
             });
@@ -244,13 +245,18 @@ export function useAvisos(): void {
           // Seis horas antes de que se libere solo. Si ya pasó, no se programa
           // nada: un aviso con fecha pasada salta al instante y asusta.
           const cuenta = idDe(id, 'cuenta-atras');
-          const cuando = Number(t.deliveredAt) * 1000 + AUTO_RELEASE_MS - 6 * 3_600_000;
+          // La revisión del v2 son 72 h; la del v2.5, la que eligió el cliente.
+          const revisionMs = t.reviewWindow !== undefined ? t.reviewWindow * 1000 : AUTO_RELEASE_MS;
+          const cuando = Number(t.deliveredAt) * 1000 + revisionMs - 6 * 3_600_000;
           if (cuando > ahora && !yaAvisado.current.has(cuenta)) {
             yaAvisado.current.add(cuenta);
             nuevos.push({
               id: cuenta,
-              titulo: T.avisos.cuentaAtrasTitulo(id),
-              cuerpo: T.avisos.cuentaAtrasCuerpo(monto(t.amountWei), simbolo),
+              titulo: T.avisos.cuentaAtrasTitulo(numeroVisible(t.id)),
+              cuerpo: (t.version === 'v2_5' ? T.avisos.cuentaAtrasCuerpo25 : T.avisos.cuentaAtrasCuerpo)(
+                monto(t.amountWei, simbolo),
+                simbolo,
+              ),
               ruta: `/chat/${t.worker.toLowerCase()}`,
               cuando,
             });
@@ -263,8 +269,8 @@ export function useAvisos(): void {
             yaAvisado.current.add(plazo);
             nuevos.push({
               id: plazo,
-              titulo: T.avisos.plazoTitulo(id),
-              cuerpo: T.avisos.plazoCuerpo(monto(t.amountWei), simbolo),
+              titulo: T.avisos.plazoTitulo(numeroVisible(t.id)),
+              cuerpo: T.avisos.plazoCuerpo(monto(t.amountWei, simbolo), simbolo),
               ruta: `/chat/${t.worker.toLowerCase()}`,
             });
           }

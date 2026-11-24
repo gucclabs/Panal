@@ -94,7 +94,8 @@ export default function Cartera(): React.ReactElement {
                 <div className="mt-2.5 flex flex-col gap-1">
                   {t.panal > 0n && <Cifra valor={t.panal} simbolo="$PANAL" />}
                   {t.mon > 0n && <Cifra valor={t.mon} simbolo="MON" />}
-                  {t.panal === 0n && t.mon === 0n && (
+                  {t.usdc > 0n && <Cifra valor={t.usdc} simbolo="USDC" />}
+                  {t.panal === 0n && t.mon === 0n && t.usdc === 0n && (
                     <p className="text-[13px] text-ink-2">{T.cartera.nadaDentro}</p>
                   )}
                 </div>
@@ -206,7 +207,7 @@ function Fila({
   const frase = aviso ? redactar(aviso, T) : null;
   const t = tono(fila);
   const c = t ? COLORES[t] : null;
-  const conDinero = fila.panal > 0n || fila.mon > 0n;
+  const conDinero = fila.panal > 0n || fila.mon > 0n || (fila.usdc ?? 0n) > 0n;
 
   return (
     <div className={`shrink-0 rounded-[14px] border bg-cream ${c?.borde ?? 'border-line'}`}>
@@ -246,6 +247,9 @@ function Fila({
                   <p className="font-mono text-[13.5px] text-monad-mist">
                     {montoCuadro(fila.mon)}
                   </p>
+                )}
+                {(fila.usdc ?? 0n) > 0n && (
+                  <p className="font-mono text-[13.5px] text-ink">{montoCuadro(fila.usdc!, 'USDC')} USDC</p>
                 )}
                 <p className="mt-0.5 text-[10.5px] text-ink-3">{T.cartera.sinCobrar}</p>
               </>
@@ -301,7 +305,7 @@ function Cifra({ valor, simbolo }: { valor: bigint; simbolo: string }): React.Re
   return (
     <div className="flex items-baseline gap-2">
       <span className="font-mono text-[24px] font-medium leading-none text-honey">
-        {montoCuadro(valor)}
+        {montoCuadro(valor, simbolo)}
       </span>
       <span className="text-[12.5px] font-semibold text-honey">{simbolo}</span>
     </div>

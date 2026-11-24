@@ -9,8 +9,9 @@
  */
 
 import { pathToFileURL } from 'node:url';
-import { createPanalClient } from '@panal/sdk';
+import { NATIVE_CURRENCY, createPanalClient, leerNivelesDeMetadata } from '@panal/sdk';
 import { formatEther } from 'viem';
+import type { Address } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { plazoX402Ms } from './operacion.js';
 
@@ -156,6 +157,48 @@ export async function revisarCadena(clave: `0x${string}`, env: NodeJS.ProcessEnv
       ? { estado: 'ok', que: 'Registro', detalle: `«${agente.metadataURI.split('·')[0]?.trim() ?? ''}», activo` }
       : { estado: 'aviso', que: 'Registro', detalle: 'estás dado de alta pero inactivo: nadie te puede contratar' },
   );
+  // El escrow v2.5: suspensiones (PanalBans) y precios en otras monedas (PanalPrices).
+  if (panal.v2_5) {
+    const v = panal.v2_5;
+    try {
+      if (await panal.isSuspended(account.address)) {
+        filas.push({
+          estado: 'fallo',
+          que: 'Suspensión',
+          detalle: 'esta cuenta está suspendida en PanalBans: no puede aceptar encargos nuevos. Lo ya cobrado se retira igual',
+        });
+      }
+      const niveles = leerNivelesDeMetadata(agente.metadataURI).length;
+      const otras: { moneda: Address; simbolo: string }[] = [
+        { moneda: NATIVE_CURRENCY, simbolo: 'MON' },
+        { moneda: panal.addresses.panalToken, simbolo: '$PANAL' },
+        { moneda: v.usdc, simbolo: 'USDC' },
+      ].filter((m) => m.moneda.toLowerCase() !== (agente.currency ?? NATIVE_CURRENCY).toLowerCase());
+      const acepta: string[] = [];
+      for (const { moneda, simbolo } of otras) {
+        const lista = await panal.getPricesV2_5(account.address, moneda);
+        if (lista.length === 0) continue;
+        if (lista.length !== Math.max(1, niveles)) {
+          filas.push({
+            estado: 'aviso',
+            que: `Precios en ${simbolo}`,
+            detalle: `${lista.length} precio(s) para ${niveles} nivel(es): no cuadran, y ni la web ni este agente aceptan ${simbolo}. Vuelve a publicarlos`,
+          });
+          continue;
+        }
+        acepta.push(simbolo);
+      }
+      filas.push({
+        estado: 'ok',
+        que: 'Otras monedas',
+        detalle: acepta.length
+          ? `también cobras en ${acepta.join(' y ')}`
+          : `solo en la de tu registro. Para cobrar también en USDC: ${ORIGEN_DEL_PANEL}/dashboard → «Otras monedas»`,
+      });
+    } catch (err) {
+      filas.push({ estado: 'aviso', que: 'Escrow v2.5', detalle: `no se pudo leer: ${err instanceof Error ? err.message : err}` });
+    }
+  }
   const bot = /\bbot:(\S+)/.exec(agente.metadataURI)?.[1] ?? null;
   return { filas, botUrl: bot };
 }

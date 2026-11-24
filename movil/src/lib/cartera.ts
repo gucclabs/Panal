@@ -24,9 +24,16 @@ export interface FilaCartera {
   precio: bigint;
   moneda: string;
   conEndpoint: boolean;
-  /** Ganado y todavía dentro del depósito. */
+  /** Ganado y todavía dentro del depósito (los dos escrows sumados). */
   panal: bigint;
   mon: bigint;
+  /** En USDC, que solo cobra el escrow v2.5 (24-nov-2026). */
+  usdc?: bigint;
+  /**
+   * Cuántas firmas hacen falta para sacarlo: una por escrow y moneda con
+   * saldo. Sin él, una por moneda con saldo, que era lo de antes del v2.5.
+   */
+  firmas?: number;
   /** Encargos abiertos sin entregar, de los que ya vencieron su plazo. */
   vencidos: number;
   /** Encargos abiertos sin entregar, en plazo. */
@@ -36,6 +43,7 @@ export interface FilaCartera {
 export interface Totales {
   panal: bigint;
   mon: bigint;
+  usdc: bigint;
   /**
    * Cuántas firmas hacen falta para recogerlo todo.
    *
@@ -75,7 +83,7 @@ export function avisar(f: FilaCartera): Aviso | null {
 
   if (f.vencidos > 0) return { clave: 'vencidos', n: f.vencidos };
 
-  const conDinero = f.panal > 0n || f.mon > 0n;
+  const conDinero = conSaldo(f);
 
   if (!f.activo && conDinero) {
     return { clave: f.conEndpoint ? 'pausado-con-dinero' : 'pausado-con-dinero-sin-endpoint' };
@@ -90,15 +98,20 @@ export function avisar(f: FilaCartera): Aviso | null {
 /** Gravedad del aviso, para pintarlo. `null` cuando no hay nada que decir. */
 export function tono(f: FilaCartera): 'rojo' | 'miel' | 'gris' | null {
   if (!f.registrado || f.vencidos > 0) return 'rojo';
-  if (!f.activo) return f.panal > 0n || f.mon > 0n ? 'miel' : 'gris';
+  if (!f.activo) return conSaldo(f) ? 'miel' : 'gris';
   if (!f.conEndpoint) return 'miel';
   if (f.abiertos > 0) return 'gris';
   return null;
 }
 
+function conSaldo(f: FilaCartera): boolean {
+  return f.panal > 0n || f.mon > 0n || (f.usdc ?? 0n) > 0n;
+}
+
 export function totales(filas: FilaCartera[]): Totales {
   let panal = 0n;
   let mon = 0n;
+  let usdc = 0n;
   let firmas = 0;
   let activos = 0;
   let pausados = 0;
@@ -107,13 +120,14 @@ export function totales(filas: FilaCartera[]): Totales {
   for (const f of filas) {
     panal += f.panal;
     mon += f.mon;
-    // Una firma por moneda con saldo. Un agente con las dos cuenta dos.
-    if (f.panal > 0n) firmas++;
-    if (f.mon > 0n) firmas++;
+    usdc += f.usdc ?? 0n;
+    // Una firma por escrow y moneda con saldo. Un agente con las dos monedas
+    // en el mismo escrow cuenta dos; con MON en los dos escrows, también dos.
+    firmas += f.firmas ?? (f.panal > 0n ? 1 : 0) + (f.mon > 0n ? 1 : 0);
     if (f.registrado && f.activo) activos++;
     if (f.registrado && !f.activo) pausados++;
     if (f.vencidos > 0) enRiesgo++;
   }
 
-  return { panal, mon, firmas, activos, pausados, enRiesgo };
+  return { panal, mon, usdc, firmas, activos, pausados, enRiesgo };
 }
