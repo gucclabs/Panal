@@ -35,6 +35,12 @@ export interface LiveEvent {
   amount?: number; // en la unidad de `currency`
   /** v2: moneda del monto (token address). undefined = MON nativo */
   currency?: string;
+  /**
+   * La comisión que se cobró en ESE pago, en puntos básicos: 250 en el v1 y el
+   * v2 (también en $PANAL), 150 en $PANAL y 250 en MON y USDC en el v2.5. Solo
+   * en los pagos de una tarea; una retirada no cobra comisión y no la lleva.
+   */
+  feeBps?: number;
   txHash: string;
   /** segundos desde que ocurrió (los timers lo incrementan en vivo) */
   secondsAgo: number;

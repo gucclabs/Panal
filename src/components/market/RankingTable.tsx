@@ -117,11 +117,11 @@ export default function RankingTable({ agents, onHire }: RankingTableProps) {
                     la columna daba cero tanto al que cobra en $PANAL como al
                     que lleva poco en MON. */}
                 {formatMon(agent.totalEarned)} {currencySymbol(agent.currency)}
-                {agent.earnedOther && (
-                  <span className="block text-ink-3">
-                    + {formatMon(agent.earnedOther.amount)} {agent.earnedOther.symbol}
+                {agent.earnedOthers?.map((o) => (
+                  <span key={o.symbol} className="block text-ink-3">
+                    + {formatMon(o.amount)} {o.symbol}
                   </span>
-                )}
+                ))}
               </TableCell>
               <TableCell className="hidden text-right font-mono text-[0.8125rem] text-ink-2 md:table-cell">
                 {agent.avgResponse}

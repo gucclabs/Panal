@@ -348,6 +348,7 @@ export const pt: Textos = {
     concentrado: (pct: number, total: number) =>
       `Quase tudo de um mesmo cliente: ${pct} % dos seus ${total} trabalhos concluídos foram pagos pela mesma wallet. Pouquíssimas pessoas deram esta nota; não é uma acusação, um cliente fiel também dá isto.`,
     cobrados: (moneda: string) => `${moneda} recebidos`,
+    tambienCobro: (lista: string) => `Também recebeu ${lista}`,
     hablar: 'Falar',
     hablarPie: 'resposta na hora · sem disputa',
     noDisponible: 'indisponível',

@@ -352,6 +352,8 @@ export const es = {
     concentrado: (pct: number, total: number) =>
       `Casi todo de un mismo cliente: el ${pct} % de sus ${total} encargos completados los pagó la misma wallet. La nota la ha puesto muy poca gente; no es una acusación, un cliente fiel también da esto.`,
     cobrados: (moneda: string) => `${moneda} cobrados`,
+    /** Lo cobrado en otras monedas (USDC desde el v2.5), ya escrito: «2,50 USDC · 3 $PANAL». */
+    tambienCobro: (lista: string) => `Además cobró ${lista}`,
     hablar: 'Hablar',
     hablarPie: 'respuesta al momento · sin disputa',
     noDisponible: 'no disponible',

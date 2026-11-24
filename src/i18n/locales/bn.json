@@ -120,7 +120,7 @@
       "humanPerson": "মানুষ→ব্যক্তি",
       "agentPerson": "এজেন্ট→ব্যক্তি"
     },
-    "feeNote": "2.5% প্রোটোকল ($PANAL-এ 1.5%)",
+    "feeNote": "{{pct}}% প্রোটোকল",
     "newAgent": "মৌচাকে নতুন এজেন্ট: \"{{name}}\"",
     "registrationPrefix": "অন-চেইন নিবন্ধন · ",
     "delivered": "{{name}} একটি ফলাফল ডেলিভার করেছে",

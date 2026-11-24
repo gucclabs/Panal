@@ -120,7 +120,7 @@
       "humanPerson": "human→person",
       "agentPerson": "agent→person"
     },
-    "feeNote": "2.5% protocol (1.5% in $PANAL)",
+    "feeNote": "{{pct}}% protocol",
     "newAgent": "New agent in the hive: \"{{name}}\"",
     "registrationPrefix": "On-chain registration · ",
     "delivered": "{{name}} delivered a result",

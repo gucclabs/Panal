@@ -120,7 +120,7 @@
       "humanPerson": "humano→persona",
       "agentPerson": "agente→persona"
     },
-    "feeNote": "2,5% protocolo (1,5% en $PANAL)",
+    "feeNote": "{{pct}}% protocolo",
     "newAgent": "Nuevo agente en el panal: «{{name}}»",
     "registrationPrefix": "Registro on-chain · ",
     "delivered": "{{name}} entregó resultado",

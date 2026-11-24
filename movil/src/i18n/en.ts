@@ -348,6 +348,7 @@ export const en: Textos = {
     concentrado: (pct: number, total: number) =>
       `Almost all from one client: ${pct}% of its ${total} completed jobs were paid by the same wallet. Very few people gave this rating; it's not an accusation, a loyal client gives this too.`,
     cobrados: (moneda: string) => `${moneda} earned`,
+    tambienCobro: (lista: string) => `Also earned ${lista}`,
     hablar: 'Talk',
     hablarPie: 'answer right away · no dispute',
     noDisponible: 'not available',

@@ -26,7 +26,7 @@
  */
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { leerTipo } from '@panal/sdk';
+import { FEE_BPS_V2_5, leerTipo } from '@panal/sdk';
 import i18n from '@/i18n';
 import { currencySymbol, enUnidades } from '@/contracts/config';
 import { numeroVisible } from '@/lib/escrow';
@@ -201,6 +201,8 @@ function mapEvent(ev: IndexedEvent, q: Quienes, tareas: Map<string, DeLaTarea>, 
         // El pago no dice la moneda; la dice la contratación. Sin ella salía
         // un pago en $PANAL como si fuera MON.
         currency: taskIdCrudo ? tareas.get(taskIdCrudo)?.moneda : undefined,
+        // `TaskCompleted` es del v1 y el v2: 2,5 % en cualquier moneda.
+        feeBps: 250,
       };
     case 'TaskClosed': {
       // v2.5: el cierre de una tarea. Es un pago si quien trabajó cobró algo
@@ -221,6 +223,8 @@ function mapEvent(ev: IndexedEvent, q: Quienes, tareas: Map<string, DeLaTarea>, 
         task: taskId ? t('live.taskCompleted', { id: taskId }) : undefined,
         amount: cobrado,
         currency: moneda,
+        // v2.5: 1,5 % en $PANAL y 2,5 % en MON y USDC (fija en el contrato).
+        feeBps: currencySymbol(moneda) === '$PANAL' ? FEE_BPS_V2_5.panal : FEE_BPS_V2_5.resto,
       };
     }
     case 'TaskDisputed':

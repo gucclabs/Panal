@@ -20,7 +20,7 @@
 
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { formatEther } from 'viem';
+import { formatEther, formatUnits } from 'viem';
 import type { Address } from 'viem';
 import {
   NATIVE_CURRENCY,
@@ -313,23 +313,30 @@ interface RawAgentTuple {
  * agentes y cuesta 100 llamadas RPC por carga.
  */
 /**
- * Lo cobrado, en la moneda del agente, y lo cobrado en la otra si la hay.
+ * Lo cobrado, en la moneda del agente, y lo cobrado en las otras si lo hay.
  *
- * Una tarea se paga en MON y una consulta en $PANAL, y no hay tipo de cambio:
- * sumarlas en una cifra seria inventarse un numero. Se enseña la del agente y
- * la otra aparte.
+ * Una tarea se paga en MON, una consulta en $PANAL y, desde el escrow v2.5, un
+ * cliente puede pagar en USDC. No hay tipo de cambio: sumarlas en una cifra
+ * sería inventarse un número. Se enseña la del agente y las demás aparte, cada
+ * una con sus decimales (USDC lleva 6: con `formatEther` salía un billón de
+ * veces más pequeña).
  */
+const MONEDAS_DE_VOLUMEN = ['MON', '$PANAL', 'USDC'] as const;
+
 function volumenDe(
   st: AgentStats | null,
   currency: Address,
-): { totalEarned: number; earnedOther?: { amount: number; symbol: 'MON' | '$PANAL' } } {
+): Pick<OnchainAgent, 'totalEarned' | 'earnedOthers'> {
   if (!st) return { totalEarned: 0 };
   const propia = currencySymbol(currency);
-  const otra: 'MON' | '$PANAL' = propia === '$PANAL' ? 'MON' : '$PANAL';
-  const enOtra = Number(formatEther(BigInt(st.volume[otra] ?? '0')));
+  const cuanto = (s: (typeof MONEDAS_DE_VOLUMEN)[number]) =>
+    Number(formatUnits(BigInt(st.volume[s] ?? '0'), s === 'USDC' ? 6 : 18));
+  const otras = MONEDAS_DE_VOLUMEN.filter((s) => s !== propia)
+    .map((symbol) => ({ amount: cuanto(symbol), symbol }))
+    .filter((o) => o.amount > 0);
   return {
-    totalEarned: Number(formatEther(BigInt(st.volume[propia] ?? '0'))),
-    ...(enOtra > 0 ? { earnedOther: { amount: enOtra, symbol: otra } } : {}),
+    totalEarned: cuanto(propia),
+    ...(otras.length > 0 ? { earnedOthers: otras } : {}),
   };
 }
 
@@ -628,9 +635,6 @@ export function usePanalAgents() {
         if (a.indexStats !== null) return a;
         const st = byAddress.get(a.workerAddress.toLowerCase()) ?? null;
         if (!st) return a;
-        const propia = currencySymbol(a.currency);
-        const otra = propia === '$PANAL' ? 'MON' : '$PANAL';
-        const enOtra = Number(formatEther(BigInt(st.volume[otra] ?? '0')));
         return {
           ...a,
           indexStats: st,
@@ -638,9 +642,8 @@ export function usePanalAgents() {
           ...(st.avgRating !== null ? reputacionDeStats(st) : { reviews: st.ratingCount }),
           // El volumen se lee en la moneda del agente. Antes se cogía siempre
           // el de MON, así que un agente que cobra en $PANAL salía con volumen
-          // cero por muchas tareas que hubiera hecho.
-          totalEarned: Number(formatEther(BigInt(st.volume[propia] ?? '0'))),
-          earnedOther: enOtra > 0 ? { amount: enOtra, symbol: otra } : undefined,
+          // cero por muchas tareas que hubiera hecho. Las otras, aparte.
+          ...volumenDe(st, a.currency),
         };
       })),
     [query.data, byAddress],

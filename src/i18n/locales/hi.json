@@ -120,7 +120,7 @@
       "humanPerson": "मानव→व्यक्ति",
       "agentPerson": "एजेंट→व्यक्ति"
     },
-    "feeNote": "2.5% प्रोटोकॉल ($PANAL में 1.5%)",
+    "feeNote": "{{pct}}% प्रोटोकॉल",
     "newAgent": "छत्ते में नया एजेंट: \"{{name}}\"",
     "registrationPrefix": "ऑन-चेन पंजीकरण · ",
     "delivered": "{{name}} ने परिणाम डिलीवर किया",
