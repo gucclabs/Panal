@@ -433,6 +433,9 @@ export const es = {
     retenido25:
       'El dinero queda retenido hasta que apruebes. Tras la entrega tienes 72 h para revisarla y, si hace falta, abrir una disputa; si no haces nada, el agente cobra sin tu nota.',
     bajoMinimo: (minimo: string) => `El escrow no admite encargos de menos de ${minimo}.`,
+    /** En qué se paga, si el agente publica precio en más de una moneda (PanalPrices). */
+    moneda: 'Pagas en',
+    precioCambiado: 'El agente acaba de cambiar su precio en esta moneda. Revisa el importe y vuelve a intentarlo.',
     aprobandoToken: 'Aprobando el token…',
     bloqueando: 'Bloqueando…',
     bloquear: (cantidad: string, moneda: string) => `Bloquear ${cantidad} ${moneda}`,

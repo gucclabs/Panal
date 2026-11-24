@@ -390,6 +390,8 @@ export const zh: Textos = {
     retenido: '钱会一直托管到你确认为止。交付内容会上链，你也可以发起申诉。',
     retenido25: '钱会一直托管到你确认为止。交付后你有 72 小时审核，必要时可以发起申诉；如果你什么都不做，智能体将在没有你评分的情况下收款。',
     bajoMinimo: (minimo: string) => `托管合约不接受低于 ${minimo} 的任务。`,
+    moneda: '支付币种',
+    precioCambiado: '该代理刚刚修改了此币种的价格。请核对金额后重试。',
     aprobandoToken: '正在授权代币…',
     bloqueando: '锁定中…',
     bloquear: (cantidad: string, moneda: string) => `锁定 ${cantidad} ${moneda}`,
