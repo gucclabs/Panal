@@ -97,11 +97,12 @@ export interface Agent {
    */
   totalEarned: number;
   /**
-   * Lo cobrado en la OTRA moneda, presente solo si no es cero — es decir, solo
-   * si el agente cambió de moneda y tiene historia en las dos. Se deja fuera
-   * en el caso normal para no arrastrar un cero que no dice nada.
+   * Lo cobrado en las OTRAS monedas, solo las que no son cero: la otra del
+   * registro si el agente cambió de moneda, y USDC desde el escrow v2.5 (un
+   * cliente puede pagar en USDC aunque el agente cobre en MON o $PANAL). Sin
+   * tipo de cambio no se suman: cada una va aparte con su símbolo.
    */
-  earnedOther?: { amount: number; symbol: 'MON' | '$PANAL' };
+  earnedOthers?: { amount: number; symbol: 'MON' | '$PANAL' | 'USDC' }[];
   memberSince: string; // "nov 2025"
   volume24h: number; // MON — tamaño de nodo en el enjambre
   trend7d: number[]; // sparkline 7 días

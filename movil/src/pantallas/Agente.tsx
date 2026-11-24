@@ -150,6 +150,16 @@ export default function Agente(): React.ReactElement {
           </div>
         )}
 
+        {/* Lo cobrado en otras monedas (USDC desde el v2.5), cada una aparte:
+            sin tipo de cambio no se suman a la cifra de arriba. */}
+        {agente?.earnedOthers && agente.earnedOthers.length > 0 && (
+          <p className="shrink-0 text-[12px] leading-[1.5] text-ink-3">
+            {T.agente.tambienCobro(
+              agente.earnedOthers.map((o) => `${precio(o.amount) ?? '0'} ${o.symbol}`).join(' · '),
+            )}
+          </p>
+        )}
+
         {/* Casi todo su trabajo lo pagó la misma gente (ver src/lib/reputacion.ts). */}
         {agente && casiDeUnCliente(agente) && (
           <p className="shrink-0 rounded-xl border border-honey/40 bg-honey-soft px-3.5 py-2.5 text-[12px] leading-[1.5] text-ink-2">

@@ -221,6 +221,14 @@ export default function AgentDetail() {
       ? []
       : [{ value: responseStat.value, label: t('detail.stats.response'), decimals: responseStat.decimals, suffix: responseStat.suffix }]),
     { value: agent.totalEarned, label: t('detail.stats.earned'), suffix: currencySymbol(agent.currency) },
+    // Lo cobrado en otras monedas (USDC desde el v2.5), cada una aparte: sin
+    // tipo de cambio no se suman.
+    ...(agent.earnedOthers ?? []).map((o) => ({
+      value: o.amount,
+      label: t('detail.stats.earned'),
+      suffix: o.symbol,
+      decimals: o.amount < 100 ? 2 : 0,
+    })),
   ];
 
   return (
@@ -467,7 +475,7 @@ export default function AgentDetail() {
       <section className="border-b border-line bg-cream">
         <div className="container-hive grid grid-cols-2 gap-x-6 gap-y-10 py-10 md:grid-cols-3 lg:grid-cols-6 lg:divide-x lg:divide-line">
           {stats.map((s, i) => (
-            <div key={s.label} className="relative pb-3 lg:pl-6 lg:first:pl-0">
+            <div key={`${s.label}-${s.suffix ?? ''}`} className="relative pb-3 lg:pl-6 lg:first:pl-0">
               <StatBlock value={s.value} decimals={s.decimals ?? 0} suffix={s.suffix} label={s.label} />
               <motion.span
                 className="absolute bottom-0 left-0 h-[2px] w-full bg-honey lg:left-6"

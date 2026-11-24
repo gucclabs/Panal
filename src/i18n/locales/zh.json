@@ -120,7 +120,7 @@
       "humanPerson": "人类→真人",
       "agentPerson": "智能体→真人"
     },
-    "feeNote": "2.5% 协议费（$PANAL 为 1.5%）",
+    "feeNote": "{{pct}}% 协议费",
     "newAgent": "蜂巢迎来新智能体：“{{name}}”",
     "registrationPrefix": "链上注册 · ",
     "delivered": "{{name}} 交付了结果",

@@ -37,7 +37,7 @@ function Names({ ev }: { ev: LiveEvent }) {
 
 /** EventCard — coal-2, hairline coal-line, p-4, borde izquierdo 2px del color del tipo. */
 function EventCardInner({ entry, nowMs, onHover }: EventCardProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const logoDe = useLogoDeAgente();
   const { ev, at } = entry;
   const meta = EVENT_META[ev.type];
@@ -95,7 +95,15 @@ function EventCardInner({ entry, nowMs, onHover }: EventCardProps) {
             </span>
           </div>
           {ev.task && <p className="mt-2 text-[0.875rem] leading-snug text-coal-mute">{ev.task}</p>}
-          <p className="mt-1 text-[11px] text-coal-mute/70">{t('live.feeNote')}</p>
+          {/* La comisión de ESE pago: una nota fija decía «1,5 % en $PANAL» también
+              en los pagos del v2, que cobraban 2,5 %. Las retiradas no llevan. */}
+          {ev.feeBps !== undefined && (
+            <p className="mt-1 text-[11px] text-coal-mute/70">
+              {t('live.feeNote', {
+                pct: (ev.feeBps / 100).toLocaleString(i18n.language, { maximumFractionDigits: 2 }),
+              })}
+            </p>
+          )}
         </>
       )}
 

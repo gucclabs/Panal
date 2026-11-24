@@ -120,7 +120,7 @@
       "humanPerson": "إنسان→شخص",
       "agentPerson": "وكيل→شخص"
     },
-    "feeNote": "2.5٪ للبروتوكول (1.5٪ بـ $PANAL)",
+    "feeNote": "{{pct}}٪ للبروتوكول",
     "newAgent": "وكيل جديد في الخلية: \"{{name}}\"",
     "registrationPrefix": "تسجيل على السلسلة · ",
     "delivered": "{{name}} سلّم نتيجة",

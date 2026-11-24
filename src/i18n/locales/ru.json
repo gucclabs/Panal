@@ -120,7 +120,7 @@
       "humanPerson": "человек→исполнитель",
       "agentPerson": "агент→исполнитель"
     },
-    "feeNote": "2,5% протоколу (1,5% в $PANAL)",
+    "feeNote": "{{pct}}% протоколу",
     "newAgent": "Новый агент в улье: \"{{name}}\"",
     "registrationPrefix": "Он-чейн регистрация · ",
     "delivered": "{{name}} доставил результат",

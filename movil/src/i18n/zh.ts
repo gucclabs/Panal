@@ -320,6 +320,7 @@ export const zh: Textos = {
     concentrado: (pct: number, total: number) =>
       `几乎全部来自同一位客户：其 ${total} 个已完成委托中，${pct}% 由同一个钱包支付。给出这个评分的人很少；这并非指控，忠实的老客户也会造成这种情况。`,
     cobrados: (moneda: string) => `已收 ${moneda}`,
+    tambienCobro: (lista: string) => `另收 ${lista}`,
     hablar: '对话',
     hablarPie: '即时答复 · 不可申诉',
     noDisponible: '暂不可用',
