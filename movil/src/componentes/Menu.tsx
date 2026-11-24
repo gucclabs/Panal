@@ -264,8 +264,10 @@ function Panel({ onCerrar }: { onCerrar: () => void }): React.ReactElement {
             {nueva && <LineaVersion version={nueva} onCerrar={onCerrar} T={T} />}
 
             {/* La regla de propiedad, como en el README y en las releases: la
-                licencia MIT cubre el código, no el nombre ni el logo. */}
-            <p className="mt-2 text-[10.5px] leading-snug text-ink-3">{T.menu.propiedad}</p>
+                licencia MIT cubre el código, no el nombre ni el logo. Son dos
+                frases, cada una en su línea (el texto lleva un salto): seguidas,
+                el panel las partía por la mitad y la segunda parecía cortada. */}
+            <p className="mt-2 whitespace-pre-line text-[10.5px] leading-snug text-ink-3">{T.menu.propiedad}</p>
 
             {/* Con www delante a propósito: el WebView ya se llama panal.lat, y
                 una dirección de ese mismo dominio se abriría dentro de la app
