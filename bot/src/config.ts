@@ -10,6 +10,7 @@ import 'dotenv/config';
 import { isAddress, getAddress, type Address } from 'viem';
 import { BOT_LANGS, DEFAULT_LANG, isBotLang, type BotLang } from './i18n.js';
 import { sinBarraFinal } from './net.js';
+import { V2_5_MAINNET, type ConfigV2_5 } from './v2_5.js';
 
 export type BotMode = 'notifier' | 'worker' | 'indexer' | 'buzon';
 
@@ -66,6 +67,12 @@ export interface BotConfig {
    * aquí en adelante.
    */
   tablonDesdeBloque: number | null;
+  /**
+   * El escrow v2.5 y lo suyo (desplegados el 24-nov-2026): tablón, reputación,
+   * suspensiones, precios y USDC. Por defecto, los de mainnet; con
+   * `ESCROW_V2_5_ADDRESS=off` el bot no los mira. Ver v2_5.ts.
+   */
+  v2_5: ConfigV2_5 | null;
   /**
    * Chat de Telegram al que el indexador manda las señales de vigilancia del
    * tablón (contracts/TABLON-SECURITY.md), con el mismo TELEGRAM_BOT_TOKEN.
@@ -343,6 +350,18 @@ export function loadConfig(): BotConfig {
     namesAddress: envAddress('PANAL_NAMES_ADDRESS', false) ?? null,
     tablonAddress: envAddress('PANAL_TABLON_ADDRESS', false) ?? null,
     tablonDesdeBloque: process.env.PANAL_TABLON_BLOQUE?.trim() ? envInt('PANAL_TABLON_BLOQUE', 0, 0) : null,
+    v2_5:
+      env('ESCROW_V2_5_ADDRESS')?.toLowerCase() === 'off'
+        ? null
+        : {
+            escrow: envAddress('ESCROW_V2_5_ADDRESS', false) ?? getAddress(V2_5_MAINNET.escrow),
+            tablon: envAddress('PANAL_TABLON_V2_5_ADDRESS', false) ?? getAddress(V2_5_MAINNET.tablon),
+            reputation: envAddress('REPUTATION_V2_5_ADDRESS', false) ?? getAddress(V2_5_MAINNET.reputation),
+            bans: envAddress('PANAL_BANS_ADDRESS', false) ?? getAddress(V2_5_MAINNET.bans),
+            prices: envAddress('PANAL_PRICES_ADDRESS', false) ?? getAddress(V2_5_MAINNET.prices),
+            usdc: envAddress('USDC_ADDRESS', false) ?? getAddress(V2_5_MAINNET.usdc),
+            desdeBloque: process.env.V2_5_BLOQUE?.trim() ? envInt('V2_5_BLOQUE', 0, 0) : V2_5_MAINNET.desdeBloque,
+          },
     vigilanciaChatId: env('VIGILANCIA_TELEGRAM_CHAT_ID') ?? null,
     dashboardUrl: env('DASHBOARD_URL') ?? 'https://panal.lat/dashboard',
     lang: resolveLang(env('BOT_LANG')),

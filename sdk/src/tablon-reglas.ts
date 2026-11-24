@@ -20,6 +20,12 @@
 
 import { encodeAbiParameters, keccak256, toBytes, type Address, type Hex } from 'viem';
 import type { TipoDeAgente } from './tipo.js';
+import {
+  REVISION_MAXIMA_S,
+  REVISION_MINIMA_S,
+  idDelV2_5,
+  type VersionEscrow,
+} from './v2_5.js';
 import { MAX_FILE_BYTES, appendFilesManifest, sanitizeFileName, type DeliveredFile } from './files.js';
 
 /** Cómo se asigna un encargo. */
@@ -62,8 +68,16 @@ export interface EncargoConReglas {
   ventanaEleccionS: number;
   repartoAgenteBps: number;
   agente: Address;
-  /** La tarea del escrow, una vez asignado. */
+  /**
+   * La tarea del escrow, una vez asignado. En el tablón v2.5, con el número de
+   * fuera de la cadena (desde mil millones, ver v2_5.ts): se pasa tal cual a
+   * `getTask`. Cero mientras no se ha asignado.
+   */
   escrowTaskId: bigint;
+  /** De qué tablón es. Ausente = v2. */
+  version?: VersionEscrow;
+  /** Solo v2.5: los segundos que tiene el cliente para revisar la entrega. */
+  ventanaRevisionS?: number;
 }
 
 export interface OfertaConReglas {
@@ -203,7 +217,19 @@ export function categoriasDeMascara(mascara: bigint): number[] {
 }
 
 /** Decodifica lo que devuelve `getJob`. */
-export function encargoDeLaCadena(id: bigint, j: Record<string, unknown>): EncargoConReglas {
+export function encargoDeLaCadena(id: bigint, j: Record<string, unknown>, version: VersionEscrow = 'v2'): EncargoConReglas {
+  const agente = j.agent as Address;
+  if (version === 'v2_5') {
+    // El tablón v2.5 no tiene reparto atestiguado ni devolución pendiente: el
+    // reparto lo dice la tarea del escrow, y lo devuelto se acredita al cerrar.
+    const asignado = Number(j.state) !== EstadoTablon.Publicado && !/^0x0{40}$/i.test(agente);
+    return {
+      ...encargoDeLaCadena(id, { ...j, attested: false, refundPending: false, workerShareBps: 0 }),
+      escrowTaskId: asignado ? idDelV2_5(j.escrowTaskId as bigint) : 0n,
+      version,
+      ventanaRevisionS: Number(j.reviewWindow),
+    };
+  }
   return {
     id,
     cliente: j.client as Address,
@@ -314,6 +340,13 @@ export interface PublicarEnElTablon {
    * selección: en inmediato lo cogería cualquiera sin que nadie le diera acceso.
    */
   confidencial?: boolean;
+  /**
+   * En qué tablón: `v2` (por defecto) o `v2_5`, que cobra también en USDC y
+   * deja elegir cuánto dura la revisión.
+   */
+  version?: VersionEscrow;
+  /** Solo v2.5: segundos de revisión tras la entrega, de 24 h a 7 días (72 h por defecto). */
+  ventanaRevisionS?: number;
 }
 
 /**
@@ -352,6 +385,12 @@ export function problemaAlPublicar(p: PublicarEnElTablon): string | null {
   }
   if (p.campana && (p.campana.topePorAgente < 1 || p.campana.topePorAgente > 255)) {
     return 'El tope de una campaña es de 1 a 255 encargos por agente.';
+  }
+  if (p.ventanaRevisionS !== undefined) {
+    if (p.version !== 'v2_5') return 'Elegir cuánto dura la revisión es del tablón v2.5: el v2 da siempre 72 h.';
+    if (!Number.isInteger(p.ventanaRevisionS) || p.ventanaRevisionS < REVISION_MINIMA_S || p.ventanaRevisionS > REVISION_MAXIMA_S) {
+      return 'La revisión dura de 24 horas a 7 días.';
+    }
   }
   return null;
 }

@@ -565,6 +565,36 @@ tablón tiene como cliente al CONTRATO, que no puede aprobar ni disputar desde l
 web. El índice le ata su cliente de verdad (`realClient`, con su `jobId`), y esa
 persona la encuentra al pedir sus tareas, también con `role=client`.
 
+### El escrow v2.5
+
+Sin configurar nada, el buzón y el indexador siguen también los contratos del v2.5
+desplegados el 24-nov-2026: escrow `0x1800225eac5cEF7798e2A926AE243F2a4a42D440`, tablón
+`0x10aF8A30591Fcee56127692d7346476bc68CD656`, PanalBans y PanalPrices. El indexador los
+recorre una vez desde el bloque `124859551`. `ESCROW_V2_5_ADDRESS=off` los apaga; cada
+dirección se puede cambiar (`ESCROW_V2_5_ADDRESS`, `PANAL_TABLON_V2_5_ADDRESS`,
+`PANAL_BANS_ADDRESS`, `PANAL_PRICES_ADDRESS`, `REPUTATION_V2_5_ADDRESS`, `USDC_ADDRESS`,
+`V2_5_BLOQUE`).
+
+Fuera de la cadena, cada tarea y cada encargo del tablón del v2.5 llevan su número **más
+mil millones** (la tarea 5 del escrow v2.5 es la `1000000005`), en las rutas del buzón,
+en los mensajes firmados y en el índice. El formato de los mensajes no cambia. El buzón
+del tablón v2.5 va bajo su propia dirección, y un número del otro tablón ahí es un 404.
+
+La API solo enseña las tareas y los encargos del v2.5 a quien los pide, porque los
+clientes ya publicados leerían esos números como del v2:
+
+```bash
+curl "http://localhost:8788/index/tasks?address=0x…&v=2.5"     # v=2 (por defecto), 2.5 o all
+curl "http://localhost:8788/index/board/config?v=2.5"           # cada tablón, el suyo
+curl "http://localhost:8788/index/bans"                         # las cuentas suspendidas en PanalBans
+curl "http://localhost:8788/index/prices?agent=0x…"             # sus precios de PanalPrices, por moneda
+```
+
+Una tarea del v2.5 trae además `cierre` (cómo se cerró), `acceptedTs` y, si los jueces
+autónomos propusieron una decisión, `ruling`. Las cifras de cada agente suman los dos
+escrows, contadas como la reputación v2.5: completada si quien trabajó cobró algo, nota
+si la hay. Las diarias suman `usdcMoved`.
+
 La vigilancia también va al log, una vez por señal y por arranque, como
 `[vigilancia] …`:
 

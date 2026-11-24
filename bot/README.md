@@ -560,6 +560,36 @@ CONTRACT as its client, which can't approve or dispute from the web. The index t
 real client (`realClient`, with its `jobId`), and that person finds it when asking for their
 tasks, also with `role=client`.
 
+### Escrow v2.5
+
+Without any setting, the mailbox and the indexer also follow the v2.5 contracts deployed on
+2026-11-24: escrow `0x1800225eac5cEF7798e2A926AE243F2a4a42D440`, board
+`0x10aF8A30591Fcee56127692d7346476bc68CD656`, PanalBans and PanalPrices. The indexer goes
+over them once from block `124859551`. `ESCROW_V2_5_ADDRESS=off` turns them off; each
+address can be overridden (`ESCROW_V2_5_ADDRESS`, `PANAL_TABLON_V2_5_ADDRESS`,
+`PANAL_BANS_ADDRESS`, `PANAL_PRICES_ADDRESS`, `REPUTATION_V2_5_ADDRESS`, `USDC_ADDRESS`,
+`V2_5_BLOQUE`).
+
+Off-chain, every v2.5 task and board job carries its number **plus one billion** (task 5
+of the v2.5 escrow is `1000000005`), in the mailbox routes, in the signed messages and in
+the index. Nothing about the message formats changes. The v2.5 board's mailbox lives
+under its own address, and a number from the other board is a 404 there.
+
+The API only shows v2.5 tasks and jobs to whoever asks for them, because published clients
+would read those numbers as v2 ones:
+
+```bash
+curl "http://localhost:8788/index/tasks?address=0x…&v=2.5"     # v=2 (default), 2.5 or all
+curl "http://localhost:8788/index/board/config?v=2.5"           # each board has its own
+curl "http://localhost:8788/index/bans"                         # accounts suspended in PanalBans
+curl "http://localhost:8788/index/prices?agent=0x…"             # its PanalPrices, per currency
+```
+
+A v2.5 task also brings `cierre` (how it closed), `acceptedTs` and, if the autonomous
+judges proposed a ruling, `ruling`. The agent stats add up both escrows, counted like the
+v2.5 reputation: completed if the worker got paid something, rating when there is one.
+Daily figures add `usdcMoved`.
+
 Monitoring also goes to the log, once per signal and per startup, as
 `[vigilancia] …`:
 

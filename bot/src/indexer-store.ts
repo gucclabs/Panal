@@ -28,7 +28,12 @@ import { leerMarca } from './marca.js';
 export interface IndexedEvent {
   /** `${txHash}-${logIndex}` — clave de dedup. */
   id: string;
-  contract: 'registry' | 'escrow' | 'names' | 'tablon';
+  /**
+   * De qué contrato. `escrow25` y `tablon25` son los del v2.5, con sus números
+   * ya desplazados (más mil millones, ver v2_5.ts); `bans` y `prices`, la lista
+   * de suspendidos y los precios por moneda del v2.5.
+   */
+  contract: 'registry' | 'escrow' | 'names' | 'tablon' | 'escrow25' | 'tablon25' | 'bans' | 'prices';
   event: string;
   blockNumber: number;
   logIndex: number;
@@ -57,12 +62,15 @@ export interface IndexerState {
    * pasó entre el despliegue y ese momento no lo cubre nadie más.
    */
   tablonHasta: number | null;
+  /** Lo mismo para el v2.5 (escrow, tablón, suspensiones y precios), desde el 24-nov-2026. */
+  v2_5Hasta: number | null;
   /** Las señales de vigilancia ya avisadas: no se repiten al reiniciar. */
   vigilanciaAvisada: string[];
 }
 
 const EMPTY_STATE: IndexerState = {
   tablonHasta: null,
+  v2_5Hasta: null,
   vigilanciaAvisada: [],
   lastBlock: 0,
   sweepFloor: null,
@@ -151,9 +159,15 @@ export interface IndexedTask {
   /** Bloqueado en el escrow, en unidades mínimas. */
   amount: string;
   currency: string;
-  /** Etiqueta legible de la moneda: 'MON' | '$PANAL'. */
+  /** Etiqueta legible de la moneda: 'MON' | '$PANAL' | 'USDC'. */
   coin: string;
   status: 'open' | 'delivered' | 'completed' | 'disputed' | 'cancelled';
+  /** Solo v2.5: cómo se cerró (Approved, Timeout, Mutual, Arbitrated…). */
+  cierre?: string;
+  /** Solo v2.5: cuándo la aceptó su trabajador. */
+  acceptedTs?: number;
+  /** Solo v2.5: la decisión de los jueces autónomos, mientras corren sus 48 h o ya firme. */
+  ruling?: { workerShareBps: number; rating: number; finalAt: number; overruled: boolean };
   resultHash?: string;
   /** Nota que puso el cliente al aprobar, si llegó a aprobarse. */
   rating?: number;
@@ -473,7 +487,18 @@ export interface AgentProfile {
  * el cliente que lo busca por el nombre tiene derecho a enterarse.
  */
 /** Un agente tal y como sale en el catálogo: su ficha, sus cifras y su nombre. */
-export type AgenteDelCatalogo = AgentProfile & { stats: AgentStats | null; nombre: NombreDeAgente | null };
+export type AgenteDelCatalogo = AgentProfile & {
+  stats: AgentStats | null;
+  nombre: NombreDeAgente | null;
+  /** Suspendido en PanalBans (v2.5): el escrow v2.5 no le deja trabajar. */
+  suspended: boolean;
+  /**
+   * Sus precios en PanalPrices (v2.5), por moneda (dirección en minúsculas, la
+   * nativa como 0x0…0), en unidades mínimas. Vacío si no ha puesto ninguno:
+   * entonces valen los del registro, en MON o $PANAL.
+   */
+  prices: Record<string, string[]>;
+};
 
 export interface NombreDeAgente {
   nombre: string;
@@ -493,6 +518,8 @@ export interface DayStats {
   monMoved: string;
   /** PANAL movido ese día (wei, string): idem en token $PANAL. */
   panalMoved: string;
+  /** USDC movido ese día (6 decimales, string): idem en USDC (escrow v2.5). */
+  usdcMoved: string;
   /** Agentes distintos con actividad ese día. */
   activeAgents: number;
 }
@@ -506,20 +533,94 @@ function dayKey(tsSec: number): string {
   return new Date(tsSec * 1000).toISOString().slice(0, 10);
 }
 
-/** Currency address -> etiqueta de stats ('MON' | '$PANAL'). */
-function coinOf(currency: string | undefined, panalToken: string): string {
+/** USDC de Circle en Monad mainnet: la tercera moneda del escrow v2.5. */
+const USDC_MAINNET = '0x754704bc059f8c67012fed69bc8a327a5aafb603';
+
+/** Currency address -> etiqueta de stats ('MON' | '$PANAL' | 'USDC'). */
+function coinOf(currency: string | undefined, panalToken: string, usdc: string = USDC_MAINNET): string {
   if (!currency || currency.toLowerCase() === NATIVE) return 'MON';
-  return currency.toLowerCase() === panalToken.toLowerCase() ? '$PANAL' : currency;
+  if (currency.toLowerCase() === panalToken.toLowerCase()) return '$PANAL';
+  return currency.toLowerCase() === usdc.toLowerCase() ? 'USDC' : currency;
 }
+
+/** Los nombres de `Close` del escrow v2.5, por su número. */
+const CIERRES_V2_5 = [
+  'None',
+  'Approved',
+  'Timeout',
+  'Arbitrated',
+  'DisputeExpired',
+  'Mutual',
+  'Cancelled',
+  'Expired',
+  'Rejected',
+  'AutoArbitrated',
+] as const;
+
+/** Cierres del v2.5 sin entrega: el dinero volvió entero al cliente. */
+const SIN_ENTREGA_V2_5 = new Set(['Cancelled', 'Expired', 'Rejected']);
 
 function addWei(acc: Record<string, string>, coin: string, amount: string): void {
   acc[coin] = (BigInt(acc[coin] ?? '0') + BigInt(amount)).toString();
 }
 
+/**
+ * Las dos generaciones de contratos que indexa el bot: el escrow y el tablón v2,
+ * y el escrow y el tablón v2.5 (desde el 24-nov-2026). Los números del v2.5
+ * van desplazados mil millones (ver v2_5.ts), así que tareas y encargos de los
+ * dos caben en los mismos mapas sin pisarse.
+ */
+export type Version = 'v2' | 'v2_5';
+
+/** Desde aquí, los números de tarea y de encargo son del v2.5 (ver v2_5.ts). */
+const PRIMER_ID_V2_5 = 1_000_000_000n;
+
+/** Lo que pide quien consulta: una versión, o las dos. */
+export type Vista = Version | 'all';
+
+/** Los contratos que solo existen en el v2.5. */
+const CONTRATOS_V2_5: ReadonlySet<IndexedEvent['contract']> = new Set(['escrow25', 'tablon25', 'bans', 'prices']);
+
+/**
+ * Si un evento entra en lo que se pide. 'v2' es lo de siempre (registro,
+ * escrow, nombres y tablón): es lo que se sirve si no se pide otra cosa, para
+ * que la app y los agentes ya instalados no vean eventos que no saben leer.
+ */
+function eventoEnVista(ev: IndexedEvent, v: Vista): boolean {
+  if (v === 'all') return true;
+  return CONTRATOS_V2_5.has(ev.contract) === (v === 'v2_5');
+}
+
+/** De qué versión es un número de tarea o de encargo. */
+export function versionDe(id: string): Version {
+  return /^\d+$/.test(id) && BigInt(id) >= PRIMER_ID_V2_5 ? 'v2_5' : 'v2';
+}
+
+/**
+ * Lo de UN tablón que no va por número de encargo sino por agente, cliente o
+ * campaña. Un mismo agente tiene sus categorías, sus faltas y su saldo por
+ * cobrar en cada tablón, y la misma campaña de un cliente es otra en el otro
+ * contrato: por eso cada tablón lleva los suyos.
+ */
+class DeUnTablon {
+  /** Las categorías que ha declarado cada agente en el tablón. */
+  readonly categorias = new Map<string, number[]>();
+  /** Faltas, suspensión y encargos de cada agente en el tablón. */
+  readonly agentesTablon = new Map<string, Omit<AgenteEnElTablon, 'agent' | 'categorias'>>();
+  /** Lo que el tablón le debe a cada cliente, por moneda (Credited − Claimed). */
+  readonly porCobrar = new Map<string, Map<string, bigint>>();
+  readonly configTablon: ConfigTablon = { caps: {}, paused: false, levels: null, newcomerJobs: null, updatedTs: 0 };
+  readonly campanas = new Map<string, { key: string; campaignId: string; owner: string; jobs: number; cap: number | null; tomados: Map<string, number> }>();
+  /** Para las métricas: cada falta, cada republicación y cada cierre, con su fecha. */
+  readonly faltas: { agent: string; ts: number; suspendidoHasta: number }[] = [];
+  readonly republicaciones: number[] = [];
+  readonly cierres: { ts: number; refund: bigint; coin: string; penalized: boolean }[] = [];
+}
+
 /** Acumulador mutable de stats; se reconstruye rejugando events.jsonl. */
 class StatsBuilder {
   readonly agents = new Map<string, AgentStats & { ratingSum: number; deliverySecSum: number }>();
-  readonly days = new Map<string, DayStats & { mon: bigint; panal: bigint; agents: Set<string> }>();
+  readonly days = new Map<string, DayStats & { mon: bigint; panal: bigint; usdc: bigint; agents: Set<string> }>();
   readonly byType: Record<string, number> = {};
   /** taskId -> currency address (para atribuir volúmenes de TaskCompleted). */
   private readonly taskCurrency = new Map<string, string>();
@@ -539,24 +640,24 @@ class StatsBuilder {
   private readonly jobDeTarea = new Map<string, string>();
   /** Las ofertas en pie de cada encargo, por agente. */
   readonly ofertas = new Map<string, Map<string, OfertaIndexada>>();
-  /** Las categorías que ha declarado cada agente en el tablón. */
-  readonly categorias = new Map<string, number[]>();
-  /** Faltas, suspensión y encargos de cada agente en el tablón. */
-  readonly agentesTablon = new Map<string, Omit<AgenteEnElTablon, 'agent' | 'categorias'>>();
-  /** Lo que el tablón le debe a cada cliente, por moneda (Credited − Claimed). */
-  readonly porCobrar = new Map<string, Map<string, bigint>>();
-  readonly configTablon: ConfigTablon = { caps: {}, paused: false, levels: null, newcomerJobs: null, updatedTs: 0 };
-  readonly campanas = new Map<string, { key: string; campaignId: string; owner: string; jobs: number; cap: number | null; tomados: Map<string, number> }>();
-  /** Para las métricas: cada falta, cada republicación y cada cierre, con su fecha. */
-  readonly faltas: { agent: string; ts: number; suspendidoHasta: number }[] = [];
-  readonly republicaciones: number[] = [];
-  readonly cierres: { ts: number; refund: bigint; coin: string; penalized: boolean }[] = [];
+  /** Lo de cada tablón que va por agente, cliente o campaña (ver `DeUnTablon`). */
+  readonly porTablon: Record<Version, DeUnTablon> = { v2: new DeUnTablon(), v2_5: new DeUnTablon() };
+  /** Cuentas suspendidas en PanalBans (v2.5): desde cuándo y la huella de las pruebas. */
+  readonly suspendidos = new Map<string, { desdeTs: number; reasonHash: string }>();
+  /** Precios de PanalPrices (v2.5): agente → moneda → importes, de menor a mayor. */
+  readonly precios = new Map<string, Map<string, string[]>>();
   total = 0;
 
   constructor(
     private readonly panalToken: string,
     private readonly tablon: string | null = null,
+    private readonly tablonV2_5: string | null = null,
+    private readonly usdc: string = USDC_MAINNET,
   ) {}
+
+  private coin(currency: string | undefined): string {
+    return coinOf(currency, this.panalToken, this.usdc);
+  }
 
   /**
    * Ata una tarea del escrow a su encargo del tablón: su cliente de verdad
@@ -569,7 +670,7 @@ class StatsBuilder {
     if (!t || !j) return;
     // Solo si en el escrow su cliente es de verdad el tablón: una dirección mal
     // configurada no puede atribuirle a nadie las tareas de otro.
-    if (this.tablon && t.client !== this.tablon) return;
+    if (this.tablon && t.client !== this.tablon && t.client !== this.tablonV2_5) return;
     t.realClient = j.client;
     t.jobId = jobId;
     this.ligar(j.client, taskId);
@@ -584,12 +685,12 @@ class StatsBuilder {
     j.offers = 0;
   }
 
-  private agenteTablon(agent: string): Omit<AgenteEnElTablon, 'agent' | 'categorias'> {
+  private agenteTablon(tb: DeUnTablon, agent: string): Omit<AgenteEnElTablon, 'agent' | 'categorias'> {
     const k = agent.toLowerCase();
-    let a = this.agentesTablon.get(k);
+    let a = tb.agentesTablon.get(k);
     if (!a) {
       a = { faltas: 0, faltasEn90Dias: 0, suspendidoHasta: 0, asignados: 0, cerrados: 0, sancionados: 0 };
-      this.agentesTablon.set(k, a);
+      tb.agentesTablon.set(k, a);
     }
     return a;
   }
@@ -638,11 +739,22 @@ class StatsBuilder {
     set.add(taskId);
   }
 
-  private day(ts: number): DayStats & { mon: bigint; panal: bigint; agents: Set<string> } {
+  private day(ts: number): DayStats & { mon: bigint; panal: bigint; usdc: bigint; agents: Set<string> } {
     const key = dayKey(ts);
     let d = this.days.get(key);
     if (!d) {
-      d = { date: key, events: 0, monMoved: '0', panalMoved: '0', activeAgents: 0, mon: 0n, panal: 0n, agents: new Set() };
+      d = {
+        date: key,
+        events: 0,
+        monMoved: '0',
+        panalMoved: '0',
+        usdcMoved: '0',
+        activeAgents: 0,
+        mon: 0n,
+        panal: 0n,
+        usdc: 0n,
+        agents: new Set(),
+      };
       this.days.set(key, d);
     }
     return d;
@@ -651,10 +763,140 @@ class StatsBuilder {
   private move(day: ReturnType<StatsBuilder['day']>, coin: string, amount: string): void {
     if (coin === 'MON') day.mon += BigInt(amount);
     else if (coin === '$PANAL') day.panal += BigInt(amount);
+    else if (coin === 'USDC') day.usdc += BigInt(amount);
   }
 
   nombreDe(address: string): NombreDeAgente | null {
     return this.nombres.get(address.toLowerCase()) ?? null;
+  }
+
+  /**
+   * Los eventos propios del v2.5. Devuelve true si lo ha tratado aquí.
+   *
+   * Lo que cuenta para cada agente imita a la reputación v2.5 de la cadena: un
+   * encargo es «completado» si quien trabajó cobró algo, y la nota cuenta si es
+   * mayor que cero (liberar por tiempo, un acuerdo o una disputa sin decisión
+   * no llevan nota). Un encargo vencido sin entrega es uno que no entregó;
+   * rechazado a tiempo o cancelado (nadie lo cogió, o lo suspendieron), no.
+   */
+  private addV2_5(ev: IndexedEvent, d: ReturnType<StatsBuilder['day']>): boolean {
+    const a = ev.args;
+    if (ev.contract === 'bans') {
+      const cuenta = String(a['account'] ?? '').toLowerCase();
+      if (!cuenta) return true;
+      if (ev.event === 'AccountSuspended') {
+        this.suspendidos.set(cuenta, { desdeTs: ev.ts, reasonHash: String(a['reasonHash'] ?? '') });
+      } else if (ev.event === 'AccountReinstated') {
+        this.suspendidos.delete(cuenta);
+      }
+      return true;
+    }
+    if (ev.contract === 'prices') {
+      if (ev.event !== 'PricesSet') return true;
+      const agente = String(a['agent'] ?? '').toLowerCase();
+      const moneda = String(a['currency'] ?? NATIVE).toLowerCase();
+      const crudo = a['amounts'];
+      const lista = typeof crudo === 'string' ? (JSON.parse(crudo) as unknown[]).map(String) : [];
+      let porMoneda = this.precios.get(agente);
+      if (!porMoneda) {
+        porMoneda = new Map();
+        this.precios.set(agente, porMoneda);
+      }
+      // Una lista vacía es «ya no acepto esta moneda».
+      if (lista.length === 0) porMoneda.delete(moneda);
+      else porMoneda.set(moneda, lista);
+      return true;
+    }
+    if (ev.contract !== 'escrow25') return false;
+
+    const t = a['taskId'] !== undefined ? this.task(String(a['taskId'])) : undefined;
+    switch (ev.event) {
+      case 'TaskAccepted': {
+        // El reloj de «responde en» corre desde que es suya: si nació con
+        // trabajador, desde que nace (aceptar no lo reinicia); si nació abierta
+        // a cualquiera, desde que alguien la coge, igual que TaskClaimed en el v2.
+        if (t) {
+          if (!t.worker || t.worker === NATIVE) {
+            const ag = this.agent(String(a['worker']), ev.ts);
+            d.agents.add(ag.address);
+            t.worker = ag.address;
+            t.claimedTs = ev.ts;
+            this.ligar(ag.address, t.taskId);
+          }
+          t.acceptedTs = ev.ts;
+          t.updatedTs = ev.ts;
+        }
+        return true;
+      }
+      case 'RulingProposed': {
+        if (t) {
+          t.ruling = {
+            workerShareBps: Number(a['workerShareBps'] ?? 0),
+            rating: Number(a['rating'] ?? 0),
+            finalAt: Number(a['finalAt'] ?? 0),
+            overruled: false,
+          };
+          t.updatedTs = ev.ts;
+        }
+        return true;
+      }
+      case 'RulingOverruled': {
+        if (t?.ruling) {
+          t.ruling.overruled = true;
+          t.updatedTs = ev.ts;
+        }
+        return true;
+      }
+      case 'DisputeResolved':
+      case 'SettlementProposed':
+      case 'DeadlineExtended': {
+        // El dinero y el estado los pone TaskClosed, que llega en la misma
+        // transacción (o después, en un acuerdo): aquí no se cuenta nada dos veces.
+        if (t) t.updatedTs = ev.ts;
+        return true;
+      }
+      case 'TaskClosed': {
+        if (!t) return true;
+        const cierre = CIERRES_V2_5[Number(a['reason'] ?? 0)] ?? 'None';
+        t.cierre = cierre;
+        t.updatedTs = ev.ts;
+        const conTrabajador = !!t.worker && t.worker !== NATIVE;
+        if (SIN_ENTREGA_V2_5.has(cierre)) {
+          // Vencida sin entrega es un encargo que no entregó, como TaskCancelled
+          // en el v2. Rechazarla a tiempo no: es decir que no, y el cliente
+          // recupera el dinero en el acto.
+          if (conTrabajador && cierre === 'Expired' && t.status === 'open') {
+            this.agent(t.worker, ev.ts).notDelivered += 1;
+          }
+          t.status = 'cancelled';
+          return true;
+        }
+        const pagado = BigInt(String(a['workerPaid'] ?? '0'));
+        const bruto = pagado + BigInt(String(a['fee'] ?? '0'));
+        const nota = Number(a['rating'] ?? 0);
+        const devuelto = String(a['clientRefund'] ?? '0');
+        if (conTrabajador) {
+          const ag = this.agent(t.worker, ev.ts);
+          d.agents.add(ag.address);
+          if (bruto > 0n) {
+            ag.completed += 1;
+            addWei(ag.volume, t.coin, pagado.toString());
+            this.move(d, t.coin, pagado.toString());
+          }
+          if (nota > 0) {
+            ag.ratingSum += nota;
+            ag.ratingCount += 1;
+            ag.avgRating = ag.ratingSum / ag.ratingCount;
+          }
+        }
+        t.status = 'completed';
+        if (nota > 0) t.rating = nota;
+        if (devuelto !== '0') t.clientRefunded = devuelto;
+        return true;
+      }
+      default:
+        return false;
+    }
   }
 
   add(ev: IndexedEvent): void {
@@ -663,6 +905,13 @@ class StatsBuilder {
     const d = this.day(ev.ts);
     d.events += 1;
     const a = ev.args;
+
+    // Los del v2.5 que no existen en el v2, o que en el v2.5 significan otra
+    // cosa. Los demás (TaskCreated, TaskDelivered, TaskDisputed, Withdrawal y
+    // los del tablón) tienen los mismos argumentos y siguen por el camino común.
+    if (this.addV2_5(ev, d)) return;
+    // Lo del tablón que va por agente, cliente o campaña, en el suyo.
+    const tb = this.porTablon[ev.contract === 'tablon25' ? 'v2_5' : 'v2'];
 
     switch (ev.event) {
       case 'AgentRegistered': {
@@ -684,7 +933,7 @@ class StatsBuilder {
         d.agents.add(ag.address);
         const currency = String(a['currency'] ?? NATIVE);
         if (a['taskId'] !== undefined) this.taskCurrency.set(String(a['taskId']), currency);
-        if (a['amount'] !== undefined) this.move(d, coinOf(currency, this.panalToken), String(a['amount']));
+        if (a['amount'] !== undefined) this.move(d, this.coin(currency), String(a['amount']));
 
         // Nace la tarea, y se ata a sus DOS partes: el cliente la busca para
         // aprobarla o disputarla, el trabajador para saber qué tiene pendiente.
@@ -698,7 +947,7 @@ class StatsBuilder {
             worker: w,
             amount: String(a['amount'] ?? '0'),
             currency,
-            coin: coinOf(currency, this.panalToken),
+            coin: this.coin(currency),
             status: 'open',
             createdTs: ev.ts,
             updatedTs: ev.ts,
@@ -735,7 +984,7 @@ class StatsBuilder {
         }
         const currency = a['taskId'] !== undefined ? this.taskCurrency.get(String(a['taskId'])) : undefined;
         if (a['workerPaid'] !== undefined) {
-          const coin = coinOf(currency, this.panalToken);
+          const coin = this.coin(currency);
           addWei(ag.volume, coin, String(a['workerPaid']));
           this.move(d, coin, String(a['workerPaid']));
         }
@@ -751,7 +1000,7 @@ class StatsBuilder {
         // No trae worker; el rating cuenta para el historial global por task.
         if (a['workerPaid'] !== undefined && a['taskId'] !== undefined) {
           const currency = this.taskCurrency.get(String(a['taskId']));
-          this.move(d, coinOf(currency, this.panalToken), String(a['workerPaid']));
+          this.move(d, this.coin(currency), String(a['workerPaid']));
         }
         const tr = a['taskId'] !== undefined ? this.task(String(a['taskId'])) : undefined;
         if (tr) {
@@ -854,7 +1103,7 @@ class StatsBuilder {
           client: String(a['client']).toLowerCase(),
           category: Number(a['category'] ?? 0),
           currency,
-          coin: coinOf(currency, this.panalToken),
+          coin: this.coin(currency),
           mode: Number(a['mode']) === 1 ? 'selection' : 'immediate',
           budget: amount,
           amount,
@@ -869,10 +1118,10 @@ class StatsBuilder {
         const j = this.jobs.get(jobId)!;
         if (j.campaignId) {
           j.campaignKey = claveDeCampana(j.client, j.campaignId);
-          let c = this.campanas.get(j.campaignKey);
+          let c = tb.campanas.get(j.campaignKey);
           if (!c) {
             c = { key: j.campaignKey, campaignId: j.campaignId, owner: j.client, jobs: 0, cap: null, tomados: new Map() };
-            this.campanas.set(j.campaignKey, c);
+            tb.campanas.set(j.campaignKey, c);
           }
           c.jobs += 1;
         }
@@ -924,9 +1173,9 @@ class StatsBuilder {
         }
         this.sinOfertas(j);
         this.vincular(j.escrowTaskId, j.jobId);
-        this.agenteTablon(j.agent).asignados += 1;
+        this.agenteTablon(tb, j.agent).asignados += 1;
         if (j.campaignKey) {
-          const c = this.campanas.get(j.campaignKey);
+          const c = tb.campanas.get(j.campaignKey);
           if (c) c.tomados.set(j.agent, (c.tomados.get(j.agent) ?? 0) + 1);
         }
         break;
@@ -966,7 +1215,7 @@ class StatsBuilder {
         }
         j.amount = j.budget;
         j.updatedTs = ev.ts;
-        this.republicaciones.push(ev.ts);
+        tb.republicaciones.push(ev.ts);
         break;
       }
       case 'JobSettled': {
@@ -978,9 +1227,9 @@ class StatsBuilder {
         j.refundPending = false;
         j.closedTs = ev.ts;
         j.updatedTs = ev.ts;
-        this.cierres.push({ ts: ev.ts, refund: BigInt(j.refund), coin: j.coin, penalized: j.penalized });
+        tb.cierres.push({ ts: ev.ts, refund: BigInt(j.refund), coin: j.coin, penalized: j.penalized });
         if (j.agent) {
-          const ag = this.agenteTablon(j.agent);
+          const ag = this.agenteTablon(tb, j.agent);
           ag.cerrados += 1;
           if (j.penalized) ag.sancionados += 1;
         }
@@ -1004,23 +1253,23 @@ class StatsBuilder {
       }
       case 'Strike': {
         const agente = String(a['agent']).toLowerCase();
-        const ag = this.agenteTablon(agente);
+        const ag = this.agenteTablon(tb, agente);
         const hasta = Number(a['suspendedUntil'] ?? 0);
         ag.faltas += 1;
         ag.faltasEn90Dias = Number(a['strikesIn90Days'] ?? 0);
         ag.suspendidoHasta = Math.max(ag.suspendidoHasta, hasta);
         ag.ultimaFaltaTs = ev.ts;
-        this.faltas.push({ agent: agente, ts: ev.ts, suspendidoHasta: hasta });
+        tb.faltas.push({ agent: agente, ts: ev.ts, suspendidoHasta: hasta });
         break;
       }
       case 'Credited':
       case 'Claimed': {
         const cliente = String(a['client']).toLowerCase();
         const moneda = String(a['currency'] ?? NATIVE).toLowerCase();
-        let porMoneda = this.porCobrar.get(cliente);
+        let porMoneda = tb.porCobrar.get(cliente);
         if (!porMoneda) {
           porMoneda = new Map();
-          this.porCobrar.set(cliente, porMoneda);
+          tb.porCobrar.set(cliente, porMoneda);
         }
         const antes = porMoneda.get(moneda) ?? 0n;
         const cuanto = BigInt(String(a['amount'] ?? '0'));
@@ -1028,40 +1277,40 @@ class StatsBuilder {
         break;
       }
       case 'CapsChanged': {
-        this.configTablon.caps[String(a['currency'] ?? NATIVE).toLowerCase()] = {
+        tb.configTablon.caps[String(a['currency'] ?? NATIVE).toLowerCase()] = {
           perJob: String(a['perJob'] ?? '0'),
           total: String(a['total'] ?? '0'),
         };
-        this.configTablon.updatedTs = ev.ts;
+        tb.configTablon.updatedTs = ev.ts;
         break;
       }
       case 'PausedSet': {
-        this.configTablon.paused = a['paused'] === true || a['paused'] === 'true';
-        this.configTablon.updatedTs = ev.ts;
+        tb.configTablon.paused = a['paused'] === true || a['paused'] === 'true';
+        tb.configTablon.updatedTs = ev.ts;
         break;
       }
       case 'NewcomerJobsChanged': {
-        this.configTablon.newcomerJobs = Number(a['jobs'] ?? 0);
-        this.configTablon.updatedTs = ev.ts;
+        tb.configTablon.newcomerJobs = Number(a['jobs'] ?? 0);
+        tb.configTablon.updatedTs = ev.ts;
         break;
       }
       case 'LevelsChanged': {
         const crudo = a['levels'];
         if (typeof crudo === 'string') {
           const niveles = JSON.parse(crudo) as { minCompleted: unknown; minRating: unknown; dailyCap: unknown }[];
-          this.configTablon.levels = niveles.map((n) => ({
+          tb.configTablon.levels = niveles.map((n) => ({
             minCompleted: Number(n.minCompleted),
             minRating: Number(n.minRating),
             dailyCap: Number(n.dailyCap),
           }));
-          this.configTablon.updatedTs = ev.ts;
+          tb.configTablon.updatedTs = ev.ts;
         }
         break;
       }
       case 'CategoriesSet': {
         const cats = a['categories'];
         const lista = typeof cats === 'string' ? (JSON.parse(cats) as unknown[]) : [];
-        this.categorias.set(
+        tb.categorias.set(
           String(a['agent']).toLowerCase(),
           lista.map(Number).filter((c) => Number.isInteger(c) && c >= 0 && c <= 255),
         );
@@ -1072,7 +1321,7 @@ class StatsBuilder {
         const to = String(a['to']);
         const ag = this.agent(to, ev.ts);
         d.agents.add(ag.address);
-        if (a['amount'] !== undefined) this.move(d, coinOf(String(a['token']), this.panalToken), String(a['amount']));
+        if (a['amount'] !== undefined) this.move(d, this.coin(String(a['token'])), String(a['amount']));
         break;
       }
       default:
@@ -1094,6 +1343,7 @@ class StatsBuilder {
         events: d?.events ?? 0,
         monMoved: d ? d.mon.toString() : '0',
         panalMoved: d ? d.panal.toString() : '0',
+        usdcMoved: d ? d.usdc.toString() : '0',
         activeAgents: d ? d.agents.size : 0,
       });
     }
@@ -1170,12 +1420,22 @@ export class IndexStore {
   private readonly stats: StatsBuilder;
   private state: IndexerState;
 
-  constructor(dir: string, panalToken: string, tablon: string | null = null) {
+  constructor(
+    dir: string,
+    panalToken: string,
+    tablon: string | null = null,
+    v2_5: { tablon: string; usdc: string } | null = null,
+  ) {
     this.dir = resolve(dir);
     mkdirSync(this.dir, { recursive: true });
     this.eventsFile = join(this.dir, 'events.jsonl');
     this.stateFile = join(this.dir, 'state.json');
-    this.stats = new StatsBuilder(panalToken, tablon?.toLowerCase() ?? null);
+    this.stats = new StatsBuilder(
+      panalToken,
+      tablon?.toLowerCase() ?? null,
+      v2_5?.tablon.toLowerCase() ?? null,
+      v2_5?.usdc.toLowerCase() ?? USDC_MAINNET,
+    );
     this.loadEvents();
     this.state = this.loadState();
   }
@@ -1319,7 +1579,7 @@ export class IndexStore {
    * función ("<ts>:<blockNumber>:<logIndex>"); también acepta un ts en
    * segundos plano (exclusivo). Devuelve los eventos y el siguiente cursor.
    */
-  queryEvents(limit: number, before?: string): { events: IndexedEvent[]; next: string | null } {
+  queryEvents(limit: number, before?: string, v: Vista = 'v2'): { events: IndexedEvent[]; next: string | null } {
     let start = this.events.length - 1; // recorremos desde el final (desc)
     if (before) {
       const m = /^(\d+):(\d+):(\d+)$/.exec(before);
@@ -1350,11 +1610,13 @@ export class IndexStore {
       if (start === -1) return { events: [], next: null };
     }
     const out: IndexedEvent[] = [];
-    for (let i = start; i >= 0 && out.length < limit; i--) {
-      out.push(this.events[i]!);
+    let i = start;
+    for (; i >= 0 && out.length < limit; i--) {
+      const ev = this.events[i]!;
+      if (eventoEnVista(ev, v)) out.push(ev);
     }
     const last = out[out.length - 1];
-    const hasMore = last !== undefined && start - out.length >= 0;
+    const hasMore = last !== undefined && i >= 0;
     const next = hasMore && last ? `${last.ts}:${last.blockNumber}:${last.logIndex}` : null;
     return { events: out, next };
   }
@@ -1559,7 +1821,13 @@ export class IndexStore {
       const { ratingSum: _ratingSum, deliverySecSum: _deliverySecSum, ...resto } = s;
       stats = { ...resto, ...(this.stats.contrapartes(p.address).get(p.address.toLowerCase()) ?? SIN_CONTRAPARTES) };
     }
-    return { ...p, stats, nombre: this.stats.nombreDe(p.address) };
+    return {
+      ...p,
+      stats,
+      nombre: this.stats.nombreDe(p.address),
+      suspended: this.estaSuspendido(p.address),
+      prices: this.preciosDe(p.address),
+    };
   }
 
   /**
@@ -1607,6 +1875,8 @@ export class IndexStore {
         ...a,
         stats: stats.get(a.address) ?? null,
         nombre: this.stats.nombreDe(a.address),
+        suspended: this.estaSuspendido(a.address),
+        prices: this.preciosDe(a.address),
       })),
       total,
     };
@@ -1626,7 +1896,13 @@ export class IndexStore {
    * Se devuelven de la más reciente a la más antigua: lo que hay que atender
    * está siempre arriba.
    */
-  tasksOf(address: string, opts: { role?: 'client' | 'worker'; limit?: number } = {}): IndexedTask[] {
+  /**
+   * Las tareas de una dirección. Por defecto, solo las del escrow v2: la web y
+   * los agentes ya publicados las leen con `tasks(id)` del v2, y un número del
+   * v2.5 no existe ahí. Quien sabe leerlas pide `v: 'v2_5'` o `'all'`.
+   */
+  tasksOf(address: string, opts: { role?: 'client' | 'worker'; limit?: number; v?: Vista } = {}): IndexedTask[] {
+    const v = opts.v ?? 'v2';
     const ids = this.stats.tasksByAddress.get(address.toLowerCase());
     if (!ids) return [];
     const yo = address.toLowerCase();
@@ -1636,10 +1912,27 @@ export class IndexStore {
       if (!t) continue;
       if (opts.role === 'client' && t.client !== yo && t.realClient !== yo) continue;
       if (opts.role === 'worker' && t.worker !== yo) continue;
+      if (v !== 'all' && versionDe(t.taskId) !== v) continue;
       out.push(t);
     }
     out.sort((a, b) => b.createdTs - a.createdTs || Number(b.taskId) - Number(a.taskId));
     return opts.limit !== undefined ? out.slice(0, opts.limit) : out;
+  }
+
+  /** Las cuentas suspendidas en PanalBans (v2.5), de la más reciente a la más antigua. */
+  suspendidos(): { account: string; sinceTs: number; reasonHash: string }[] {
+    return [...this.stats.suspendidos.entries()]
+      .map(([account, x]) => ({ account, sinceTs: x.desdeTs, reasonHash: x.reasonHash }))
+      .sort((a, b) => b.sinceTs - a.sinceTs);
+  }
+
+  estaSuspendido(address: string): boolean {
+    return this.stats.suspendidos.has(address.toLowerCase());
+  }
+
+  /** Los precios de un agente en PanalPrices (v2.5), por moneda; vacío si no ha puesto ninguno. */
+  preciosDe(agent: string): Record<string, string[]> {
+    return Object.fromEntries(this.stats.precios.get(agent.toLowerCase()) ?? []);
   }
 
   /** Una tarea suelta, para consultarla por id sin leer la cadena. */
@@ -1651,6 +1944,14 @@ export class IndexStore {
 
   get tablonHasta(): number | null {
     return this.state.tablonHasta;
+  }
+
+  get v2_5Hasta(): number | null {
+    return this.state.v2_5Hasta ?? null;
+  }
+
+  setV2_5Hasta(n: number): void {
+    this.state.v2_5Hasta = n;
   }
 
   setTablonHasta(n: number): void {
@@ -1674,9 +1975,13 @@ export class IndexStore {
     client?: string;
     agent?: string;
     limit?: number;
+    /** De qué tablón. Por defecto el v2, por lo mismo que en `tasksOf`. */
+    v?: Vista;
   } = {}): IndexedJob[] {
     const out: IndexedJob[] = [];
+    const v = f.v ?? 'v2';
     for (const j of this.stats.jobs.values()) {
+      if (v !== 'all' && versionDe(j.jobId) !== v) continue;
       if (f.state && j.state !== f.state) continue;
       if (f.category !== undefined && j.category !== f.category) continue;
       if (f.client && j.client !== f.client.toLowerCase()) continue;
@@ -1692,8 +1997,8 @@ export class IndexStore {
   }
 
   /** Las categorías que declaró un agente en el tablón. */
-  categoriasDe(agent: string): number[] {
-    return this.stats.categorias.get(agent.toLowerCase()) ?? [];
+  categoriasDe(agent: string, v: Version = 'v2'): number[] {
+    return this.stats.porTablon[v].categorias.get(agent.toLowerCase()) ?? [];
   }
 
   /**
@@ -1774,12 +2079,12 @@ export class IndexStore {
   }
 
   /** Un agente en el tablón. Sin actividad, todo a cero. */
-  agenteEnElTablon(agent: string): AgenteEnElTablon {
+  agenteEnElTablon(agent: string, v: Version = 'v2'): AgenteEnElTablon {
     const k = agent.toLowerCase();
     return {
       agent: k,
-      categorias: this.categoriasDe(k),
-      ...(this.stats.agentesTablon.get(k) ?? {
+      categorias: this.categoriasDe(k, v),
+      ...(this.stats.porTablon[v].agentesTablon.get(k) ?? {
         faltas: 0,
         faltasEn90Dias: 0,
         suspendidoHasta: 0,
@@ -1791,38 +2096,38 @@ export class IndexStore {
   }
 
   /** Lo que el tablón le debe a un cliente, por moneda; solo lo que no es cero. */
-  porCobrarDe(client: string): Record<string, string> {
+  porCobrarDe(client: string, v: Version = 'v2'): Record<string, string> {
     const out: Record<string, string> = {};
-    for (const [moneda, v] of this.stats.porCobrar.get(client.toLowerCase()) ?? []) {
-      if (v > 0n) out[moneda] = v.toString();
+    for (const [moneda, cuanto] of this.stats.porTablon[v].porCobrar.get(client.toLowerCase()) ?? []) {
+      if (cuanto > 0n) out[moneda] = cuanto.toString();
     }
     return out;
   }
 
-  configTablon(): ConfigTablon {
-    return structuredClone(this.stats.configTablon);
+  configTablon(v: Version = 'v2'): ConfigTablon {
+    return structuredClone(this.stats.porTablon[v].configTablon);
   }
 
-  campanas(owner?: string): CampanaIndexada[] {
+  campanas(owner?: string, v: Version = 'v2'): CampanaIndexada[] {
     const out: CampanaIndexada[] = [];
-    for (const c of this.stats.campanas.values()) {
+    for (const c of this.stats.porTablon[v].campanas.values()) {
       if (owner && c.owner !== owner.toLowerCase()) continue;
       out.push({ key: c.key, campaignId: c.campaignId, owner: c.owner, jobs: c.jobs, cap: c.cap, tomados: Object.fromEntries(c.tomados) });
     }
     return out;
   }
 
-  campana(key: string): CampanaIndexada | null {
-    return this.campanas().find((c) => c.key === key.toLowerCase()) ?? null;
+  campana(key: string, v: Version = 'v2'): CampanaIndexada | null {
+    return this.campanas(undefined, v).find((c) => c.key === key.toLowerCase()) ?? null;
   }
 
   /** Las campañas cuyo tope aún no se ha leído del contrato. */
-  campanasSinTope(): string[] {
-    return [...this.stats.campanas.values()].filter((c) => c.cap === null).map((c) => c.key);
+  campanasSinTope(v: Version = 'v2'): string[] {
+    return [...this.stats.porTablon[v].campanas.values()].filter((c) => c.cap === null).map((c) => c.key);
   }
 
-  marcarTopeDeCampana(key: string, cap: number): void {
-    const c = this.stats.campanas.get(key.toLowerCase());
+  marcarTopeDeCampana(key: string, cap: number, v: Version = 'v2'): void {
+    const c = this.stats.porTablon[v].campanas.get(key.toLowerCase());
     if (c) c.cap = cap;
   }
 
@@ -1830,9 +2135,10 @@ export class IndexStore {
    * Las cifras del tablón entre `desde` (incluido) y `hasta` (excluido), en
    * segundos: lo que la foto del mes guarda (BOARD.md §10.1).
    */
-  metricasTablon(desde: number, hasta: number): MetricasTablon {
+  metricasTablon(desde: number, hasta: number, v: Version = 'v2'): MetricasTablon {
     const en = (ts: number | undefined): boolean => ts !== undefined && ts >= desde && ts < hasta;
-    const jobs = [...this.stats.jobs.values()];
+    const tb = this.stats.porTablon[v];
+    const jobs = [...this.stats.jobs.values()].filter((j) => versionDe(j.jobId) === v);
     const publicados = jobs.filter((j) => en(j.postedTs));
     const asignados = jobs.filter((j) => en(j.assignedTs));
 
@@ -1860,11 +2166,11 @@ export class IndexStore {
       if (t.disputedTs !== undefined) disputas++;
     }
     const devuelto: Record<string, bigint> = {};
-    for (const c of this.stats.cierres) {
+    for (const c of tb.cierres) {
       if (en(c.ts) && c.refund > 0n) devuelto[c.coin] = (devuelto[c.coin] ?? 0n) + c.refund;
     }
 
-    const faltas = this.stats.faltas.filter((f) => en(f.ts));
+    const faltas = tb.faltas.filter((f) => en(f.ts));
     const larga = (f: { ts: number; suspendidoHasta: number }) => f.suspendidoHasta - f.ts >= 29 * 86_400;
     const corta = (f: { ts: number; suspendidoHasta: number }) => !larga(f) && f.suspendidoHasta - f.ts >= 6 * 86_400;
 
@@ -1880,7 +2186,7 @@ export class IndexStore {
         asignados: asignados.length,
         retirados: jobs.filter((j) => j.state === 'withdrawn' && en(j.closedTs)).length,
         caducados: jobs.filter((j) => j.state === 'expired' && en(j.closedTs)).length,
-        republicados: this.stats.republicaciones.filter(en).length,
+        republicados: tb.republicaciones.filter(en).length,
         publicadoPorMoneda: aTexto(publicadoPorMoneda),
       },
       rapidez: { inmediato: espera('immediate'), seleccion: espera('selection') },

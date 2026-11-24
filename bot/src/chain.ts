@@ -29,6 +29,15 @@ import {
 } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import type { BotConfig } from './config.js';
+import {
+  comoTareaV2,
+  esDelV2_5,
+  getArbitrosV2_5,
+  getTareaV2_5,
+  getTrabajoV2_5,
+  idEnLaCadena,
+  type ConfigV2_5,
+} from './v2_5.js';
 
 /** Monad mainnet. */
 export const monad = defineChain({
@@ -378,7 +387,15 @@ export async function getTaskCount(clients: ChainClients, cfg: BotConfig): Promi
   );
 }
 
+/**
+ * Una tarea por su número de fuera de la cadena: hasta mil millones, del
+ * escrow v2; desde ahí, del v2.5 (ver v2_5.ts), con la misma forma.
+ */
 export async function getTask(clients: ChainClients, cfg: BotConfig, taskId: bigint): Promise<Task> {
+  if (esDelV2_5(taskId)) {
+    if (!cfg.v2_5) throw new Error(`tarea ${taskId} del v2.5, y el v2.5 está apagado`);
+    return comoTareaV2(await getTareaV2_5(clients, cfg.v2_5, idEnLaCadena(taskId)));
+  }
   const raw = await withRetry(`tasks(${taskId})`, () =>
     clients.publicClient.readContract({
       address: cfg.escrowAddress,
@@ -395,6 +412,10 @@ export async function getTask(clients: ChainClients, cfg: BotConfig, taskId: big
  * 0 si nunca se abrió). De ahí cuenta el plazo de las pruebas del buzón.
  */
 export async function getDisputedAt(clients: ChainClients, cfg: BotConfig, taskId: bigint): Promise<bigint> {
+  if (esDelV2_5(taskId)) {
+    if (!cfg.v2_5) throw new Error(`tarea ${taskId} del v2.5, y el v2.5 está apagado`);
+    return (await getTareaV2_5(clients, cfg.v2_5, idEnLaCadena(taskId))).disputedAt;
+  }
   return withRetry(`disputedAt(${taskId})`, () =>
     clients.publicClient.readContract({
       address: cfg.escrowAddress,
@@ -411,6 +432,21 @@ export async function getDisputedAt(clients: ChainClients, cfg: BotConfig, taskI
  * arbitrator va en la lista: si algún día es una cuenta, es ella quien decide.
  */
 export async function getArbitros(clients: ChainClients, cfg: BotConfig): Promise<Address[]> {
+  const v2 = await getArbitrosV2(clients, cfg);
+  if (!cfg.v2_5) return v2;
+  // Los del v2 y los del v2.5 juntos: hoy son el mismo multisig, y el buzón da
+  // acceso a las pruebas de una disputa a quien la juzga, sea del escrow que sea.
+  const v25 = await getArbitrosV2_5(clients, cfg.v2_5);
+  const vistos = new Set<string>();
+  return [...v2, ...v25].filter((a) => {
+    const k = a.toLowerCase();
+    if (vistos.has(k)) return false;
+    vistos.add(k);
+    return true;
+  });
+}
+
+async function getArbitrosV2(clients: ChainClients, cfg: BotConfig): Promise<Address[]> {
   const arbitrator = (await withRetry('arbitrator()', () =>
     clients.publicClient.readContract({
       address: cfg.escrowAddress,
@@ -860,7 +896,13 @@ export async function getTablonJob(
   clients: ChainClients,
   tablon: Address,
   jobId: bigint,
+  v2_5: ConfigV2_5 | null = null,
 ): Promise<TrabajoTablon> {
+  // Desde mil millones, del tablón v2.5 (ver v2_5.ts).
+  if (esDelV2_5(jobId)) {
+    if (!v2_5) throw new Error(`encargo ${jobId} del tablón v2.5, y el v2.5 está apagado`);
+    return getTrabajoV2_5(clients, v2_5, idEnLaCadena(jobId));
+  }
   const j = await withRetry(`getJob(${jobId})`, () =>
     clients.publicClient.readContract({ address: tablon, abi: tablonAbi, functionName: 'getJob', args: [jobId] }),
   );

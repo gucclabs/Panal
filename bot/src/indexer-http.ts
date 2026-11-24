@@ -56,12 +56,15 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { allowedOrigin, clientIp, crearLimitador, escuchar } from './net.js';
 import { huellaDeAgente, vistaPrevia } from './vista-previa.js';
 import type { BotConfig } from './config.js';
-import type {
-  AgenteEnElTablon,
-  CampanaIndexada,
-  IndexStore,
-  MetricasTablon,
-  Vigilancia,
+import {
+  versionDe,
+  type AgenteEnElTablon,
+  type CampanaIndexada,
+  type IndexStore,
+  type MetricasTablon,
+  type Version,
+  type Vigilancia,
+  type Vista,
 } from './indexer-store.js';
 
 /*
@@ -307,6 +310,23 @@ export function createIndexServer(deps: IndexServerDeps): Server {
       return;
     }
 
+    /*
+     * Qué versión se pide: `v=2` (lo de siempre, y lo que se sirve sin el
+     * parámetro), `v=2.5` o `v=all`. El v2.5 (24-nov-2026) numera sus tareas y
+     * encargos desde mil millones (bot/src/v2_5.ts); la web, la app y los
+     * agentes ya publicados los leerían como del v2 y fallarían, así que solo
+     * los ve quien los pide.
+     */
+    const vRaw = url.searchParams.get('v');
+    const vista: Vista | null =
+      vRaw === null || vRaw === '2' ? 'v2' : vRaw === '2.5' ? 'v2_5' : vRaw === 'all' ? 'all' : null;
+    if (vista === null) {
+      json(res, 400, { error: 'bad v (2 | 2.5 | all)' });
+      return;
+    }
+    /** Lo del tablón que va por agente, cliente o campaña es de un tablón u otro: aquí no vale «all». */
+    const tablonPedido: Version = vista === 'v2_5' ? 'v2_5' : 'v2';
+
     switch (url.pathname) {
       case '/index/events': {
         const limitRaw = url.searchParams.get('limit');
@@ -320,7 +340,7 @@ export function createIndexServer(deps: IndexServerDeps): Server {
           limit = n;
         }
         const before = url.searchParams.get('before') ?? undefined;
-        const { events, next } = store.queryEvents(limit, before);
+        const { events, next } = store.queryEvents(limit, before, vista);
         json(res, 200, { events, count: events.length, next });
         return;
       }
@@ -353,7 +373,7 @@ export function createIndexServer(deps: IndexServerDeps): Server {
           }
           limit = n;
         }
-        const tasks = store.tasksOf(address, { role: roleRaw ?? undefined, limit });
+        const tasks = store.tasksOf(address, { role: roleRaw ?? undefined, limit, v: vista });
         // `lastBlock` viaja con la respuesta a proposito: un indexador vivo
         // pero atrasado es peor que uno caido, porque quien pregunta se fia de
         // una lista incompleta. Con esto puede decidir por si mismo, y sin
@@ -544,6 +564,7 @@ export function createIndexServer(deps: IndexServerDeps): Server {
           client: quien.client ?? undefined,
           agent: quien.agent ?? undefined,
           limit,
+          v: vista,
         });
         json(res, 200, { jobs, count: jobs.length, lastBlock: store.lastBlock });
         return;
@@ -565,7 +586,8 @@ export function createIndexServer(deps: IndexServerDeps): Server {
           offers: store.ofertasDe(id),
           task: job.escrowTaskId ? store.task(job.escrowTaskId) : null,
           campaign: (() => {
-            const c = job.campaignKey ? store.campana(job.campaignKey) : null;
+            // El número dice de qué tablón es: no hace falta `v`.
+            const c = job.campaignKey ? store.campana(job.campaignKey, versionDe(job.jobId)) : null;
             return c ? enIngles.campana(c) : null;
           })(),
           lastBlock: store.lastBlock,
@@ -582,15 +604,15 @@ export function createIndexServer(deps: IndexServerDeps): Server {
         }
         if (url.pathname === '/index/board/agent') {
           json(res, 200, {
-            ...enIngles.agente(store.agenteEnElTablon(address)),
-            jobs: store.jobs({ agent: address, limit: TASKS_DEFAULT_LIMIT }),
+            ...enIngles.agente(store.agenteEnElTablon(address, tablonPedido)),
+            jobs: store.jobs({ agent: address, limit: TASKS_DEFAULT_LIMIT, v: tablonPedido }),
             lastBlock: store.lastBlock,
           });
         } else {
           json(res, 200, {
             client: address.toLowerCase(),
-            owed: store.porCobrarDe(address),
-            jobs: store.jobs({ client: address, limit: TASKS_DEFAULT_LIMIT }),
+            owed: store.porCobrarDe(address, tablonPedido),
+            jobs: store.jobs({ client: address, limit: TASKS_DEFAULT_LIMIT, v: tablonPedido }),
             lastBlock: store.lastBlock,
           });
         }
@@ -598,7 +620,7 @@ export function createIndexServer(deps: IndexServerDeps): Server {
       }
 
       case '/index/board/config': {
-        json(res, 200, { ...store.configTablon(), lastBlock: store.lastBlock });
+        json(res, 200, { ...store.configTablon(tablonPedido), lastBlock: store.lastBlock });
         return;
       }
 
@@ -608,7 +630,7 @@ export function createIndexServer(deps: IndexServerDeps): Server {
           json(res, 400, { error: 'bad owner (0x + 40 hex)' });
           return;
         }
-        const campaigns = store.campanas(owner ?? undefined).map(enIngles.campana);
+        const campaigns = store.campanas(owner ?? undefined, tablonPedido).map(enIngles.campana);
         json(res, 200, { campaigns, count: campaigns.length, lastBlock: store.lastBlock });
         return;
       }
@@ -619,7 +641,7 @@ export function createIndexServer(deps: IndexServerDeps): Server {
           json(res, 400, { error: 'key required (0x + 64 hex)' });
           return;
         }
-        const c = store.campana(key);
+        const c = store.campana(key, tablonPedido);
         if (!c) {
           json(res, 404, { error: 'no such campaign' });
           return;
@@ -635,12 +657,44 @@ export function createIndexServer(deps: IndexServerDeps): Server {
           json(res, 400, { error: 'from and to required (unix seconds, from < to)' });
           return;
         }
-        json(res, 200, { ...enIngles.metricas(store.metricasTablon(from, to)), lastBlock: store.lastBlock });
+        json(res, 200, { ...enIngles.metricas(store.metricasTablon(from, to, tablonPedido)), lastBlock: store.lastBlock });
         return;
       }
 
       case '/index/board/monitoring': {
         json(res, 200, { ...enIngles.vigilancia(store.vigilancia()), lastBlock: store.lastBlock });
+        return;
+      }
+
+      // ---- El v2.5: suspensiones y precios -------------------------------
+      //
+      // Las cuentas suspendidas en PanalBans, para que la web y la app no
+      // ofrezcan contratar a quien el escrow v2.5 no deja trabajar. Lo que no
+      // dice es por qué: eso es la huella de unas pruebas, no las pruebas.
+      case '/index/bans': {
+        res.setHeader('access-control-allow-origin', '*');
+        res.removeHeader('vary');
+        const suspended = store.suspendidos();
+        json(res, 200, { suspended, count: suspended.length, lastBlock: store.lastBlock });
+        return;
+      }
+
+      // Los precios de un agente en PanalPrices, por moneda (dirección en
+      // minúsculas, la nativa como 0x0…0), en unidades mínimas.
+      case '/index/prices': {
+        const agent = url.searchParams.get('agent');
+        if (!agent || !/^0x[0-9a-fA-F]{40}$/.test(agent)) {
+          json(res, 400, { error: 'agent required (0x + 40 hex)' });
+          return;
+        }
+        res.setHeader('access-control-allow-origin', '*');
+        res.removeHeader('vary');
+        json(res, 200, {
+          agent: agent.toLowerCase(),
+          prices: store.preciosDe(agent),
+          suspended: store.estaSuspendido(agent),
+          lastBlock: store.lastBlock,
+        });
         return;
       }
 
