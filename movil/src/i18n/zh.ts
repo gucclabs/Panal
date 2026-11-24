@@ -69,6 +69,8 @@ export const zh: Textos = {
     noEsNuestra: '下载的文件没有 Panal 的签名，因此没有安装。',
     falloDescarga: '下载失败。点此重试。',
     conNavegador: '用浏览器下载',
+    terminos: '使用条款',
+    privacidad: '隐私',
     propiedad: '© 2026 Panal 与 Kreno · 代码采用 MIT 许可；名称和标志不在其内',
   },
 

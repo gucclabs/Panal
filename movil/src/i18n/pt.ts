@@ -71,6 +71,8 @@ export const pt: Textos = {
     noEsNuestra: 'O ficheiro descarregado não tem a assinatura do Panal: não foi instalado.',
     falloDescarga: 'Não foi possível descarregar. Toca para tentar de novo.',
     conNavegador: 'Descarregar com o navegador',
+    terminos: 'Termos de uso',
+    privacidad: 'Privacidade',
     propiedad: '© 2026 Panal e Kreno · o código é MIT; o nome e o logo, não',
   },
 

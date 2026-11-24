@@ -36,6 +36,7 @@ const Cik = lazy(() => import('@/pages/Cik'));
 const Descargar = lazy(() => import('@/pages/Descargar'));
 const Nosotros = lazy(() => import('@/pages/Nosotros'));
 const Privacidad = lazy(() => import('@/pages/Privacidad'));
+const Terminos = lazy(() => import('@/pages/Terminos'));
 
 /** Stub provisional — los agentes de página reemplazan estas rutas. */
 function PageStub({ titleKey }: { titleKey: string }) {
@@ -75,6 +76,9 @@ export default function App() {
         <Route path="privacy" element={<Privacidad />} />
         {/* La primera dirección que tuvo; se mantiene por si alguien la guardó. */}
         <Route path="privacidad" element={<Privacidad />} />
+        <Route path="terms" element={<Terminos />} />
+        {/* La dirección en español, por si alguien la teclea así. */}
+        <Route path="terminos" element={<Terminos />} />
         <Route path="*" element={<PageStub titleKey="common.notFound" />} />
       </Route>
     </Routes>

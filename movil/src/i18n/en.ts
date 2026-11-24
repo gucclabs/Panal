@@ -71,6 +71,8 @@ export const en: Textos = {
     noEsNuestra: "The downloaded file isn't signed by Panal, so it wasn't installed.",
     falloDescarga: "Couldn't download it. Tap to try again.",
     conNavegador: 'Download with the browser',
+    terminos: 'Terms of use',
+    privacidad: 'Privacy',
     propiedad: '© 2026 Panal and Kreno · the code is MIT; the name and the logo are not',
   },
 
