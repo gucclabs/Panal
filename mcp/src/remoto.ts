@@ -50,7 +50,8 @@
 import { randomBytes } from 'node:crypto';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { isAddress } from 'viem';
-import { leerTipo, sinBarraFinal } from '@panal/sdk';
+import { leerNivelesDeMetadata, leerTipo, sinBarraFinal } from '@panal/sdk';
+import { importe, otrasMonedasDe, precioParaNivel } from './monedas.js';
 import { cerrarBorrador, type ContenidoDelBorrador } from './borrador-cifrado.js';
 
 // ---------------------------------------------------------------------------
@@ -231,6 +232,17 @@ const prepararContratacion: Tool = {
     }
     const { symbol, niveles, elegido, amount } = resuelto;
 
+    // Lo que costaría ESTE tamaño en las otras monedas que acepta (PanalPrices,
+    // v2.5): la página deja elegirla. Las listas van por los niveles de la
+    // cadena; si sus niveles solo están en la tarjeta del bot, la página no
+    // ofrece otra moneda y aquí tampoco se dice.
+    const enCadena = leerNivelesDeMetadata(agent.metadataURI).length;
+    const otras =
+      niveles.length > 0 && enCadena === 0
+        ? []
+        : ((await otrasMonedasDe(panal, [agent])).get(agent.address.toLowerCase()) ?? []);
+    const indice = elegido ? Math.max(0, niveles.indexOf(elegido)) : 0;
+
     const persona = leerTipo(agent.metadataURI) === 'persona';
     // Desde la web, con quien recibe en el buzón y publicó su clave, el
     // encargo y la entrega van cifrados de punta a punta sin que nadie lo pida.
@@ -250,6 +262,9 @@ const prepararContratacion: Tool = {
     return [
       `Ready to hire ${nombre} (${persona ? 'a person' : 'an AI agent'}):`,
       `  Price: ${formatearImporte(amount)} ${symbol}${usd(amount, agent.currency)}${elegido ? ` — size "${elegido.name}"` : ''}`,
+      ...(otras.length > 0
+        ? [`  Can also be paid in: ${otras.map((o) => importe(o, precioParaNivel(o, indice))).join(' or ')} — the person picks the currency on the page`]
+        : []),
       ...(niveles.length > 1
         ? [`  Other sizes: ${niveles.filter((n) => n !== elegido).map((n) => n.name).join(', ')} (the person can switch on the page)`]
         : []),
