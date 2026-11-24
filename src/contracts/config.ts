@@ -8,7 +8,8 @@
  * fuerza Monad testnet (10143) solo para desarrollo (ver MAINNET.md).
  */
 
-import { defineChain, createPublicClient, http } from 'viem';
+import { defineChain, createPublicClient, formatUnits, http } from 'viem';
+import { V2_5_MAINNET } from '@panal/sdk';
 import type { EIP1193Provider } from 'viem';
 import { createConfig } from 'wagmi';
 import type { CreateConnectorFn } from 'wagmi';
@@ -56,7 +57,7 @@ export const monadTestnet = defineChain({
  * Se pone VITE_RPC_URL en el entorno del despliegue y se recarga. Sin ella,
  * el publico, que es lo que hay hoy.
  */
-const RPC_MAINNET = import.meta.env.VITE_RPC_URL?.trim() || 'https://rpc.monad.xyz';
+const RPC_MAINNET = import.meta.env?.VITE_RPC_URL?.trim() || 'https://rpc.monad.xyz';
 
 export const monadMainnet = defineChain({
   id: 143,
@@ -78,7 +79,7 @@ export const monadMainnet = defineChain({
  * mainnet). Solo se usa testnet si el build lo pide explícitamente con
  * `VITE_CHAIN=testnet`.
  */
-export const IS_MAINNET = import.meta.env.VITE_CHAIN !== 'testnet';
+export const IS_MAINNET = import.meta.env?.VITE_CHAIN !== 'testnet';
 
 /** Red activa de la dApp. */
 export const activeChain = IS_MAINNET ? monadMainnet : monadTestnet;
@@ -170,9 +171,48 @@ export const PANAL_TABLON_ADDRESS = '0x2Cfc6803E269fa9BF728e202736a7bc0547ae149'
 
 export const PANAL_TOKEN_ADDRESS = '0x2e2e44e7fa6178822d4397299f719e89d1a67777' as const;
 
-/** Símbolo de UI para una `currency` on-chain: address(0) = MON, PANAL_TOKEN = $PANAL. */
-export function currencySymbol(currency?: string | null): 'MON' | '$PANAL' {
-  return currency && currency.toLowerCase() === PANAL_TOKEN_ADDRESS.toLowerCase() ? '$PANAL' : 'MON';
+/**
+ * El escrow v2.5 y lo suyo, desplegados y verificados el 24-nov-2026 (ver
+ * sdk/src/v2_5.ts). Desde la fase B, toda contratación nueva va aquí; el v2
+ * sigue para lo que ya estaba en marcha.
+ *
+ * Fuera de la cadena, sus tareas y encargos llevan su número MÁS MIL MILLONES
+ * (la 5 del v2.5 es la 1.000.000.005): así no se confunden con las del v2 en
+ * el buzón, el indexador ni los mensajes firmados. `src/lib/escrow.ts` traduce.
+ */
+export const V2_5_ENABLED = IS_MAINNET;
+export const PANAL_ESCROW_V2_5_ADDRESS = V2_5_MAINNET.escrow;
+export const PANAL_TABLON_V2_5_ADDRESS = V2_5_MAINNET.tablon;
+export const PANAL_REPUTATION_V2_5_ADDRESS = V2_5_MAINNET.reputation;
+export const PANAL_BANS_ADDRESS = V2_5_MAINNET.bans;
+export const PANAL_PRICES_ADDRESS = V2_5_MAINNET.prices;
+/** USDC de Circle en Monad: la tercera moneda del escrow v2.5. 6 decimales. */
+export const USDC_TOKEN_ADDRESS = V2_5_MAINNET.usdc;
+/** El dueño de los contratos del v2.5: la multisig 0xd1AA, no la de los jueces. */
+export const PANAL_OWNER_MULTISIG_ADDRESS = '0xd1AA9e0b6c4215740d464847210e5CCfDce7d7A1' as const;
+
+export type SimboloMoneda = 'MON' | '$PANAL' | 'USDC';
+
+/** Símbolo de UI para una `currency` on-chain: address(0) = MON, PANAL_TOKEN = $PANAL, USDC. */
+export function currencySymbol(currency?: string | null): SimboloMoneda {
+  const c = currency?.toLowerCase();
+  if (c === PANAL_TOKEN_ADDRESS.toLowerCase()) return '$PANAL';
+  if (c === USDC_TOKEN_ADDRESS.toLowerCase()) return 'USDC';
+  return 'MON';
+}
+
+/** Decimales de una moneda: USDC lleva 6; MON y $PANAL, 18. */
+export function decimalesDe(currency?: string | null): number {
+  return currencySymbol(currency) === 'USDC' ? 6 : 18;
+}
+
+/**
+ * Un importe en unidades mínimas, como número en su moneda. Lo que antes era
+ * `Number(formatEther(x))`: con USDC eso daba cifras un billón de veces más
+ * pequeñas que las de verdad.
+ */
+export function enUnidades(cantidad: bigint, currency?: string | null): number {
+  return Number(formatUnits(cantidad, decimalesDe(currency)));
 }
 
 /**
@@ -225,7 +265,7 @@ if (trustProvider) {
  * vez de al desplegar. Sin la variable, la web se comporta exactamente como
  * antes.
  */
-const WC_PROJECT_ID = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID?.trim();
+const WC_PROJECT_ID = import.meta.env?.VITE_WALLETCONNECT_PROJECT_ID?.trim();
 if (WC_PROJECT_ID) {
   connectors.push(
     walletConnect({

@@ -19,10 +19,14 @@ import {
   PANAL_REGISTRY_V2_ADDRESS,
   PANAL_REPUTATION_ADDRESS,
   PANAL_REPUTATION_V2_ADDRESS,
+  PANAL_REPUTATION_V2_5_ADDRESS,
+  NATIVE_CURRENCY,
+  V2_5_ENABLED,
   V2_ENABLED,
   activeChain,
   publicClient,
 } from '@/contracts/config';
+import { panalReputationV2_5Abi } from '@panal/sdk';
 import { panalRegistryAbi, panalRegistryV2Abi, panalReputationAbi } from '@/contracts/abis';
 
 /** Registry/reputation activos: v2 cuando esté desplegado, v1 mientras tanto. */
@@ -97,6 +101,7 @@ async function fetchProfile(me: Address): Promise<{
       })
       .catch(() => ZERO_REPUTATION) as Promise<MyReputation>,
   ]);
+  const conLaDelV2_5 = await sumarLaDelV2_5(me, reputation ?? ZERO_REPUTATION, agent?.currency ?? NATIVE_CURRENCY);
 
   // `getAgent` NO revierte para una wallet sin registrar: devuelve la Agent a
   // ceros, porque en Solidity leer un mapping vacío no es un error. Por eso no
@@ -112,8 +117,44 @@ async function fetchProfile(me: Address): Promise<{
   return {
     agent: registrado ? agent : null,
     isActive: Boolean(isActive) && registrado,
-    reputation: reputation ?? ZERO_REPUTATION,
+    reputation: conLaDelV2_5,
   };
+}
+
+/**
+ * La reputación del v2 más la ganada en el escrow v2.5.
+ *
+ * Del v2.5 se lee la PROPIA (`getOwnReputation`), no `getReputation`, que ya
+ * incluye la del v2: sumarla otra vez contaría dos veces lo de antes. Lo
+ * cobrado, en la moneda del agente (`earned(agente, moneda)`). Si el v2.5 no
+ * responde, queda la del v2: es lo que había.
+ */
+async function sumarLaDelV2_5(me: Address, v2: MyReputation, moneda: Address): Promise<MyReputation> {
+  if (!V2_5_ENABLED) return v2;
+  try {
+    const [propia, cobrado] = await Promise.all([
+      publicClient.readContract({
+        address: PANAL_REPUTATION_V2_5_ADDRESS,
+        abi: panalReputationV2_5Abi,
+        functionName: 'getOwnReputation',
+        args: [me],
+      }) as Promise<{ tasksCompleted: bigint; ratingSum: bigint; ratingCount: bigint }>,
+      publicClient.readContract({
+        address: PANAL_REPUTATION_V2_5_ADDRESS,
+        abi: panalReputationV2_5Abi,
+        functionName: 'earned',
+        args: [me, moneda],
+      }) as Promise<bigint>,
+    ]);
+    return {
+      tasksCompleted: v2.tasksCompleted + propia.tasksCompleted,
+      totalEarned: v2.totalEarned + cobrado,
+      ratingSum: v2.ratingSum + propia.ratingSum,
+      ratingCount: v2.ratingCount + propia.ratingCount,
+    };
+  } catch {
+    return v2;
+  }
 }
 
 /** Rating medio 0–5 (null si aún no hay reseñas). */

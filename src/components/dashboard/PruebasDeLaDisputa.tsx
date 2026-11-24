@@ -40,7 +40,9 @@ import { abrirBytes, abrirTexto, clavePublicaDe, darAccesoA, leerArbitros, publi
 import { getTaskBrief, getTaskSobre } from '@/lib/taskBriefs';
 import { leerEntrega } from '@/lib/expedientes';
 import { panalEscrowV2Abi } from '@/contracts/abis';
-import { PANAL_ESCROW_V2_ADDRESS, activeChain } from '@/contracts/config';
+import { PANAL_ESCROW_V2_5_ADDRESS, PANAL_ESCROW_V2_ADDRESS, activeChain } from '@/contracts/config';
+import { panalEscrowV2_5Abi } from '@panal/sdk';
+import { esDelV2_5, etiquetaTarea, idEnLaCadena } from '@/lib/escrow';
 import {
   abrirPieza,
   agenteContestaSolo,
@@ -96,7 +98,7 @@ export default function PruebasDeLaDisputa({
       <DialogContent className="flex max-h-[92dvh] w-[calc(100vw-1.5rem)] flex-col overflow-y-auto overscroll-contain border-line bg-paper sm:max-w-xl">
         <DialogTitle className="flex items-center gap-2 font-display text-ink">
           <Gavel size={17} className="shrink-0 text-terra" aria-hidden />
-          {t('pruebas.titulo', { id: task ? `#${task.id.toString()}` : '' })}
+          {t('pruebas.titulo', { id: task ? etiquetaTarea(task.id) : '' })}
         </DialogTitle>
         <DialogDescription className="text-[0.8125rem] text-ink-2">
           {comoJuez ? t('pruebas.descJuez') : t('pruebas.desc')}
@@ -133,14 +135,25 @@ function Panel({ task, comoJuez }: { task: TareaEnDisputa; comoJuez: boolean }) 
   });
 
   // Las huellas de la tarea: con ellas se comprueba el encargo y la entrega.
-  const { data: enCadena } = useReadContract({
+  // Cada una en su escrow: `tasks` en el v2, `getTask` en el v2.5.
+  const es25 = esDelV2_5(task.id);
+  const { data: enCadenaV2 } = useReadContract({
     address: PANAL_ESCROW_V2_ADDRESS,
     abi: panalEscrowV2Abi,
     functionName: 'tasks',
     args: [task.id],
     chainId: activeChain.id,
-    query: { retry: 1 },
+    query: { enabled: !es25, retry: 1 },
   });
+  const { data: enCadenaV25 } = useReadContract({
+    address: PANAL_ESCROW_V2_5_ADDRESS,
+    abi: panalEscrowV2_5Abi,
+    functionName: 'getTask',
+    args: [idEnLaCadena(task.id)],
+    chainId: activeChain.id,
+    query: { enabled: es25, retry: 1 },
+  });
+  const enCadena = es25 ? enCadenaV25 : enCadenaV2;
   const huellas = useMemo(() => {
     const r = enCadena as unknown as { taskHash?: Hex; resultHash?: Hex } | undefined;
     return r?.taskHash && r.resultHash ? { taskHash: r.taskHash, resultHash: r.resultHash } : undefined;
@@ -230,7 +243,7 @@ function Panel({ task, comoJuez }: { task: TareaEnDisputa; comoJuez: boolean }) 
       const c = await credencialDePruebas(task.id, address, firmar, task.jobId);
       setCred(c);
       setEstado('cargando');
-      const lista = await leerArbitros();
+      const lista = await leerArbitros(task.id);
       setJueces(lista);
       await Promise.all([destinatarios(lista), cargar(c)]);
       setEstado('listo');

@@ -45,7 +45,7 @@ import {
   type Firmar,
 } from '@/lib/cifrado';
 import {
-  BUZON_DEL_TABLON,
+  buzonDelTablon,
   bajarArchivoDelTablon,
   credencialTablon,
   leerEncargoConFirma,
@@ -103,7 +103,7 @@ export async function darAccesoAlElegido(job: EncargoConReglas, agente: Address,
   if (objetos.length === 0) return 0;
   const mia = await miClave(yo, firmar);
   const nuevos = objetos.map((o) => concederAcceso(o, yo, mia.secreta, { cuenta: agente, clave }, accesos));
-  await darAccesos(BUZON_DEL_TABLON, job.id, true, nuevos, yo, firmar);
+  await darAccesos(buzonDelTablon(job.id), job.id, true, nuevos, yo, firmar);
   return nuevos.length;
 }
 
@@ -115,7 +115,7 @@ export async function darAccesoALosArbitrosDelTablon(
   firmar: Firmar,
 ): ReturnType<typeof darAccesoALosArbitros> {
   const { objetos, accesos } = await reunirDelTablon(job, yo, firmar, resultHash);
-  return darAccesoALosArbitros({ base: BUZON_DEL_TABLON, id: job.id, esTablon: true, objetos, accesos, cuenta: yo, firmar });
+  return darAccesoALosArbitros({ base: buzonDelTablon(job.id), id: job.id, esTablon: true, objetos, accesos, cuenta: yo, firmar });
 }
 
 /**

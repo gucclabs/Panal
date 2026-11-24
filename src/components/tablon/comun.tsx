@@ -19,7 +19,7 @@ export function Importe({ wei, moneda, className, enLinea }: { wei: bigint; mone
     <span className={cn('font-mono text-ink', className)}>
       {/* Aislado: en árabe y urdu, «0.3 MON» salía como «MON 0.3». */}
       <bdi>
-        {cantidad(wei)} {simbolo}
+        {cantidad(wei, moneda)} {simbolo}
       </bdi>
       <Dolares cantidad={wei} moneda={simbolo} className={cn('font-normal', enLinea ? 'ml-1.5' : 'block')} />
     </span>

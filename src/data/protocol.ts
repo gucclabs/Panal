@@ -16,6 +16,8 @@ import {
   Users,
   AtSign,
   ClipboardList,
+  Ban,
+  Tags,
 } from 'lucide-react';
 import {
   PANAL_ESCROW_ADDRESS,
@@ -27,13 +29,29 @@ import {
   PANAL_REGISTRY_V2_ADDRESS,
   PANAL_REPUTATION_ADDRESS,
   PANAL_REPUTATION_V2_ADDRESS,
+  PANAL_ESCROW_V2_5_ADDRESS,
+  PANAL_TABLON_V2_5_ADDRESS,
+  PANAL_REPUTATION_V2_5_ADDRESS,
+  PANAL_BANS_ADDRESS,
+  PANAL_PRICES_ADDRESS,
+  V2_5_ENABLED,
   V2_ENABLED,
 } from '@/contracts/config';
 
-/** Contratos mostrados en footer/protocolo: v2 en mainnet, v1 en el resto. */
+/**
+ * Contratos mostrados en footer/protocolo: los del v2.5 en mainnet (donde va
+ * todo lo nuevo desde el 24-nov-2026), v1 en el resto. Los del v2 siguen
+ * desplegados para lo que ya estaba en marcha; sus direcciones están en la
+ * documentación.
+ */
 const REG = V2_ENABLED ? PANAL_REGISTRY_V2_ADDRESS : PANAL_REGISTRY_ADDRESS;
-const ESC = V2_ENABLED ? PANAL_ESCROW_V2_ADDRESS : PANAL_ESCROW_ADDRESS;
-const REP = V2_ENABLED ? PANAL_REPUTATION_V2_ADDRESS : PANAL_REPUTATION_ADDRESS;
+const ESC = V2_5_ENABLED ? PANAL_ESCROW_V2_5_ADDRESS : V2_ENABLED ? PANAL_ESCROW_V2_ADDRESS : PANAL_ESCROW_ADDRESS;
+const REP = V2_5_ENABLED
+  ? PANAL_REPUTATION_V2_5_ADDRESS
+  : V2_ENABLED
+    ? PANAL_REPUTATION_V2_ADDRESS
+    : PANAL_REPUTATION_ADDRESS;
+const TAB = V2_5_ENABLED ? PANAL_TABLON_V2_5_ADDRESS : PANAL_TABLON_ADDRESS;
 
 /** 0x1234…abcd — direcciones cortas derivadas de la config de red activa. */
 const shortAddr = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
@@ -50,13 +68,13 @@ export const NETWORK = {
   feePerTx: '<$0.001',
 } as const;
 
-export const PROTOCOL_FEE = 0.025; // 2,5%
+export const PROTOCOL_FEE = 0.025; // 2,5% (en el v2.5, el 1,5 % si se paga en $PANAL)
 export const ESCROW_AUTO_RELEASE_H = 72;
 
 /* ---------- Contratos ---------- */
 
 export interface ContractInfo {
-  id: 'registry' | 'escrow' | 'reputation' | 'multisig' | 'names' | 'tablon';
+  id: 'registry' | 'escrow' | 'reputation' | 'multisig' | 'names' | 'tablon' | 'bans' | 'prices';
   name: string;
   address: string;
   addressShort: string;
@@ -121,11 +139,31 @@ export const CONTRACTS: ContractInfo[] = [
   {
     id: 'tablon',
     name: 'PanalTablon',
-    address: PANAL_TABLON_ADDRESS,
-    addressShort: shortAddr(PANAL_TABLON_ADDRESS),
+    address: TAB,
+    addressShort: shortAddr(TAB),
     icon: ClipboardList,
     tagline: 'protocol.contracts.tablon.tagline',
   },
+  ...(V2_5_ENABLED
+    ? [
+        {
+          id: 'bans' as const,
+          name: 'PanalBans',
+          address: PANAL_BANS_ADDRESS,
+          addressShort: shortAddr(PANAL_BANS_ADDRESS),
+          icon: Ban,
+          tagline: 'protocol.contracts.bans.tagline',
+        },
+        {
+          id: 'prices' as const,
+          name: 'PanalPrices',
+          address: PANAL_PRICES_ADDRESS,
+          addressShort: shortAddr(PANAL_PRICES_ADDRESS),
+          icon: Tags,
+          tagline: 'protocol.contracts.prices.tagline',
+        },
+      ]
+    : []),
 ];
 
 /* ---------- Ciclo de vida de una tarea (protocolo.md S3) ---------- */

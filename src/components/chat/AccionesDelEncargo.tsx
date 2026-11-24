@@ -14,25 +14,23 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Star } from 'lucide-react';
-import { formatEther } from 'viem';
-import type { Address } from 'viem';
 import { useReadContract } from 'wagmi';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import ResultDialog from '@/components/dashboard/ResultDialog';
 import TxProgress from '@/components/dashboard/TxProgress';
 import { formatMonEs } from '@/components/dashboard/data';
-import { ACTIVE_ESCROW_ABI, ACTIVE_ESCROW_ADDRESS, TASK_STATUS, type RealTask } from '@/hooks/useMyTasks';
+import type { RealTask } from '@/hooks/useMyTasks';
 import { useContractAction, type ContractActionRequest } from '@/hooks/useContractAction';
 import { useAccesoEnDisputa } from '@/hooks/useAccesoEnDisputa';
 import { useAhora } from '@/hooks/useAhora';
-import { activeChain, currencySymbol } from '@/contracts/config';
+import { PANAL_ESCROW_V2_ADDRESS, activeChain, currencySymbol, enUnidades } from '@/contracts/config';
+import { panalEscrowV2Abi } from '@/contracts/abis';
+import { etiquetaTarea, llamadaDeEscrow, quePuede } from '@/lib/escrow';
 import { hayEntrega } from '@/lib/expedientes';
 import { esDelTablon } from '@/lib/tablonReglas';
 import { cn } from '@/lib/utils';
 
 type Accion = 'result' | 'approve' | 'dispute' | 'cancel' | 'autoRelease';
-
-const SIN_TRABAJADOR = '0x0000000000000000000000000000000000000000';
 
 export interface AccionesDelEncargoProps {
   tarea: RealTask;
@@ -49,9 +47,10 @@ export default function AccionesDelEncargo({ tarea, onCambio }: AccionesDelEncar
   const [abierta, setAbierta] = useState<Accion | null>(null);
   const [valoracion, setValoracion] = useState(5);
 
+  // La revisión del v2 (72 h); la del v2.5 la trae cada encargo.
   const { data: autoReleaseSec } = useReadContract({
-    address: ACTIVE_ESCROW_ADDRESS,
-    abi: ACTIVE_ESCROW_ABI,
+    address: PANAL_ESCROW_V2_ADDRESS,
+    abi: panalEscrowV2Abi,
     functionName: 'AUTO_RELEASE',
     chainId: activeChain.id,
     query: { staleTime: 300_000, retry: 1 },
@@ -70,44 +69,39 @@ export default function AccionesDelEncargo({ tarea, onCambio }: AccionesDelEncar
 
   if (esDelTablon(tarea.client)) return null;
 
-  // Las mismas reglas que el panel (TasksSection, `actionsFor`) para quien encargó.
+  // Las mismas reglas que el panel (TasksSection, `actionsFor`) para quien
+  // encargó, sean del escrow v2 o del v2.5 (lib/escrow.ts).
+  const puede = quePuede(tarea, ahora, autoReleaseSec !== undefined ? Number(autoReleaseSec) : undefined);
   const acciones: { clase: Accion; texto: string; estilo: string }[] = [];
   // «Ver resultado» en cuanto hay entrega, y ya para siempre: aprobar no puede
   // dejarte sin lo que acabas de pagar.
   if (hayEntrega(tarea.resultHash)) {
     acciones.push({ clase: 'result', texto: t('tasks.viewResult'), estilo: 'border border-honey text-honey hover:bg-honey/10' });
   }
-  if (tarea.status === TASK_STATUS.Delivered) {
+  if (puede.aprobar) {
     acciones.push({ clase: 'approve', texto: t('tasks.approve'), estilo: 'bg-olive text-paper hover:opacity-85' });
-    acciones.push({ clase: 'dispute', texto: t('tasks.openDispute'), estilo: 'border border-terra/40 text-terra hover:bg-terra/10' });
-    const puedeLiberar =
-      tarea.deliveredAt !== undefined &&
-      autoReleaseSec !== undefined &&
-      Number(tarea.deliveredAt) + Number(autoReleaseSec) <= ahora;
-    if (puedeLiberar) {
-      acciones.push({ clase: 'autoRelease', texto: t('tasks.autoReleaseBtn'), estilo: 'border border-honey text-honey hover:bg-honey/10' });
-    }
   }
-  // El contrato solo deja cancelar sin trabajador asignado o con el plazo vencido.
-  if (
-    tarea.status === TASK_STATUS.Open &&
-    (tarea.worker.toLowerCase() === SIN_TRABAJADOR || ahora > Number(tarea.deadline))
-  ) {
+  if (puede.disputarComoCliente) {
+    acciones.push({ clase: 'dispute', texto: t('tasks.openDispute'), estilo: 'border border-terra/40 text-terra hover:bg-terra/10' });
+  }
+  if (puede.liberar) {
+    acciones.push({ clase: 'autoRelease', texto: t('tasks.autoReleaseBtn'), estilo: 'border border-honey text-honey hover:bg-honey/10' });
+  }
+  if (puede.cancelar) {
     acciones.push({ clase: 'cancel', texto: t('tasks.cancelTask'), estilo: 'border border-line text-ink-2 hover:border-terra hover:text-terra' });
   }
   if (acciones.length === 0) return null;
 
   const peticion = (clase: Exclude<Accion, 'result'>): ContractActionRequest => {
-    const base = { address: ACTIVE_ESCROW_ADDRESS as Address, abi: ACTIVE_ESCROW_ABI };
     switch (clase) {
       case 'approve':
-        return { ...base, functionName: 'approveAndRelease', args: [tarea.id, valoracion] };
+        return llamadaDeEscrow(tarea.id, { tipo: 'aprobar', nota: valoracion });
       case 'dispute':
-        return { ...base, functionName: 'openDispute', args: [tarea.id] };
+        return llamadaDeEscrow(tarea.id, { tipo: 'disputar' });
       case 'cancel':
-        return { ...base, functionName: 'cancelTask', args: [tarea.id] };
+        return llamadaDeEscrow(tarea.id, { tipo: 'cancelar' });
       case 'autoRelease':
-        return { ...base, functionName: 'autoRelease', args: [tarea.id] };
+        return llamadaDeEscrow(tarea.id, { tipo: 'liberar' });
     }
   };
 
@@ -122,7 +116,7 @@ export default function AccionesDelEncargo({ tarea, onCambio }: AccionesDelEncar
     action.reset();
   };
 
-  const id = `#${tarea.id.toString()}`;
+  const id = etiquetaTarea(tarea.id);
   const negativa = abierta === 'dispute' || abierta === 'cancel';
 
   return (
@@ -146,7 +140,13 @@ export default function AccionesDelEncargo({ tarea, onCambio }: AccionesDelEncar
             <>
               <DialogHeader>
                 <DialogTitle className="font-display text-ink">{t(`tasks.dialog.${abierta}.title`, { id })}</DialogTitle>
-                <DialogDescription className="text-ink-2">{t(`tasks.dialog.${abierta}.desc`)}</DialogDescription>
+                <DialogDescription className="text-ink-2">
+                  {t(
+                    abierta === 'autoRelease' && tarea.version === 'v2_5'
+                      ? 'tasks.dialog.autoRelease.desc25'
+                      : `tasks.dialog.${abierta}.desc`,
+                  )}
+                </DialogDescription>
               </DialogHeader>
 
               {abierta === 'result' ? (
@@ -157,7 +157,7 @@ export default function AccionesDelEncargo({ tarea, onCambio }: AccionesDelEncar
               ) : (
                 <div className="flex flex-col gap-4">
                   <div className="rounded-xl border border-line bg-cream p-4 font-mono text-[0.8125rem] text-ink-2">
-                    {t('tasks.escrowAmount')}: {formatMonEs(Number(formatEther(tarea.amountWei)))}{' '}
+                    {t('tasks.escrowAmount')}: {formatMonEs(enUnidades(tarea.amountWei, tarea.currency))}{' '}
                     {currencySymbol(tarea.currency)}
                   </div>
 

@@ -118,7 +118,7 @@ export enum CierreV2_5 {
   /** La revisión pasó sin aprobar ni disputar: se liberó sola. */
   PorTiempo = 2,
   Arbitrada = 3,
-  /** La disputa pasó 14 días sin decisión: el dinero volvió al cliente. */
+  /** La disputa pasó 14 días sin decisión: se cerró a mitad y mitad (en el v2 volvía entero al cliente). */
   DisputaCaducada = 4,
   /** Acuerdo entre las dos partes. */
   Acuerdo = 5,

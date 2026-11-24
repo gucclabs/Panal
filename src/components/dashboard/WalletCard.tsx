@@ -23,7 +23,7 @@ import { ArrowDownLeft, ArrowUpRight, Check, Copy, ExternalLink, Loader2, Triang
 import { toast } from 'sonner';
 import { useBalance, useReadContract, useReadContracts, useSendTransaction, useSwitchChain, useWriteContract } from 'wagmi';
 import { erc20Abi } from 'viem';
-import { panalEscrowV2Abi, panalTokenAbi } from '@/contracts/abis';
+import { panalTokenAbi } from '@/contracts/abis';
 import { formatEther, formatUnits, parseAbiItem } from 'viem';
 import {
   Dialog,
@@ -39,7 +39,8 @@ import TxHash from '@/components/TxHash';
 import { useTxReceipt } from '@/hooks/useTxReceipt';
 import { useWallet } from '@/hooks/useWallet';
 import { ensureActiveChain } from '@/lib/ensureChain';
-import { EXPLORER_TX, NATIVE_CURRENCY, PANAL_ESCROW_ADDRESS, PANAL_ESCROW_V2_ADDRESS, activeChain, publicClient , IS_MAINNET, PANAL_TOKEN_ADDRESS, V2_ENABLED } from '@/contracts/config';
+import { EXPLORER_TX, NATIVE_CURRENCY, PANAL_ESCROW_ADDRESS, PANAL_ESCROW_V2_5_ADDRESS, PANAL_ESCROW_V2_ADDRESS, activeChain, publicClient , IS_MAINNET, PANAL_TOKEN_ADDRESS, V2_5_ENABLED, V2_ENABLED } from '@/contracts/config';
+import { usePendientes } from '@/hooks/usePendientes';
 import { panalEscrowAbi } from '@/contracts/abis';
 import { MONEDAS_ENVIO, maximo, monedaEnvio, revisar } from '@/lib/envio';
 import type { Moneda, Pega } from '@/lib/envio';
@@ -128,8 +129,15 @@ async function fetchWithdrawalPointsFor(
  */
 async function fetchWithdrawalPoints(addr: `0x${string}`): Promise<WithdrawalPoint[]> {
   const v1 = { address: PANAL_ESCROW_ADDRESS, event: WITHDRAWAL_EVENT, args: { to: addr } } as const;
+  // El v2.5 emite el mismo evento: sus retiros en MON también cuentan.
   const filters = V2_ENABLED
-    ? [v1, { address: PANAL_ESCROW_V2_ADDRESS, event: WITHDRAWAL_EVENT_V2, args: { to: addr, token: NATIVE_CURRENCY } } as const]
+    ? [
+        v1,
+        { address: PANAL_ESCROW_V2_ADDRESS, event: WITHDRAWAL_EVENT_V2, args: { to: addr, token: NATIVE_CURRENCY } } as const,
+        ...(V2_5_ENABLED
+          ? [{ address: PANAL_ESCROW_V2_5_ADDRESS, event: WITHDRAWAL_EVENT_V2, args: { to: addr, token: NATIVE_CURRENCY } } as const]
+          : []),
+      ]
     : [v1];
   const chunks = await Promise.all(filters.map((f) => fetchWithdrawalPointsFor(f)));
   return chunks.flat().sort((a, b) => (a.blockNumber < b.blockNumber ? -1 : 1));
@@ -219,28 +227,21 @@ export default function WalletCard() {
     query: { enabled: !!addr && !V2_ENABLED, refetchInterval: 15_000, retry: 1 },
   });
 
-  // v2: pendingWithdrawals(token, me) por moneda — MON nativo y $PANAL.
-  const { data: pendingEscrowNative, isLoading: escrowLoadingNative, isError: escrowErrorNative } = useReadContract({
-    address: PANAL_ESCROW_V2_ADDRESS,
-    abi: panalEscrowV2Abi,
-    functionName: 'pendingWithdrawals',
-    args: addr ? [NATIVE_CURRENCY, addr] : undefined,
-    chainId: activeChain.id,
-    query: { enabled: V2_ENABLED && !!addr, refetchInterval: 15_000, retry: 1 },
-  });
-
-  const { data: pendingEscrowToken, isError: escrowErrorToken } = useReadContract({
-    address: PANAL_ESCROW_V2_ADDRESS,
-    abi: panalEscrowV2Abi,
-    functionName: 'pendingWithdrawals',
-    args: addr ? [PANAL_TOKEN_ADDRESS, addr] : undefined,
-    chainId: activeChain.id,
-    query: { enabled: V2_ENABLED && !!addr, refetchInterval: 15_000, retry: 1 },
-  });
+  // v2 y v2.5: lo que cada escrow te debe, por moneda. Aquí se suman los dos
+  // (en Pagos se retira de cada uno).
+  const pendientes = usePendientes();
+  const sumaDe = (simbolo: string): bigint | undefined => {
+    const deEsa = pendientes.pendientes.filter((p) => p.simbolo === simbolo);
+    if (deEsa.length === 0 || deEsa.every((p) => p.cantidad === undefined)) return undefined;
+    return deEsa.reduce((acc, p) => acc + (p.cantidad ?? 0n), 0n);
+  };
+  const pendingEscrowNative = sumaDe('MON');
+  const pendingEscrowToken = sumaDe('$PANAL');
+  const pendingEscrowUsdc = sumaDe('USDC');
 
   const pendingEscrow = V2_ENABLED ? pendingEscrowNative : pendingEscrowV1;
-  const escrowLoading = V2_ENABLED ? escrowLoadingNative : escrowLoadingV1;
-  const escrowError = V2_ENABLED ? escrowErrorNative : escrowErrorV1;
+  const escrowLoading = V2_ENABLED ? !!addr && pendingEscrowNative === undefined : escrowLoadingV1;
+  const escrowError = V2_ENABLED ? false : escrowErrorV1;
 
   const { data: panalBal, isLoading: panalLoading, isError: panalError } = useReadContract({
     address: PANAL_TOKEN_ADDRESS,
@@ -304,11 +305,19 @@ export default function WalletCard() {
     [withdrawals],
   );
 
-  // Con V2_ENABLED el hint de "En escrow" incluye la parte en $PANAL.
+  // Con V2_ENABLED el hint de "En escrow" incluye lo que haya en $PANAL y en USDC.
   const escrowHint = V2_ENABLED
-    ? pendingEscrowToken !== undefined && !escrowErrorToken
-      ? `${formatMonEs(Number(formatUnits(pendingEscrowToken, 18)))} $PANAL · ${t('wallet.autoRelease')}`
-      : t('wallet.autoRelease')
+    ? [
+        pendingEscrowToken !== undefined && pendingEscrowToken > 0n
+          ? `${formatMonEs(Number(formatUnits(pendingEscrowToken, 18)))} $PANAL`
+          : null,
+        pendingEscrowUsdc !== undefined && pendingEscrowUsdc > 0n
+          ? `${formatMonEs(Number(formatUnits(pendingEscrowUsdc, 6)))} USDC`
+          : null,
+        t('wallet.enEscrowPista'),
+      ]
+        .filter(Boolean)
+        .join(' · ')
     : t('wallet.autoRelease');
 
   /* ---------- Estado local (copiar / diálogos / QR) ---------- */

@@ -19,6 +19,7 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/compone
 import { useWallet } from '@/hooks/useWallet';
 import { cn } from '@/lib/utils';
 import { guardarComoArchivo, tamano } from '@/lib/archivosTablon';
+import { etiquetaTarea } from '@/lib/escrow';
 import {
   abrirMensaje,
   bajarArchivoDelChat,
@@ -61,7 +62,7 @@ export default function ConversacionDelEncargo({
       <DialogContent className="flex max-h-[92dvh] w-[calc(100vw-1.5rem)] flex-col border-line bg-paper sm:max-w-lg">
         <DialogTitle className="flex items-center gap-2 font-display text-ink">
           <MessageSquare size={17} className="shrink-0 text-honey-deep" aria-hidden />
-          {t('conversacion.titulo', { id: task ? `#${task.id.toString()}` : '' })}
+          {t('conversacion.titulo', { id: task ? etiquetaTarea(task.id) : '' })}
         </DialogTitle>
         <DialogDescription className="text-[0.8125rem] text-ink-2">{t('conversacion.desc')}</DialogDescription>
         {task && base && <Panel key={task.id.toString()} task={task} base={base} />}

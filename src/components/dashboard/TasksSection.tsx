@@ -16,7 +16,7 @@ import { motion } from 'framer-motion';
 import { AlertTriangle, Hexagon, Loader2, Lock, MessageSquare, Paperclip, RefreshCw, Star } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
-import { formatEther, keccak256, toBytes } from 'viem';
+import { keccak256, toBytes } from 'viem';
 import type { Address } from 'viem';
 import { useReadContract, useSignMessage } from 'wagmi';
 import AvisoEjecutable from '@/components/AvisoEjecutable';
@@ -54,7 +54,10 @@ import { cifrarArchivo, cifrarTexto, descifrarTexto, esTextoCifrado, parseAttach
 import { abrirArchivo, clavePublicaDe, miClave, nombreEnBuzon, publicarMiClave } from '@/lib/cifrado';
 import { hayEntrega } from '@/lib/expedientes';
 import { esDelTablon } from '@/lib/tablonReglas';
-import { ACTIVE_ESCROW_ABI, ACTIVE_ESCROW_ADDRESS, TASK_STATUS, useMyTasks } from '@/hooks/useMyTasks';
+import { TASK_STATUS, useMyTasks } from '@/hooks/useMyTasks';
+import { usePendientes } from '@/hooks/usePendientes';
+import { panalEscrowV2_5Abi } from '@panal/sdk';
+import { diasAmpliables, etiquetaTarea, finDeRevision, idEnLaCadena, llamadaDeEscrow, quePuede } from '@/lib/escrow';
 import type { RealTask } from '@/hooks/useMyTasks';
 import { usePanalAgents } from '@/hooks/usePanalAgents';
 import ResultDialog from '@/components/dashboard/ResultDialog';
@@ -64,12 +67,13 @@ import { useAccesoEnDisputa } from '@/hooks/useAccesoEnDisputa';
 import type { ContractActionRequest } from '@/hooks/useContractAction';
 import { shortAddress } from '@/hooks/useWallet';
 import {
-  NATIVE_CURRENCY,
-  PANAL_TOKEN_ADDRESS,
-  V2_ENABLED,
+  PANAL_ESCROW_V2_5_ADDRESS,
+  PANAL_ESCROW_V2_ADDRESS,
   activeChain,
   currencySymbol,
+  enUnidades,
 } from '@/contracts/config';
+import { panalEscrowV2Abi } from '@/contracts/abis';
 import type { Perspective } from './data';
 import { formatMonEs } from './data';
 import { guardarComoArchivo } from '@/lib/archivosTablon';
@@ -102,7 +106,19 @@ function StatusBadge({ status }: { status: number }) {
 
 /* ---------- Diálogos de acción ---------- */
 
-type DialogKind = 'deliver' | 'approve' | 'dispute' | 'cancel' | 'autoRelease' | 'claim' | 'result';
+type DialogKind =
+  | 'deliver'
+  | 'approve'
+  | 'dispute'
+  | 'cancel'
+  | 'autoRelease'
+  | 'claim'
+  | 'result'
+  // Solo escrow v2.5:
+  | 'accept'
+  | 'reject'
+  | 'settle'
+  | 'extend';
 
 interface ActionDialogState {
   kind: DialogKind;
@@ -145,9 +161,10 @@ export default function TasksSection({ perspective }: { perspective: Perspective
   const accesoEnDisputa = useAccesoEnDisputa();
   const disputaConAcceso = useRef<bigint | null>(null);
 
+  // La revisión del v2 (72 h); la del v2.5 la trae cada tarea.
   const { data: autoReleaseSec } = useReadContract({
-    address: ACTIVE_ESCROW_ADDRESS,
-    abi: ACTIVE_ESCROW_ABI,
+    address: PANAL_ESCROW_V2_ADDRESS,
+    abi: panalEscrowV2Abi,
     functionName: 'AUTO_RELEASE',
     chainId: activeChain.id,
     query: { staleTime: 300_000, retry: 1 },
@@ -162,6 +179,24 @@ export default function TasksSection({ perspective }: { perspective: Perspective
   }, [dialog, action.mined]);
   const [deliverText, setDeliverText] = useState('');
   const [rating, setRating] = useState(5);
+  /** Pactar (v2.5): la parte de quien trabaja, en %. */
+  const [repartoPct, setRepartoPct] = useState(50);
+  /** Ampliar el plazo (v2.5): cuántos días más. */
+  const [diasMas, setDiasMas] = useState(3);
+  /** La propuesta de reparto en pie de la tarea del diálogo (v2.5). */
+  const propuesta = useReadContract({
+    address: PANAL_ESCROW_V2_5_ADDRESS,
+    abi: panalEscrowV2_5Abi,
+    functionName: 'proposals',
+    args: [dialog && dialog.task.version === 'v2_5' ? idEnLaCadena(dialog.task.id) : 0n],
+    chainId: activeChain.id,
+    query: { enabled: dialog?.kind === 'settle' && dialog.task.version === 'v2_5', refetchInterval: 10_000 },
+  });
+  const propuestaEnPie = (() => {
+    const d = propuesta.data as readonly [string, number] | undefined;
+    if (!d || d[0].toLowerCase() === ZERO_ADDRESS) return null;
+    return { by: d[0], bps: Number(d[1]) };
+  })();
 
   /**
    * Mi buzón, si es ahí donde recibo.
@@ -263,26 +298,9 @@ export default function TasksSection({ perspective }: { perspective: Perspective
    * pagado. Se mira el saldo pendiente y no la tarea, porque una vez retirado
    * decir «te espera» sería mentira.
    */
-  const pendienteMon = useReadContract({
-    address: ACTIVE_ESCROW_ADDRESS,
-    abi: ACTIVE_ESCROW_ABI,
-    functionName: 'pendingWithdrawals',
-    args: [NATIVE_CURRENCY, address as Address],
-    chainId: activeChain.id,
-    query: { enabled: V2_ENABLED && !!address },
-  } as never);
-  const pendientePanal = useReadContract({
-    address: ACTIVE_ESCROW_ADDRESS,
-    abi: ACTIVE_ESCROW_ABI,
-    functionName: 'pendingWithdrawals',
-    args: [PANAL_TOKEN_ADDRESS, address as Address],
-    chainId: activeChain.id,
-    query: { enabled: V2_ENABLED && !!address },
-  } as never);
-  const quedaPorRetirar = (currency: string): boolean => {
-    const dato = (currency.toLowerCase() === NATIVE_CURRENCY.toLowerCase() ? pendienteMon : pendientePanal).data;
-    return typeof dato === 'bigint' && dato > 0n;
-  };
+  // Cada escrow guarda su saldo: el de la tarea es el de su versión.
+  const pendientes = usePendientes();
+  const quedaPorRetirar = (task: RealTask): boolean => pendientes.de(task.version, task.currency) > 0n;
   const mine = useMemo(
     () => tasks.filter((tk) => (perspective === 'proveedor' ? tk.role === 'worker' : tk.role === 'client')),
     [tasks, perspective],
@@ -297,21 +315,38 @@ export default function TasksSection({ perspective }: { perspective: Perspective
 
   /* ---------- Acciones por rol ---------- */
 
-  const requestFor = (kind: DialogKind, task: RealTask, extra?: { text?: string; rating?: number }): ContractActionRequest => {
-    const base = { address: ACTIVE_ESCROW_ADDRESS as Address, abi: ACTIVE_ESCROW_ABI };
+  /**
+   * La llamada al escrow de la tarea, sea del v2 o del v2.5: `llamadaDeEscrow`
+   * pone el contrato y el número de la cadena.
+   */
+  const requestFor = (
+    kind: DialogKind,
+    task: RealTask,
+    extra?: { text?: string; rating?: number; aceptarPropuesta?: number },
+  ): ContractActionRequest => {
     switch (kind) {
       case 'claim':
-        return { ...base, functionName: 'claimTask', args: [task.id] };
+        return llamadaDeEscrow(task.id, { tipo: 'coger' });
       case 'deliver':
-        return { ...base, functionName: 'deliverResult', args: [task.id, keccak256(toBytes(extra?.text ?? ''))] };
+        return llamadaDeEscrow(task.id, { tipo: 'entregar', resultHash: keccak256(toBytes(extra?.text ?? '')) });
       case 'approve':
-        return { ...base, functionName: 'approveAndRelease', args: [task.id, extra?.rating ?? 5] };
+        return llamadaDeEscrow(task.id, { tipo: 'aprobar', nota: extra?.rating ?? 5 });
       case 'dispute':
-        return { ...base, functionName: 'openDispute', args: [task.id] };
+        return llamadaDeEscrow(task.id, { tipo: 'disputar' });
       case 'cancel':
-        return { ...base, functionName: 'cancelTask', args: [task.id] };
+        return llamadaDeEscrow(task.id, { tipo: 'cancelar' });
       case 'autoRelease':
-        return { ...base, functionName: 'autoRelease', args: [task.id] };
+        return llamadaDeEscrow(task.id, { tipo: 'liberar' });
+      case 'accept':
+        return llamadaDeEscrow(task.id, { tipo: 'aceptar' });
+      case 'reject':
+        return llamadaDeEscrow(task.id, { tipo: 'rechazar' });
+      case 'settle':
+        return extra?.aceptarPropuesta !== undefined
+          ? llamadaDeEscrow(task.id, { tipo: 'aceptarAcuerdo', repartoBps: extra.aceptarPropuesta })
+          : llamadaDeEscrow(task.id, { tipo: 'proponerAcuerdo', repartoBps: Math.round(repartoPct * 100) });
+      case 'extend':
+        return llamadaDeEscrow(task.id, { tipo: 'ampliarPlazo', plazo: plazoAmpliado(task) });
       case 'result':
         // "Ver resultado" no es una escritura on-chain: se resuelve con firma
         // EIP-191 + fetch al bot del agente (ResultDialog), nunca llega aquí.
@@ -319,10 +354,16 @@ export default function TasksSection({ perspective }: { perspective: Perspective
     }
   };
 
+  /** El plazo nuevo: los días elegidos, sin pasar del año desde la contratación. */
+  const plazoAmpliado = (task: RealTask): bigint =>
+    task.deadline + BigInt(Math.min(Math.max(1, Math.round(diasMas) || 1), Math.max(1, diasAmpliables(task))) * 86_400);
+
   const openDialog = (kind: DialogKind, task: RealTask) => {
     action.reset();
     setDeliverText('');
     setRating(5);
+    setRepartoPct(50);
+    setDiasMas(3);
     setEncargo(null);
     setEnvio(null);
     setAdjuntos([]);
@@ -523,13 +564,27 @@ export default function TasksSection({ perspective }: { perspective: Perspective
     // es PanalTablon y el encargo vive en el buzón del tablón, no en el tuyo.
     if (esDelTablon(task.client)) return out;
     const workerZero = task.worker.toLowerCase() === ZERO_ADDRESS;
+    // Lo que deja cada escrow ahora mismo, con sus reglas (lib/escrow.ts).
+    const puede = quePuede(task, nowSec, autoReleaseSec !== undefined ? Number(autoReleaseSec) : undefined);
+    const pactar = { kind: 'settle' as const, label: t('tasks.settle'), className: 'border border-line text-ink-2 hover:border-honey hover:text-honey-deep' };
     if (task.role === 'worker') {
       if (task.status === TASK_STATUS.Open && workerZero) {
         out.push({ kind: 'claim', label: t('tasks.claim'), className: 'bg-honey text-[#1B1814] hover:bg-honey-deep' });
       }
-      if (task.status === TASK_STATUS.Open && meLc && task.worker.toLowerCase() === meLc) {
+      const mia = !!meLc && task.worker.toLowerCase() === meLc;
+      if (mia && puede.aceptar) {
+        out.push({ kind: 'accept', label: t('tasks.accept'), className: 'bg-olive text-paper hover:opacity-85' });
+      }
+      if (mia && puede.entregar) {
         out.push({ kind: 'deliver', label: t('tasks.deliver'), className: 'bg-honey text-[#1B1814] hover:bg-honey-deep' });
       }
+      if (mia && puede.rechazar) {
+        out.push({ kind: 'reject', label: t('tasks.reject'), className: 'border border-line text-ink-2 hover:border-terra hover:text-terra' });
+      }
+      if (mia && puede.disputarComoTrabajador) {
+        out.push({ kind: 'dispute', label: t('tasks.openDispute'), className: 'border border-terra/30 text-terra hover:bg-terra/10' });
+      }
+      if (mia && puede.pactar) out.push(pactar);
     } else {
       // «Ver resultado» EN CUANTO HAY ENTREGA, y ya para siempre.
       //
@@ -541,22 +596,25 @@ export default function TasksSection({ perspective }: { perspective: Perspective
       if (hayEntrega(task.resultHash)) {
         out.push({ kind: 'result', label: t('tasks.viewResult'), className: 'border border-honey text-honey-deep hover:bg-honey-soft' });
       }
-      if (task.status === TASK_STATUS.Delivered) {
+      if (puede.aprobar) {
         out.push({ kind: 'approve', label: t('tasks.approve'), className: 'bg-olive text-paper hover:opacity-85' });
-        out.push({ kind: 'dispute', label: t('tasks.openDispute'), className: 'border border-terra/30 text-terra hover:bg-terra/10' });
-        const canAuto =
-          task.deliveredAt !== undefined &&
-          autoReleaseSec !== undefined &&
-          Number(task.deliveredAt) + Number(autoReleaseSec) <= nowSec;
-        if (canAuto) {
-          out.push({ kind: 'autoRelease', label: t('tasks.autoReleaseBtn'), className: 'border border-honey text-honey-deep hover:bg-honey-soft' });
-        }
       }
-      // El contrato solo permite cancelar si NO hay worker asignado o si ya
-      // venció el deadline ("cannot cancel yet" en cualquier otro caso).
-      if (task.status === TASK_STATUS.Open && (workerZero || nowSec > Number(task.deadline))) {
+      if (puede.disputarComoCliente) {
+        out.push({ kind: 'dispute', label: t('tasks.openDispute'), className: 'border border-terra/30 text-terra hover:bg-terra/10' });
+      }
+      // La revisión del v2 son 72 h sin aviso; la del v2.5, la que eligió el cliente.
+      if (puede.liberar) {
+        out.push({ kind: 'autoRelease', label: t('tasks.autoReleaseBtn'), className: 'border border-honey text-honey-deep hover:bg-honey-soft' });
+      }
+      // Cancelar: en el v2, sin worker o pasado el plazo; en el v2.5, además,
+      // si quien trabaja no aceptó a tiempo (ver `quePuede`).
+      if (puede.cancelar) {
         out.push({ kind: 'cancel', label: t('tasks.cancelTask'), className: 'border border-line text-ink-2 hover:border-terra hover:text-terra' });
       }
+      if (puede.ampliarPlazo) {
+        out.push({ kind: 'extend', label: t('tasks.extend'), className: 'border border-line text-ink-2 hover:border-honey hover:text-honey-deep' });
+      }
+      if (puede.pactar) out.push(pactar);
     }
     return out;
   };
@@ -585,7 +643,7 @@ export default function TasksSection({ perspective }: { perspective: Perspective
           className="border-b border-line last:border-0 hover:bg-cream/70"
         >
           <td className="whitespace-nowrap py-3.5 pl-3 pr-3 font-mono text-[0.8125rem] text-ink-2 sm:pl-5">
-            #{task.id.toString()}
+            {etiquetaTarea(task.id)}
           </td>
           <td className="px-3 py-3.5">
             <span className="flex items-center gap-2">
@@ -608,14 +666,25 @@ export default function TasksSection({ perspective }: { perspective: Perspective
             </span>
           </td>
           <td className="whitespace-nowrap px-3 py-3.5 font-mono text-[0.8125rem] text-ink">
-            {formatMonEs(Number(formatEther(task.amountWei)))} {currencySymbol(task.currency)}
+            {formatMonEs(enUnidades(task.amountWei, task.currency))} {currencySymbol(task.currency)}
           </td>
           <td className="px-3 py-3.5">
             <StatusBadge status={task.status} />
+            {/* El v2.5: si quien trabaja aceptó, y hasta cuándo dura la revisión. */}
+            {task.version === 'v2_5' && task.status === TASK_STATUS.Open && (
+              <span className="mt-1 block text-[0.6875rem] text-ink-3">
+                {task.aceptada ? t('tasks.v25.aceptada') : t('tasks.v25.porAceptar')}
+              </span>
+            )}
+            {task.version === 'v2_5' && task.status === TASK_STATUS.Delivered && finDeRevision(task) !== null && (
+              <span className="mt-1 block text-[0.6875rem] text-ink-3">
+                {t('tasks.v25.revisionHasta', { fecha: fmtDate(finDeRevision(task)!) })}
+              </span>
+            )}
             {task.role === 'worker' &&
               task.status === TASK_STATUS.Completed &&
               meLc === task.worker.toLowerCase() &&
-              quedaPorRetirar(task.currency) && (
+              quedaPorRetirar(task) && (
                 <a
                   href="#pagos"
                   className="mt-1.5 block max-w-[14rem] text-[0.6875rem] leading-snug text-honey-deep hover:underline"
@@ -714,9 +783,16 @@ export default function TasksSection({ perspective }: { perspective: Perspective
   }
 
   const dialogTitle = dialog
-    ? t(`tasks.dialog.${dialog.kind}.title`, { id: `#${dialog.task.id.toString()}` })
+    ? t(`tasks.dialog.${dialog.kind}.title`, { id: etiquetaTarea(dialog.task.id) })
     : '';
-  const dialogDesc = dialog ? t(`tasks.dialog.${dialog.kind}.desc`) : '';
+  // Liberar en el v2.5 no pone nota (en el v2, cinco estrellas): otro texto.
+  const dialogDesc = dialog
+    ? t(
+        dialog.kind === 'autoRelease' && dialog.task.version === 'v2_5'
+          ? 'tasks.dialog.autoRelease.desc25'
+          : `tasks.dialog.${dialog.kind}.desc`,
+      )
+    : '';
   const dialogConfirm = dialog ? t(`tasks.dialog.${dialog.kind}.confirm`) : '';
 
   return (
@@ -916,7 +992,7 @@ export default function TasksSection({ perspective }: { perspective: Perspective
                     );
                   })()}
                   <div className="rounded-xl border border-line bg-cream p-4 font-mono text-[0.8125rem] text-ink-2">
-                    {t('tasks.escrowAmount')}: {formatMonEs(Number(formatEther(dialog.task.amountWei)))} {currencySymbol(dialog.task.currency)}
+                    {t('tasks.escrowAmount')}: {formatMonEs(enUnidades(dialog.task.amountWei, dialog.task.currency))} {currencySymbol(dialog.task.currency)}
                   </div>
 
                   {dialog.kind === 'deliver' && (
@@ -1016,6 +1092,63 @@ export default function TasksSection({ perspective }: { perspective: Perspective
                     </div>
                   )}
 
+                  {dialog.kind === 'settle' && (
+                    <div className="flex flex-col gap-3">
+                      {propuestaEnPie && meLc && propuestaEnPie.by.toLowerCase() !== meLc && (
+                        <div className="flex flex-col gap-2 rounded-xl border border-honey/40 bg-honey-soft p-3.5">
+                          <p className="text-[0.8125rem] text-ink">
+                            {t('tasks.dialog.settle.deLaOtra', { pct: propuestaEnPie.bps / 100 })}
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              void action.run(requestFor('settle', dialog.task, { aceptarPropuesta: propuestaEnPie.bps }))
+                            }
+                            className="btn-monad self-start px-4 py-2 text-[0.8125rem] font-semibold"
+                          >
+                            {t('tasks.dialog.settle.aceptar', { pct: propuestaEnPie.bps / 100 })}
+                          </button>
+                        </div>
+                      )}
+                      {propuestaEnPie && meLc && propuestaEnPie.by.toLowerCase() === meLc && (
+                        <p className="text-[0.8125rem] text-ink-2">
+                          {t('tasks.dialog.settle.mia', { pct: propuestaEnPie.bps / 100 })}
+                        </p>
+                      )}
+                      <label className="flex flex-col gap-2 text-[0.8125rem] font-medium text-ink-2">
+                        {t('tasks.dialog.settle.label', { pct: repartoPct })}
+                        <input
+                          type="range"
+                          min={0}
+                          max={100}
+                          step={5}
+                          value={repartoPct}
+                          onChange={(e) => setRepartoPct(Number(e.target.value))}
+                          className="accent-honey"
+                        />
+                      </label>
+                    </div>
+                  )}
+
+                  {dialog.kind === 'extend' && (
+                    <label className="flex flex-col gap-2 text-[0.8125rem] font-medium text-ink-2">
+                      {t('tasks.dialog.extend.label')}
+                      <input
+                        type="number"
+                        min={1}
+                        max={Math.max(1, diasAmpliables(dialog.task))}
+                        value={diasMas}
+                        onChange={(e) => setDiasMas(Number(e.target.value))}
+                        className="w-28 rounded-xl border border-line bg-paper px-3 py-2 font-mono text-[0.875rem] text-ink focus:border-honey focus:outline-none"
+                      />
+                      <span className="font-normal text-ink-3">
+                        {t('tasks.dialog.extend.nuevo', {
+                          fecha: fmtDate(plazoAmpliado(dialog.task)),
+                        })}
+                      </span>
+                    </label>
+                  )}
+
                   <div className="flex flex-col gap-2 sm:flex-row">
                     <button
                       type="button"
@@ -1033,7 +1166,7 @@ export default function TasksSection({ perspective }: { perspective: Perspective
                       }
                       className={cn(
                         'inline-flex flex-1 items-center justify-center gap-2 rounded-full px-4 py-2.5 text-[0.875rem] font-semibold disabled:opacity-40',
-                        dialog.kind === 'dispute' || dialog.kind === 'cancel'
+                        dialog.kind === 'dispute' || dialog.kind === 'cancel' || dialog.kind === 'reject'
                           ? 'border border-terra/50 bg-terra/10 text-terra transition-colors hover:bg-terra/20'
                           : 'btn-monad',
                       )}

@@ -20,6 +20,7 @@
     "test:tipo": "tsx scripts/test-tipo.ts",
     "test:cuenta": "tsx scripts/test-cuenta.ts",
     "test:rutas": "tsx scripts/test-rutas.ts",
+    "test:escrow-web": "tsx scripts/test-escrow-web.ts",
     "test:wallets": "tsx scripts/test-wallets.ts",
     "test:deeplinks": "tsx scripts/test-deeplinks.ts",
     "test:chat": "tsx scripts/test-chat.ts",

@@ -46,9 +46,9 @@ import { useQuery } from '@tanstack/react-query';
 import PruebasDeLaDisputa from './PruebasDeLaDisputa';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
-import { decodeFunctionData, encodeFunctionData, formatEther, type Address, type Hex } from 'viem';
+import { decodeFunctionData, encodeFunctionData, formatUnits, type Address, type Hex } from 'viem';
 import { useAccount, useReadContract, useReadContracts, useSignMessage } from 'wagmi';
-import { stripFilesManifest, type HashedFile } from '@panal/sdk';
+import { EstadoV2_5, idDelV2_5, panalEscrowV2_5Abi, stripFilesManifest, tareaV2_5DeLaCadena, type HashedFile } from '@panal/sdk';
 import SubcontratosDeLaEntrega from '@/components/dashboard/SubcontratosDeLaEntrega';
 import AvisoEjecutable from '@/components/AvisoEjecutable';
 import { usePanalAgents } from '@/hooks/usePanalAgents';
@@ -58,18 +58,22 @@ import { esBuzon } from '@/lib/botEndpoint';
 import { clavePublicaDe, publicarMiClave } from '@/lib/cifrado';
 import { hayEntrega } from '@/lib/expedientes';
 import { fetchTareasDeCliente } from '@/lib/indexer';
-import { BUZON_DEL_TABLON, esDelTablon, leerEncargos } from '@/lib/tablonReglas';
+import { buzonDelTablon, esDelTablon, leerEncargos } from '@/lib/tablonReglas';
 import { useContractAction } from '@/hooks/useContractAction';
 import { shortAddress } from '@/hooks/useWallet';
 import { panalEscrowV2Abi, panalMultisigAbi, panalResolveDisputeAbi } from '@/contracts/abis';
 import {
   EXPLORER_ADDRESS,
   EXPLORER_TX,
+  PANAL_ESCROW_V2_5_ADDRESS,
   PANAL_ESCROW_V2_ADDRESS,
+  V2_5_ENABLED,
   V2_ENABLED,
   activeChain,
   currencySymbol,
+  decimalesDe,
 } from '@/contracts/config';
+import { DISPUTA_CADUCA_S, idEnLaCadena, numeroVisible, type VersionEscrow } from '@/lib/escrow';
 
 /**
  * Reloj en segundos que se refresca solo.
@@ -98,7 +102,11 @@ const TX_SCAN = 40;
 const REQUIRED = 2;
 
 interface DisputedTask {
+  /** El número de fuera de la cadena (en el v2.5, más mil millones). */
   id: bigint;
+  version: VersionEscrow;
+  /** Solo v2.5: viene con la tarea. En el v2 se lee aparte. */
+  disputedAt?: bigint;
   client: Address;
   worker: Address;
   amount: bigint;
@@ -193,6 +201,7 @@ export default function ArbitrationCard() {
       if (Number(task.status) !== STATUS_DISPUTED) return;
       out.push({
         id: scanIds[i]!,
+        version: 'v2',
         client: task.client,
         worker: task.worker,
         amount: task.amount,
@@ -203,6 +212,54 @@ export default function ArbitrationCard() {
     });
     return out;
   }, [tasksRaw, scanIds]);
+
+  /**
+   * Las del escrow v2.5. La misma multisig decide en los dos escrows (es el
+   * `arbitrator` de ambos), así que el panel junta las disputas de los dos.
+   */
+  const { data: taskCount25 } = useReadContract({
+    address: PANAL_ESCROW_V2_5_ADDRESS,
+    abi: panalEscrowV2_5Abi,
+    functionName: 'getTaskCount',
+    chainId: activeChain.id,
+    query: { enabled: isJudge && V2_5_ENABLED, refetchInterval: 60_000, retry: 1 },
+  });
+  const scanIds25 = useMemo(() => {
+    const total = taskCount25 === undefined ? 0 : Number(taskCount25);
+    const from = Math.max(0, total - TASK_SCAN);
+    return Array.from({ length: Math.max(0, total - from) }, (_, k) => BigInt(from + k));
+  }, [taskCount25]);
+  const { data: tasksRaw25, refetch: refetchTasks25 } = useReadContracts({
+    contracts: scanIds25.map((id) => ({
+      address: PANAL_ESCROW_V2_5_ADDRESS,
+      abi: panalEscrowV2_5Abi,
+      functionName: 'getTask' as const,
+      args: [id],
+      chainId: activeChain.id,
+    })),
+    query: { enabled: isJudge && scanIds25.length > 0, refetchInterval: 60_000, retry: 1 },
+  });
+  const disputed25 = useMemo<DisputedTask[]>(() => {
+    const out: DisputedTask[] = [];
+    (tasksRaw25 ?? []).forEach((r, i) => {
+      if (r.status !== 'success' || !r.result) return;
+      const t = tareaV2_5DeLaCadena(idDelV2_5(scanIds25[i]!), r.result as unknown as Record<string, unknown>);
+      if (t.estado !== EstadoV2_5.EnDisputa) return;
+      out.push({
+        id: t.id,
+        version: 'v2_5',
+        disputedAt: t.disputedAt,
+        client: t.client,
+        worker: t.worker,
+        amount: t.amount,
+        currency: t.currency,
+        taskHash: t.taskHash,
+        resultHash: t.resultHash,
+      });
+    });
+    return out;
+  }, [tasksRaw25, scanIds25]);
+  const todas = useMemo(() => [...disputed25, ...disputed], [disputed25, disputed]);
 
   const { data: txCount } = useReadContract({
     address: multisig,
@@ -240,17 +297,23 @@ export default function ArbitrationCard() {
     const map = new Map<string, Proposal[]>();
     (txsRaw ?? []).forEach((r, i) => {
       if (r.status !== 'success' || !r.result) return;
-      const [, data, confirmations, executed] = r.result as unknown as [
+      const [target, data, confirmations, executed] = r.result as unknown as [
         Address,
         `0x${string}`,
         number,
         boolean,
       ];
       try {
-        const decoded = decodeFunctionData({ abi: panalResolveDisputeAbi, data });
+        // A qué escrow va la propuesta: cada uno tiene su `resolveDispute`, y
+        // el número de la tarea se guarda como el de fuera de la cadena.
+        const al25 = target.toLowerCase() === PANAL_ESCROW_V2_5_ADDRESS.toLowerCase();
+        if (!al25 && target.toLowerCase() !== PANAL_ESCROW_V2_ADDRESS.toLowerCase()) return;
+        const decoded = al25
+          ? decodeFunctionData({ abi: panalEscrowV2_5Abi, data })
+          : decodeFunctionData({ abi: panalResolveDisputeAbi, data });
         if (decoded.functionName !== 'resolveDispute') return;
-        const [taskId, bps, rating] = decoded.args as readonly [bigint, bigint, number];
-        const key = taskId.toString();
+        const [enLaCadena, bps, rating] = decoded.args as unknown as readonly [bigint, bigint | number, number];
+        const key = (al25 ? idDelV2_5(enLaCadena) : enLaCadena).toString();
         const list = map.get(key) ?? [];
         list.push({
           txId: txIds[i]!,
@@ -272,6 +335,7 @@ export default function ArbitrationCard() {
   const refresh = () => {
     void refetchTxs();
     void refetchTasks();
+    void refetchTasks25();
   };
 
   return (
@@ -311,13 +375,13 @@ export default function ArbitrationCard() {
 
       {me && <MiClaveDeArbitro me={me as Address} />}
 
-      {disputed.length === 0 ? (
+      {todas.length === 0 ? (
         <p className="mt-6 rounded-xl border border-line bg-paper px-4 py-6 text-center text-[0.875rem] text-ink-3">
           {t('dashReal.arbitration.empty')}
         </p>
       ) : (
         <div className="mt-6 flex flex-col gap-4">
-          {disputed.map((d) => (
+          {todas.map((d) => (
             <DisputeRow
               key={d.id.toString()}
               dispute={d}
@@ -357,21 +421,24 @@ function DisputeRow({
   const nowSec = useNowSec();
   const symbol = currencySymbol(dispute.currency);
 
-  const { data: disputedAt } = useReadContract({
+  const es25 = dispute.version === 'v2_5';
+  const { data: disputedAtV2 } = useReadContract({
     address: PANAL_ESCROW_V2_ADDRESS,
     abi: panalEscrowV2Abi,
     functionName: 'disputedAt',
     args: [dispute.id],
     chainId: activeChain.id,
-    query: { retry: 1 },
+    query: { enabled: !es25, retry: 1 },
   });
-  const { data: timeout } = useReadContract({
+  const { data: timeoutV2 } = useReadContract({
     address: PANAL_ESCROW_V2_ADDRESS,
     abi: panalEscrowV2Abi,
     functionName: 'DISPUTE_TIMEOUT',
     chainId: activeChain.id,
-    query: { retry: 1 },
+    query: { enabled: !es25, retry: 1 },
   });
+  const disputedAt = es25 ? dispute.disputedAt : disputedAtV2;
+  const timeout = es25 ? BigInt(DISPUTA_CADUCA_S) : timeoutV2;
 
   const expiresAt =
     disputedAt !== undefined && timeout !== undefined ? Number(disputedAt) + Number(timeout) : null;
@@ -383,10 +450,10 @@ function DisputeRow({
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="font-mono text-[0.9375rem] font-medium text-ink">
-            {t('dashReal.arbitration.taskLabel', { id: dispute.id.toString() })}
+            {t('dashReal.arbitration.taskLabel', { id: numeroVisible(dispute.id) })}
           </p>
           <p className="mt-1 font-mono text-[0.8125rem] text-ink-2">
-            {formatEther(dispute.amount)} {symbol}
+            {formatUnits(dispute.amount, decimalesDe(dispute.currency))} {symbol}
           </p>
         </div>
 
@@ -630,7 +697,7 @@ function Expediente({ dispute }: { dispute: DisputedTask }) {
     if (esDelTablon(dispute.client)) {
       // El escrow no sabe de qué encargo del tablón viene: se busca entre los últimos.
       const job = (await leerEncargos()).find((j) => j.escrowTaskId === dispute.id);
-      return job ? { base: BUZON_DEL_TABLON, id: job.id, esTablon: true } : 'sinEncargo';
+      return job ? { base: buzonDelTablon(job.id), id: job.id, esTablon: true } : 'sinEncargo';
     }
     const botUrl = agents.find((a) => a.workerAddress.toLowerCase() === dispute.worker.toLowerCase())?.botUrl ?? null;
     return esBuzon(botUrl) ? { base: botUrl!, id: dispute.id, esTablon: false } : 'fuera';
@@ -955,8 +1022,8 @@ function VerdictForm({
             className="mt-2 w-full accent-monad"
           />
           <span className="mt-1 block font-mono text-[0.8125rem] text-ink-3">
-            {formatEther(toAgent)} {symbol} → {t('dashReal.arbitration.agent')} ·{' '}
-            {formatEther(toClient)} {symbol} → {t('dashReal.arbitration.client')}
+            {formatUnits(toAgent, decimalesDe(dispute.currency))} {symbol} → {t('dashReal.arbitration.agent')} ·{' '}
+            {formatUnits(toClient, decimalesDe(dispute.currency))} {symbol} → {t('dashReal.arbitration.client')}
           </span>
         </label>
 
@@ -984,14 +1051,27 @@ function VerdictForm({
               address: multisig,
               abi: panalMultisigAbi,
               functionName: 'submit',
-              args: [
-                PANAL_ESCROW_V2_ADDRESS,
-                encodeFunctionData({
-                  abi: panalResolveDisputeAbi,
-                  functionName: 'resolveDispute',
-                  args: [dispute.id, BigInt(Math.round(pct * 100)), rating],
-                }),
-              ],
+              // Al escrow de la tarea, con su número de la cadena. En el v2.5
+              // la decisión lleva además la huella de su motivo; desde aquí
+              // va a cero (el motivo se cuenta en el expediente).
+              args:
+                dispute.version === 'v2_5'
+                  ? [
+                      PANAL_ESCROW_V2_5_ADDRESS,
+                      encodeFunctionData({
+                        abi: panalEscrowV2_5Abi,
+                        functionName: 'resolveDispute',
+                        args: [idEnLaCadena(dispute.id), Math.round(pct * 100), rating, `0x${'0'.repeat(64)}`],
+                      }),
+                    ]
+                  : [
+                      PANAL_ESCROW_V2_ADDRESS,
+                      encodeFunctionData({
+                        abi: panalResolveDisputeAbi,
+                        functionName: 'resolveDispute',
+                        args: [dispute.id, BigInt(Math.round(pct * 100)), rating],
+                      }),
+                    ],
             })
           }
           className="inline-flex items-center gap-2 rounded-full border border-monad/50 px-4 py-2 text-[0.875rem] font-semibold text-monad transition-colors hover:bg-monad/10"

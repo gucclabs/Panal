@@ -13,14 +13,14 @@ import { usePanalAgents } from '@/hooks/usePanalAgents';
 import { useAhora } from '@/hooks/useAhora';
 import type { StreamEntry } from '@/components/live/useLiveStream';
 import { formatMon } from '@/data/agents';
-import { formatEther } from 'viem';
 import { timeAgo, truncateHash } from '@/data/events';
 import { useTopTasks } from '@/hooks/useTopTasks';
 import { getTaskBrief } from '@/lib/taskBriefs';
-import { currencySymbol } from '@/contracts/config';
+import { currencySymbol, enUnidades } from '@/contracts/config';
 import type { LiveEvent } from '@/data/events';
 import { cn } from '@/lib/utils';
 import { useTranslation } from 'react-i18next';
+import { numeroVisible } from '@/lib/escrow';
 
 /* ------------------------------------------------------------------ */
 /* Helpers                                                             */
@@ -335,16 +335,16 @@ function BigContracts() {
                     </span>
                   </td>
                   <td className="hidden max-w-[220px] truncate py-4 pr-4 text-[0.875rem] text-coal-mute sm:table-cell">
-                    {getTaskBrief(c.taskHash) ?? t('live.taskNum', { id: c.id.toString() })}
+                    {getTaskBrief(c.taskHash) ?? t('live.taskNum', { id: numeroVisible(c.id) })}
                   </td>
                   <td className="py-4 pr-4 text-right font-mono text-[0.875rem]">
                     {c.amountWei === maxWei && !reduced ? (
                       <span className="animate-shimmer bg-[linear-gradient(110deg,#E29A2E_35%,#F2EFFA_50%,#E29A2E_65%)] bg-[length:200%_100%] bg-clip-text font-semibold text-transparent">
-                        {formatMon(Number(formatEther(c.amountWei)), 2)} {currencySymbol(c.currency)}
+                        {formatMon(enUnidades(c.amountWei, c.currency), 2)} {currencySymbol(c.currency)}
                       </span>
                     ) : (
                       <span className="text-honey">
-                        {formatMon(Number(formatEther(c.amountWei)), 2)} {currencySymbol(c.currency)}
+                        {formatMon(enUnidades(c.amountWei, c.currency), 2)} {currencySymbol(c.currency)}
                       </span>
                     )}
                   </td>

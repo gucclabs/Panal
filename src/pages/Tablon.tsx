@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { Loader2, Megaphone, RefreshCw } from 'lucide-react';
 import type { Address } from 'viem';
 import { EstadoTablon, leerTipo } from '@panal/sdk';
-import { EXPLORER_ADDRESS, PANAL_TABLON_ADDRESS, V2_ENABLED } from '@/contracts/config';
+import { EXPLORER_ADDRESS, PANAL_TABLON_ADDRESS, PANAL_TABLON_V2_5_ADDRESS, V2_5_ENABLED, V2_ENABLED } from '@/contracts/config';
 import { useWallet } from '@/hooks/useWallet';
 import { useMyAgentProfile } from '@/hooks/useMyAgentProfile';
 import { usePermisosEnElTablon, useReglasDelTablon, useSituacionEnElTablon, useTablonReglas } from '@/hooks/useTablonReglas';
@@ -93,7 +93,7 @@ export default function Tablon() {
     if (!reglas) return null;
     const partes = Object.entries(reglas.topes)
       .filter(([, tope]) => tope.porEncargo !== 0n)
-      .map(([moneda, tope]) => `${cantidad(tope.porEncargo)} ${simboloDe(moneda as Address)}`);
+      .map(([moneda, tope]) => `${cantidad(tope.porEncargo, moneda)} ${simboloDe(moneda as Address)}`);
     return partes.length ? partes.join(` ${t('tablon.o')} `) : null;
   }, [reglas, t]);
 
@@ -120,7 +120,7 @@ export default function Tablon() {
         <p className="mt-3 max-w-2xl text-[0.8125rem] leading-relaxed text-ink-3">
           {beta ? t('tablon.beta', { topes: beta }) : null}{' '}
           <a
-            href={EXPLORER_ADDRESS(PANAL_TABLON_ADDRESS)}
+            href={EXPLORER_ADDRESS(V2_5_ENABLED ? PANAL_TABLON_V2_5_ADDRESS : PANAL_TABLON_ADDRESS)}
             target="_blank"
             rel="noreferrer"
             className="font-mono text-honey-deep underline decoration-dotted underline-offset-4"

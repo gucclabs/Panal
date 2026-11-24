@@ -2,11 +2,10 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { BadgeCheck, X } from 'lucide-react';
-import { formatEther } from 'viem';
 import HexAvatar from '@/components/HexAvatar';
 import { CATEGORY_LABELS, formatInt, formatMon } from '@/data/agents';
 import type { LiveEvent } from '@/data/events';
-import { currencySymbol, publicClient } from '@/contracts/config';
+import { currencySymbol, enUnidades, publicClient, type SimboloMoneda } from '@/contracts/config';
 import { usePanalAgents } from '@/hooks/usePanalAgents';
 import { useIndexAgents, type AgentStats } from '@/lib/indexer';
 import { EVENT_META } from './meta';
@@ -28,7 +27,7 @@ interface NodeSpec {
    * Opcional porque el nodo central del escrow no es un agente: agrega las dos
    * monedas y solo usa el volumen para su tamaño, nunca lo muestra.
    */
-  volumeSymbol?: 'MON' | '$PANAL';
+  volumeSymbol?: SimboloMoneda;
   tasks24h: number;
   agentId?: string;
   /** El logo de su ficha, para la ficha flotante. Sin él, el hexágono generado. */
@@ -84,7 +83,7 @@ function buildSpecs(
       // El volumen se lee en la moneda del agente: coger siempre el de MON
       // dejaba a los que cobran en $PANAL con volumen cero, y el tamaño del
       // nodo en el enjambre sale de aquí.
-      volume24h: st ? Number(formatEther(BigInt(st.volume[currencySymbol(a.currency)] ?? '0'))) : 0,
+      volume24h: st ? enUnidades(BigInt(st.volume[currencySymbol(a.currency)] ?? '0'), a.currency) : 0,
       volumeSymbol: currencySymbol(a.currency),
       tasks24h: st?.tasks ?? 0,
       agentId: a.id,

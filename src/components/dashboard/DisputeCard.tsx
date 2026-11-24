@@ -11,17 +11,26 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { AlertTriangle, ExternalLink, FileText, Gavel, Loader2, Lock } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { formatEther } from 'viem';
 import { useReadContract } from 'wagmi';
+import { panalEscrowV2_5Abi } from '@panal/sdk';
 import HexAvatar from '@/components/HexAvatar';
 import { useLogoDeAgente } from '@/hooks/useLogoDeAgente';
 import { useWallet, shortAddress } from '@/hooks/useWallet';
 import { useAhora } from '@/hooks/useAhora';
-import { ACTIVE_ESCROW_ABI, ACTIVE_ESCROW_ADDRESS, type RealTask } from '@/hooks/useMyTasks';
+import type { RealTask } from '@/hooks/useMyTasks';
 import { usePanalAgents } from '@/hooks/usePanalAgents';
 import { useContractAction } from '@/hooks/useContractAction';
 import { useAccesoEnDisputa } from '@/hooks/useAccesoEnDisputa';
-import { EXPLORER_TX, activeChain, currencySymbol } from '@/contracts/config';
+import {
+  EXPLORER_TX,
+  PANAL_ESCROW_V2_5_ADDRESS,
+  PANAL_ESCROW_V2_ADDRESS,
+  activeChain,
+  currencySymbol,
+  enUnidades,
+} from '@/contracts/config';
+import { panalEscrowV2Abi } from '@/contracts/abis';
+import { DISPUTA_CADUCA_S, etiquetaTarea, idEnLaCadena, llamadaDeEscrow } from '@/lib/escrow';
 import { formatMonEs } from './data';
 import PruebasDeLaDisputa from './PruebasDeLaDisputa';
 import { esDelTablon } from '@/lib/tablonReglas';
@@ -50,24 +59,51 @@ function DisputeEntry({
   const [verPruebas, setVerPruebas] = useState(false);
   const conPruebas = !esDelTablon(task.client);
 
-  const { data: disputedAt } = useReadContract({
-    address: ACTIVE_ESCROW_ADDRESS,
-    abi: ACTIVE_ESCROW_ABI,
+  const es25 = task.version === 'v2_5';
+  // En el v2 se lee aparte; en el v2.5 viene con la tarea.
+  const { data: disputedAtV2 } = useReadContract({
+    address: PANAL_ESCROW_V2_ADDRESS,
+    abi: panalEscrowV2Abi,
     functionName: 'disputedAt',
     args: [task.id],
     chainId: activeChain.id,
-    query: { refetchInterval: 60_000, retry: 1 },
+    query: { enabled: !es25, refetchInterval: 60_000, retry: 1 },
   });
+  const disputedAt = es25 ? task.disputedAt : disputedAtV2;
+  // v2.5: la decisión de los jueces autónomos, si la hay, y si ya se puede cumplir.
+  const { data: fallo } = useReadContract({
+    address: PANAL_ESCROW_V2_5_ADDRESS,
+    abi: panalEscrowV2_5Abi,
+    functionName: 'rulings',
+    args: [idEnLaCadena(task.id)],
+    chainId: activeChain.id,
+    query: { enabled: es25, refetchInterval: 60_000, retry: 1 },
+  });
+  const { data: falloCumplible } = useReadContract({
+    address: PANAL_ESCROW_V2_5_ADDRESS,
+    abi: panalEscrowV2_5Abi,
+    functionName: 'isRulingFinalizable',
+    args: [idEnLaCadena(task.id)],
+    chainId: activeChain.id,
+    query: { enabled: es25, refetchInterval: 60_000, retry: 1 },
+  });
+  const decision = (() => {
+    const r = fallo as readonly [number, number, bigint, number, string] | undefined;
+    return r && r[2] > 0n ? { bps: Number(r[0]), firmeEn: Number(r[2]) } : null;
+  })();
 
   const counterparty = task.role === 'worker' ? task.client : task.worker;
   // Se refresca solo: calculado en el render se congelaba, y un plazo que
   // vencia mientras alguien miraba la pantalla seguia diciendo que quedaba rato.
   const nowSec = useAhora();
+  const plazoS = es25 ? DISPUTA_CADUCA_S : timeoutSec !== undefined ? Number(timeoutSec) : undefined;
   const resolvableAt =
-    disputedAt !== undefined && timeoutSec !== undefined
-      ? Number(disputedAt) + Number(timeoutSec)
-      : null;
-  const passed = resolvableAt !== null && resolvableAt <= nowSec;
+    disputedAt !== undefined && disputedAt > 0n && plazoS !== undefined ? Number(disputedAt) + plazoS : null;
+  // En el v2.5, con una decisión de los jueces autónomos en pie no se cierra
+  // por caducidad: se cumple la decisión cuando es firme.
+  const passed = resolvableAt !== null && resolvableAt <= nowSec && !(es25 && decision !== null);
+  const fmtFecha = (s: number) =>
+    new Date(s * 1000).toLocaleString(i18n.language, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
   const daysLeft = resolvableAt !== null ? Math.max(0, (resolvableAt - nowSec) / 86_400) : null;
 
   return (
@@ -82,7 +118,7 @@ function DisputeEntry({
         <div className="max-w-2xl flex-1">
           <p className="eyebrow flex items-center gap-2 text-terra">
             <AlertTriangle size={13} aria-hidden />
-            {t('dash.dispute.eyebrow')} #{task.id.toString()}
+            {t('dash.dispute.eyebrow')} {etiquetaTarea(task.id)}
           </p>
           <h3 className="display-m mt-3 text-ink">{t('dashReal.dispute.title')}</h3>
           <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[0.9375rem] text-ink-2">
@@ -95,7 +131,7 @@ function DisputeEntry({
                 una disputa por 100 $PANAL se anunciaba como 100 MON: en la pantalla
                 donde se discute cuanto dinero hay en juego. */}
             <span className="font-mono">
-              {formatMonEs(Number(formatEther(task.amountWei)))} {currencySymbol(task.currency)}
+              {formatMonEs(enUnidades(task.amountWei, task.currency))} {currencySymbol(task.currency)}
             </span>
             {t('dash.dispute.locked')}
           </p>
@@ -118,14 +154,12 @@ function DisputeEntry({
           )}
           {disputedAt !== undefined && disputedAt > 0n && (
             <p className="mt-2 font-mono text-[0.75rem] text-ink-3">
-              {t('dashReal.dispute.openedAt', {
-                date: new Date(Number(disputedAt) * 1000).toLocaleString(i18n.language, {
-                  day: 'numeric',
-                  month: 'short',
-                  hour: '2-digit',
-                  minute: '2-digit',
-                }),
-              })}
+              {t('dashReal.dispute.openedAt', { date: fmtFecha(Number(disputedAt)) })}
+            </p>
+          )}
+          {decision && (
+            <p className="mt-3 max-w-xl rounded-xl border border-honey/40 bg-honey-soft px-4 py-3 text-[0.8125rem] leading-relaxed text-ink">
+              {t('dashReal.dispute.fallo', { pct: decision.bps / 100, fecha: fmtFecha(decision.firmeEn) })}
             </p>
           )}
         </div>
@@ -142,7 +176,7 @@ function DisputeEntry({
                   : t('dashReal.dispute.daysLeft', { days: daysLeft.toFixed(1) })}
             </p>
           </div>
-          {passed &&
+          {(passed || falloCumplible === true) &&
             (action.busy || action.txHash ? (
               <span className="inline-flex items-center gap-2 font-mono text-[0.8125rem] text-ink-2">
                 {action.mined && action.txHash ? (
@@ -166,21 +200,24 @@ function DisputeEntry({
               <button
                 type="button"
                 onClick={() =>
-                  void action.run({
-                    address: ACTIVE_ESCROW_ADDRESS,
-                    abi: ACTIVE_ESCROW_ABI,
-                    functionName: 'resolveStuckDispute',
-                    args: [task.id],
-                  })
+                  void action.run(
+                    llamadaDeEscrow(task.id, falloCumplible === true ? { tipo: 'cumplirDecision' } : { tipo: 'cerrarDisputaCaducada' }),
+                  )
                 }
                 className="inline-flex items-center gap-2 rounded-full border border-terra/50 px-4 py-2 text-[0.875rem] font-semibold text-terra transition-colors hover:bg-terra/10"
               >
                 <Gavel size={14} />
-                {t('dashReal.dispute.resolve')}
+                {t(
+                  falloCumplible === true
+                    ? 'dashReal.dispute.cumplir'
+                    : es25
+                      ? 'dashReal.dispute.resolve25'
+                      : 'dashReal.dispute.resolve',
+                )}
               </button>
             ))}
           <p className="max-w-[260px] text-[0.8125rem] leading-relaxed text-ink-2 lg:text-right">
-            {t('dashReal.dispute.note')}
+            {t(es25 ? 'dashReal.dispute.note25' : 'dashReal.dispute.note')}
           </p>
           {conBuzon && (
             <div className="flex max-w-[260px] flex-col items-start gap-2 lg:items-end">
@@ -211,9 +248,10 @@ export default function DisputeCard({
 }) {
   const { address } = useWallet();
   const { agents } = usePanalAgents();
+  // El plazo del v2 (14 días); el del v2.5 es la misma constante, en lib/escrow.ts.
   const { data: timeoutSec } = useReadContract({
-    address: ACTIVE_ESCROW_ADDRESS,
-    abi: ACTIVE_ESCROW_ABI,
+    address: PANAL_ESCROW_V2_ADDRESS,
+    abi: panalEscrowV2Abi,
     functionName: 'DISPUTE_TIMEOUT',
     chainId: activeChain.id,
     query: { staleTime: 300_000, retry: 1 },

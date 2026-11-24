@@ -8,10 +8,14 @@
 import { useQuery } from '@tanstack/react-query';
 import {
   PANAL_ESCROW_ADDRESS,
+  PANAL_ESCROW_V2_5_ADDRESS,
   PANAL_ESCROW_V2_ADDRESS,
+  V2_5_ENABLED,
   V2_ENABLED,
+  decimalesDe,
   publicClient,
 } from '@/contracts/config';
+import { idDelV2_5, panalEscrowV2_5Abi, tareaV2_5DeLaCadena } from '@panal/sdk';
 import { panalEscrowAbi, panalEscrowV2Abi } from '@/contracts/abis';
 
 const ESCROW = V2_ENABLED ? PANAL_ESCROW_V2_ADDRESS : PANAL_ESCROW_ADDRESS;
@@ -85,7 +89,39 @@ async function fetchTopTasks(limit: number): Promise<TopTask[]> {
     if (i + CHUNK < ids.length) await sleep(CHUNK_SLEEP_MS);
   }
 
-  return tasks.sort((a, b) => (b.amountWei > a.amountWei ? 1 : -1)).slice(0, limit);
+  if (V2_5_ENABLED) tasks.push(...(await fetchTopTasksV2_5().catch(() => [] as TopTask[])));
+  // Para ordenar, todo a 18 decimales: si no, una de 50 USDC (50.000.000)
+  // quedaría por debajo de una de 0,01 MON.
+  const a18 = (t: TopTask) => t.amountWei * 10n ** BigInt(18 - decimalesDe(t.currency));
+  return tasks.sort((a, b) => (a18(b) > a18(a) ? 1 : -1)).slice(0, limit);
+}
+
+/** Las últimas del escrow v2.5, con su número de fuera de la cadena (más mil millones). */
+async function fetchTopTasksV2_5(): Promise<TopTask[]> {
+  const count = (await publicClient.readContract({
+    address: PANAL_ESCROW_V2_5_ADDRESS,
+    abi: panalEscrowV2_5Abi,
+    functionName: 'getTaskCount',
+  })) as bigint;
+  const start = count > BigInt(SCAN_LAST) ? count - BigInt(SCAN_LAST) : 0n;
+  const out: TopTask[] = [];
+  for (let i = start; i < count; i += BigInt(CHUNK)) {
+    const ids: bigint[] = [];
+    for (let j = i; j < count && j < i + BigInt(CHUNK); j++) ids.push(j);
+    const filas = await Promise.all(
+      ids.map((id) =>
+        publicClient
+          .readContract({ address: PANAL_ESCROW_V2_5_ADDRESS, abi: panalEscrowV2_5Abi, functionName: 'getTask', args: [id] })
+          .then((r) => tareaV2_5DeLaCadena(idDelV2_5(id), r as unknown as Record<string, unknown>))
+          .catch(() => null),
+      ),
+    );
+    for (const t of filas) {
+      if (t) out.push({ id: t.id, client: t.client, worker: t.worker, amountWei: t.amount, taskHash: t.taskHash, createdAt: t.createdAt, currency: t.currency });
+    }
+    if (i + BigInt(CHUNK) < count) await sleep(CHUNK_SLEEP_MS);
+  }
+  return out;
 }
 
 export function useTopTasks(limit = 5) {

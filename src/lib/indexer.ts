@@ -163,7 +163,8 @@ async function fetchJson<T>(path: string): Promise<T | null> {
  * escrow y tablón— y traen la fecha de su bloque.
  */
 export async function fetchEventosRecientes(limit: number): Promise<IndexedEvent[] | null> {
-  const r = await fetchJson<{ events: IndexedEvent[] }>(`/index/events?limit=${Math.min(Math.max(1, limit), 200)}`);
+  // `v=all`: los del v2 y los del v2.5 (sin él, el indexador da solo los del v2).
+  const r = await fetchJson<{ events: IndexedEvent[] }>(`/index/events?limit=${Math.min(Math.max(1, limit), 200)}&v=all`);
   return r && Array.isArray(r.events) ? r.events : null;
 }
 
@@ -174,7 +175,7 @@ export async function fetchEventosRecientes(limit: number): Promise<IndexedEvent
  */
 export async function fetchTareasDeCliente(address: string): Promise<{ taskId: string; worker: string; status: string }[] | null> {
   const res = await fetchJson<{ tasks: { taskId: unknown; worker: unknown; status: unknown }[] }>(
-    `/index/tasks?address=${encodeURIComponent(address)}&role=client&limit=1000`,
+    `/index/tasks?address=${encodeURIComponent(address)}&role=client&limit=1000&v=all`,
   );
   if (!res?.tasks) return null;
   return res.tasks
@@ -191,8 +192,11 @@ export async function fetchTareasDeCliente(address: string): Promise<{ taskId: s
  * traen `deadline`, `taskHash` ni `deliveredAt`.
  */
 export async function fetchTaskIdsOf(address: string, cabezaCadena?: bigint): Promise<bigint[] | null> {
+  // `v=all`: las del escrow v2 y las del v2.5 (desde mil millones, ver
+  // lib/escrow.ts). Un indexador anterior al v2.5 ignora el parámetro y
+  // devuelve solo las del v2, que es justo lo que tiene.
   const res = await fetchJson<{ tasks: { taskId: string }[]; lastBlock?: number }>(
-    `/index/tasks?address=${encodeURIComponent(address)}&limit=1000`,
+    `/index/tasks?address=${encodeURIComponent(address)}&limit=1000&v=all`,
   );
   if (!res?.tasks) return null;
 
@@ -247,6 +251,11 @@ export interface CatalogAgent {
   active: boolean;
   registeredAt: number;
   stats: AgentStats | null;
+  /**
+   * Suspendido en PanalBans (v2.5): no puede contratar ni trabajar, así que
+   * el mercado no lo ofrece. Opcional: un indexador anterior no lo manda.
+   */
+  suspended?: boolean;
 
   /**
    * Si su dominio declara esta misma dirección en `/agent.json`.
@@ -468,7 +477,7 @@ export function useIndexAgentEvents(address: string | undefined, limit = 200) {
     queryFn: async () => {
       const addr = address?.toLowerCase();
       if (!addr) return [] as IndexedEvent[];
-      const res = await fetchJson<EventsResponse>(`/index/events?limit=${limit}`);
+      const res = await fetchJson<EventsResponse>(`/index/events?limit=${limit}&v=all`);
       if (!res) return [] as IndexedEvent[];
       return res.events.filter((ev) => {
         const a = ev.args;

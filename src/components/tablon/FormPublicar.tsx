@@ -18,7 +18,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { Hexagon, Lock } from 'lucide-react';
-import { keccak256, parseEther, parseEventLogs, toBytes, type Address, type Hex } from 'viem';
+import { keccak256, parseEventLogs, parseUnits, toBytes, type Address, type Hex } from 'viem';
 import { useSignMessage } from 'wagmi';
 import { cifrarArchivos, publicarMiClave } from '@/lib/cifrado';
 import {
@@ -29,7 +29,9 @@ import {
   appendAttachmentsManifest,
   attachmentFrom,
   cifrarTexto,
+  idDelV2_5,
   panalTablonAbi,
+  panalTablonV2_5Abi,
   problemaConArchivos,
   type ArchivoParaSubir,
   type AudienciaTablon,
@@ -37,7 +39,7 @@ import {
 import Dolares from '@/components/Dolares';
 import { Checkbox } from '@/components/ui/checkbox';
 import TxHash from '@/components/TxHash';
-import { NATIVE_CURRENCY, PANAL_TOKEN_ADDRESS, publicClient } from '@/contracts/config';
+import { NATIVE_CURRENCY, decimalesDe, publicClient } from '@/contracts/config';
 import { useWallet } from '@/hooks/useWallet';
 import { useFirmaDelTablon } from '@/hooks/useFirmaDelTablon';
 import { useReglasDelTablon } from '@/hooks/useTablonReglas';
@@ -47,10 +49,15 @@ import {
   enTablon,
   firmarYEsperar,
   guardarTextos,
-  permitirPanal,
+  MONEDAS_TABLON,
+  permitirToken,
+  REVISION_AL_PUBLICAR_S,
+  simboloDe,
   subirArchivosDelTablon,
+  VERSION_PARA_PUBLICAR,
 } from '@/lib/tablonReglas';
 import { cn } from '@/lib/utils';
+import { numeroVisible } from '@/lib/escrow';
 import { ElegirArchivos } from './Archivos';
 import { Girando } from './comun';
 import { BOTON_LINEA, CAMPO, cantidad, useDuracion } from './util';
@@ -143,7 +150,8 @@ export default function FormPublicar({ onPublicado }: { onPublicado?: () => void
   const [audiencia, setAudiencia] = useState<AudienciaTablon>('todos');
   const [adjuntos, setAdjuntos] = useState<ArchivoParaSubir[]>([]);
   const { signMessageAsync } = useSignMessage();
-  const [enPanal, setEnPanal] = useState(false);
+  /** La moneda del encargo: MON, $PANAL o (en el tablón v2.5) USDC. */
+  const [moneda, setMoneda] = useState<Address>(NATIVE_CURRENCY);
   const [importe, setImporte] = useState('');
   const [modo, setModo] = useState<ModoTablon>(ModoTablon.Seleccion);
   const [plazo, setPlazo] = useState<number>(3 * DIA);
@@ -162,12 +170,14 @@ export default function FormPublicar({ onPublicado }: { onPublicado?: () => void
   const [paso, setPaso] = useState<'permiso' | 'publicando' | 'textos' | 'archivos' | null>(null);
   const [hecho, setHecho] = useState<Hecho | null>(null);
 
-  const moneda = (enPanal ? PANAL_TOKEN_ADDRESS : NATIVE_CURRENCY) as Address;
-  const simbolo = enPanal ? '$PANAL' : 'MON';
+  const simbolo = simboloDe(moneda);
+  const enToken = moneda.toLowerCase() !== NATIVE_CURRENCY.toLowerCase();
+  const decimales = decimalesDe(moneda);
   const anuncioT = anuncio.trim();
   const encargoT = encargo.trim();
   const importeStr = importe.replace(',', '.').trim();
-  const importeWei = /^\d+(\.\d{1,18})?$/.test(importeStr) ? parseEther(importeStr) : null;
+  // Tantos decimales como admite la moneda: USDC, 6.
+  const importeWei = new RegExp(`^\\d+(\\.\\d{1,${decimales}})?$`).test(importeStr) ? parseUnits(importeStr, decimales) : null;
   const seleccion = modo === ModoTablon.Seleccion;
 
   /** Lo primero que impide publicar, o null. Las reglas de la beta, del contrato. */
@@ -177,15 +187,15 @@ export default function FormPublicar({ onPublicado }: { onPublicado?: () => void
     if (categoria === null) return t('tablon.pub.faltaCategoria');
     if (importeWei === null || importeWei === 0n) return importe ? t('tablon.pub.importeMal') : null;
     if (reglas) {
-      const minimo = enPanal ? reglas.minimoPanal : reglas.minimoMon;
-      if (importeWei < minimo) return t('tablon.pub.minimo', { n: cantidad(minimo), moneda: simbolo });
+      const minimo = reglas.minimos[moneda.toLowerCase()] ?? 0n;
+      if (importeWei < minimo) return t('tablon.pub.minimo', { n: cantidad(minimo, moneda), moneda: simbolo });
       const tope = reglas.topes[moneda.toLowerCase()];
       if (tope && tope.porEncargo !== 0n && importeWei > tope.porEncargo) {
-        return t('tablon.pub.topeEncargo', { n: cantidad(tope.porEncargo), moneda: simbolo });
+        return t('tablon.pub.topeEncargo', { n: cantidad(tope.porEncargo, moneda), moneda: simbolo });
       }
       if (tope && tope.total !== 0n && tope.ocupado + importeWei > tope.total) {
         const queda = tope.total > tope.ocupado ? tope.total - tope.ocupado : 0n;
-        return t('tablon.pub.topeTotal', { n: cantidad(tope.total), queda: cantidad(queda), moneda: simbolo });
+        return t('tablon.pub.topeTotal', { n: cantidad(tope.total, moneda), queda: cantidad(queda, moneda), moneda: simbolo });
       }
     }
     if (seleccion && caduca < ofertas + eleccion) return t('tablon.pub.caducaCorta');
@@ -259,9 +269,9 @@ export default function FormPublicar({ onPublicado }: { onPublicado?: () => void
         // Antes de cobrar nada: sin buzón, el encargo quedaría pagado y mudo.
         if (!(await buzonAceptaElTablon())) throw new Error(t('tablon.pub.buzonNoListo'));
         if (archivos.length > 0 && !(await buzonAceptaArchivos())) throw new Error(t('tablon.archivos.buzonSinArchivos'));
-        if (enPanal) {
+        if (enToken) {
           setPaso('permiso');
-          await permitirPanal(escribir, cuenta, importeWei);
+          await permitirToken(escribir, cuenta, moneda, importeWei);
         }
         setPaso('publicando');
         const params = {
@@ -279,12 +289,18 @@ export default function FormPublicar({ onPublicado }: { onPublicado?: () => void
           relist: republicar,
           campaignId: `0x${'0'.repeat(64)}` as Hex,
           campaignCapPerAgent: 0,
+          // El tablón v2.5 pide además la revisión de la entrega (72 h).
+          ...(VERSION_PARA_PUBLICAR === 'v2_5' ? { reviewWindow: REVISION_AL_PUBLICAR_S } : {}),
         };
-        const hash = await firmarYEsperar(escribir, cuenta, enTablon('post', [params], enPanal ? undefined : importeWei));
+        const hash = await firmarYEsperar(escribir, cuenta, enTablon('post', [params], enToken ? undefined : importeWei));
         const recibo = await publicClient.getTransactionReceipt({ hash });
-        const [ev] = parseEventLogs({ abi: panalTablonAbi, logs: recibo.logs, eventName: 'JobPosted' });
-        if (!ev) throw new Error('JobPosted');
-        const jobId = ev.args.jobId;
+        // El número del encargo: en el v2.5, el de fuera de la cadena (más mil millones).
+        const enLaCadena =
+          VERSION_PARA_PUBLICAR === 'v2_5'
+            ? parseEventLogs({ abi: panalTablonV2_5Abi, logs: recibo.logs, eventName: 'JobPosted' })[0]?.args.jobId
+            : parseEventLogs({ abi: panalTablonAbi, logs: recibo.logs, eventName: 'JobPosted' })[0]?.args.jobId;
+        if (enLaCadena === undefined) throw new Error('JobPosted');
+        const jobId = VERSION_PARA_PUBLICAR === 'v2_5' ? idDelV2_5(enLaCadena) : enLaCadena;
         setPaso('textos');
         let textos = true;
         try {
@@ -342,7 +358,7 @@ export default function FormPublicar({ onPublicado }: { onPublicado?: () => void
   if (hecho) {
     return (
       <div className="mt-5 flex flex-col items-center gap-4 text-center">
-        <p className="text-[0.9375rem] text-ink">{t('tablon.pub.hecho', { id: hecho.jobId.toString() })}</p>
+        <p className="text-[0.9375rem] text-ink">{t('tablon.pub.hecho', { id: numeroVisible(hecho.jobId) })}</p>
         <TxHash hash={hecho.hash} className="rounded-full border border-line bg-cream px-4 py-2" />
         {hecho.textos && hecho.archivos ? (
           <p className="text-[0.8125rem] leading-relaxed text-ink-2">{seleccion ? t('tablon.pub.hechoSeleccion') : t('tablon.pub.hechoInmediato')}</p>
@@ -454,23 +470,23 @@ export default function FormPublicar({ onPublicado }: { onPublicado?: () => void
             value={importe}
             onChange={(e) => setImporte(e.target.value)}
             inputMode="decimal"
-            placeholder={enPanal ? '5000' : '1.5'}
+            placeholder={simbolo === '$PANAL' ? '5000' : simbolo === 'USDC' ? '10' : '1.5'}
             className={cn(CAMPO, 'min-w-0 flex-1 font-mono', importe && importeWei === null && 'border-terra')}
           />
           <div className="flex shrink-0 rounded-full border border-line bg-cream p-1" role="radiogroup" aria-label={t('tablon.pub.moneda')}>
-            {(['MON', '$PANAL'] as const).map((m) => (
+            {MONEDAS_TABLON.map((m) => (
               <button
                 key={m}
                 type="button"
                 role="radio"
-                aria-checked={simbolo === m}
-                onClick={() => setEnPanal(m === '$PANAL')}
+                aria-checked={moneda.toLowerCase() === m.toLowerCase()}
+                onClick={() => setMoneda(m)}
                 className={cn(
                   'rounded-full px-3 py-1 text-[0.75rem] font-semibold transition-colors',
-                  simbolo === m ? 'bg-paper text-ink shadow-sm' : 'text-ink-3 hover:text-ink-2',
+                  moneda.toLowerCase() === m.toLowerCase() ? 'bg-paper text-ink shadow-sm' : 'text-ink-3 hover:text-ink-2',
                 )}
               >
-                {m}
+                {simboloDe(m)}
               </button>
             ))}
           </div>
@@ -486,7 +502,7 @@ export default function FormPublicar({ onPublicado }: { onPublicado?: () => void
             {(() => {
               const tope = reglas.topes[moneda.toLowerCase()];
               return tope && tope.porEncargo !== 0n
-                ? t('tablon.pub.topeBeta', { n: cantidad(tope.porEncargo), moneda: simbolo })
+                ? t('tablon.pub.topeBeta', { n: cantidad(tope.porEncargo, moneda), moneda: simbolo })
                 : null;
             })()}
           </p>

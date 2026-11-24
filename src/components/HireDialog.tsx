@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Check, ExternalLink, Loader2, Lock, LockOpen, Paperclip, Timer, TriangleAlert, X } from 'lucide-react';
 import { useSignMessage, useSwitchChain, useWriteContract } from 'wagmi';
-import { formatEther, keccak256, parseEventLogs, toBytes, type Address } from 'viem';
+import { erc20Abi, keccak256, parseEventLogs, toBytes, type Address } from 'viem';
 import {
   cifrarArchivo,
   cifrarTexto,
@@ -16,7 +16,19 @@ import {
   type Nivel,
   MAX_PREGUNTA_CHARS,
   PLAZO_DE_PREGUNTA_HORAS,
+  FEE_BPS_V2_5,
+  idDelV2_5,
+  panalEscrowV2_5Abi,
+  panalPricesAbi,
 } from '@panal/sdk';
+import {
+  importeEn,
+  minimoDelEscrowV2_5,
+  monedasParaContratar,
+  tiemposDeEncargo,
+  type DatosDelAgente,
+  type PreciosPorMoneda,
+} from '@/lib/monedasDeContratacion';
 import { clavePublicaDe, nombreEnBuzon, publicarMiClave } from '@/lib/cifrado';
 import { ensureActiveChain } from '@/lib/ensureChain';
 import { saveTaskBrief, saveTaskSobre } from '@/lib/taskBriefs';
@@ -63,6 +75,10 @@ import {
   PANAL_REGISTRY_ADDRESS,
   PANAL_REGISTRY_V2_ADDRESS,
   PANAL_TOKEN_ADDRESS,
+  PANAL_ESCROW_V2_5_ADDRESS,
+  PANAL_PRICES_ADDRESS,
+  V2_5_ENABLED,
+  enUnidades,
   V2_ENABLED,
   activeChain,
   currencySymbol,
@@ -101,6 +117,9 @@ export interface HireDialogProps {
 }
 
 const STEP_TITLES = ['hire.step1.title', 'hire.step2.title', 'hire.step3.title'];
+
+/** Opciones de revisión del escrow v2.5 (horas → i18n hire.revision.*). De 24 h a 7 días. */
+const REVISION_OPTIONS = [24, 72, 168] as const;
 
 /** Opciones de plazo del pedido (horas → i18n hire.deadline.*). */
 const DEADLINE_OPTIONS = [6, 24, 72, 168] as const;
@@ -253,7 +272,17 @@ function HireWizard({
    * depender de que el estado no haya cambiado entre una y otra.
    */
   const importeFirmado = useRef<bigint | null>(null);
+  /** La moneda de ese importe: el approve y el createTask tienen que hablar de la misma. */
+  const monedaFirmada = useRef<Address | null>(null);
   const [accepted, setAccepted] = useState(false);
+  /** PanalPrices del agente (v2.5): sus precios en otras monedas. null si no hay o no se leyó. */
+  const [precios25, setPrecios25] = useState<PreciosPorMoneda | null>(null);
+  /** Cuántos niveles tiene en la ficha de la CADENA (las listas de PanalPrices van por ellos). */
+  const [nivelesEnCadena, setNivelesEnCadena] = useState(0);
+  /** La moneda elegida para pagar; null = la del registro. */
+  const [moneda, setMoneda] = useState<Address | null>(null);
+  /** Cuánto tiempo tiene el cliente para revisar la entrega (v2.5). */
+  const [revisionH, setRevisionH] = useState<number>(72);
 
   /* ---------- contratación real (PanalEscrow) ---------- */
   const { connected, connecting, wrongNetwork, switchToMonad, chainId, connect, address } = useWallet();
@@ -271,10 +300,36 @@ function HireWizard({
   const { switchChainAsync } = useSwitchChain();
   const { signMessageAsync } = useSignMessage();
   const onchain = isOnchainAgent(agent);
-  /** Moneda del agente (v2): address(0) = MON, PANAL_TOKEN = $PANAL. */
-  const agentCurrency = onchain ? agent.currency : NATIVE_CURRENCY;
-  const isPanal = V2_ENABLED && agentCurrency.toLowerCase() === PANAL_TOKEN_ADDRESS.toLowerCase();
-  const symbol = currencySymbol(agentCurrency);
+  /** Moneda del agente en el registro (v2): address(0) = MON, PANAL_TOKEN = $PANAL. */
+  const agentCurrency = (onchain ? agent.currency : NATIVE_CURRENCY) as Address;
+  /**
+   * Las monedas en que se le puede pagar: la del registro y, en el v2.5, las
+   * que publique en PanalPrices cuadrando con sus niveles. Ver
+   * lib/monedasDeContratacion.ts.
+   */
+  const datosMoneda: DatosDelAgente = {
+    registro: agentCurrency,
+    precios: precios25,
+    nivelesEnCadena,
+    nivelesVisibles: niveles.length,
+  };
+  const monedas = V2_5_ENABLED && onchain ? monedasParaContratar(datosMoneda) : [agentCurrency];
+  const monedaPago =
+    moneda && monedas.some((m) => m.toLowerCase() === moneda.toLowerCase()) ? moneda : agentCurrency;
+  const isPanal = V2_ENABLED && monedaPago.toLowerCase() === PANAL_TOKEN_ADDRESS.toLowerCase();
+  /** Se paga con un token (approve + createTask) y no con MON. */
+  const esToken = V2_ENABLED && monedaPago.toLowerCase() !== NATIVE_CURRENCY.toLowerCase();
+  const symbol = currencySymbol(monedaPago);
+  /**
+   * Lo que se bloquea: el nivel elegido (o el precio del registro) en la
+   * moneda del registro; en otra moneda, su precio de PanalPrices para ese
+   * mismo nivel.
+   */
+  const nivelIdx = elegido ? Math.max(0, niveles.findIndex((n) => n.wei === elegido.wei)) : 0;
+  const precioRegistro = elegido?.wei ?? (isOnchainAgent(agent) ? agent.priceWei : 0n);
+  const precioWei = importeEn(datosMoneda, monedaPago, nivelIdx, precioRegistro) ?? precioRegistro;
+  /** El precio de un nivel en la moneda elegida, para la lista de niveles. */
+  const precioDeNivel = (i: number, wei: bigint): bigint => importeEn(datosMoneda, monedaPago, i, wei) ?? wei;
   const {
     writeContract,
     data: realTxHash,
@@ -346,6 +401,23 @@ function HireWizard({
          * la cadena, que hoy son todos.
          */
         const enCadena = leerNivelesDeMetadata(meta.metadataURI);
+        if (vigente) setNivelesEnCadena(enCadena.length);
+        // Sus precios en otras monedas (v2.5). Sin ellos se paga en la del
+        // registro, como siempre: no es motivo para no dejar contratar.
+        if (V2_5_ENABLED) {
+          void publicClient
+            .readContract({
+              address: PANAL_PRICES_ADDRESS,
+              abi: panalPricesAbi,
+              functionName: 'getAllPrices',
+              args: [agent.workerAddress as Address],
+            })
+            .then((r) => {
+              const [mon, panal, usdc] = r as readonly [readonly bigint[], readonly bigint[], readonly bigint[]];
+              if (vigente) setPrecios25({ mon, panal, usdc });
+            })
+            .catch(() => undefined);
+        }
         // Sin endpoint publicado no hay a quién subirle nada.
         const caps: CapacidadesAgente = botUrl
           ? await leerCapacidades(botUrl, 6_000, i18n.language)
@@ -495,6 +567,19 @@ function HireWizard({
         toast.error(t('wallet.txError'));
         return;
       }
+      // En otra moneda, lo mismo con PanalPrices: que no haya cambiado desde que se leyó.
+      if (monedaPago.toLowerCase() !== agentCurrency.toLowerCase()) {
+        const lista = (await publicClient.readContract({
+          address: PANAL_PRICES_ADDRESS,
+          abi: panalPricesAbi,
+          functionName: 'getPrices',
+          args: [agent.workerAddress as Address, monedaPago],
+        })) as readonly bigint[];
+        if (lista[Math.min(nivelIdx, lista.length - 1)] !== precioWei) {
+          toast.error(t('wallet.txError'));
+          return;
+        }
+      }
     } catch {
       // si el RPC falla, seguimos con el precio cacheado (misma fuente)
     }
@@ -506,8 +591,14 @@ function HireWizard({
      * cadena, no del encargo, que lo escribe el cliente y podría decir
      * cualquier cosa.
      */
-    const aBloquear = elegido?.wei ?? agent.priceWei;
+    const aBloquear = precioWei;
+    // Por debajo del mínimo del escrow, el contrato revierte: se dice antes de firmar.
+    if (V2_5_ENABLED && aBloquear < minimoDelEscrowV2_5(monedaPago)) {
+      toast.error(t('hire.bajoMinimo'));
+      return;
+    }
     importeFirmado.current = aBloquear;
+    monedaFirmada.current = monedaPago;
     let preparado: { brief: string; enClaro: string };
     try {
       preparado = await prepararEncargo();
@@ -525,7 +616,41 @@ function HireWizard({
     saveTaskBrief(taskHash, preparado.enClaro); // caché local: el trabajador verá QUÉ se pidió
     if (brief !== preparado.enClaro) saveTaskSobre(taskHash, brief);
     const deadline = BigInt(Math.floor(Date.now() / 1000) + deadlineHours * 3600);
-    if (!V2_ENABLED) {
+    if (V2_5_ENABLED) {
+      // Escrow v2.5: plazo para aceptar, revisión elegida y tres monedas.
+      if (!esToken) {
+        const tiempos = tiemposDeEncargo(Date.now() / 1000, deadlineHours, revisionH);
+        writeContract({
+          address: PANAL_ESCROW_V2_5_ADDRESS,
+          abi: panalEscrowV2_5Abi,
+          functionName: 'createTask',
+          args: [
+            {
+              worker: agent.workerAddress as Address,
+              taskHash,
+              deadline: tiempos.deadline,
+              acceptWindow: tiempos.acceptWindow,
+              reviewWindow: tiempos.reviewWindow,
+              currency: NATIVE_CURRENCY,
+              amount: aBloquear,
+            },
+          ],
+          value: aBloquear,
+          chainId: activeChain.id,
+        });
+      } else {
+        // $PANAL o USDC: primero approve(escrow v2.5, importe); el createTask
+        // se encadena al minarse (efecto de abajo).
+        setApprovePhase('approving');
+        writeApprove({
+          address: monedaPago,
+          abi: erc20Abi,
+          functionName: 'approve',
+          args: [PANAL_ESCROW_V2_5_ADDRESS, aBloquear],
+          chainId: activeChain.id,
+        });
+      }
+    } else if (!V2_ENABLED) {
       // v1: createTask(worker, taskHash, deadline) con value = precio.
       writeContract({
         address: PANAL_ESCROW_ADDRESS,
@@ -560,9 +685,9 @@ function HireWizard({
     setStep(2);
   };
 
-  // Encadenar createTask tras el approve minado (flujo $PANAL).
+  // Encadenar createTask tras el approve minado (flujo con token: $PANAL, o USDC en el v2.5).
   useEffect(() => {
-    if (!isPanal || approvePhase !== 'approving' || !approveMined || !isOnchainAgent(agent)) return;
+    if (!esToken || approvePhase !== 'approving' || !approveMined || !isOnchainAgent(agent)) return;
     // Deliberado, y no se toca: esto es la máquina de estados del flujo de
     // pago en $PANAL. El approve se ha minado y toca encadenar el createTask,
     // y la marca tiene que ponerse ANTES de firmar para que un segundo pase
@@ -581,6 +706,30 @@ function HireWizard({
     // encadena lo que ya se decidió. El approve se firmó por esa cantidad y
     // createTask tiene que pedir exactamente esa.
     const aBloquear = importeFirmado.current ?? agent.priceWei;
+    if (V2_5_ENABLED) {
+      // Los tiempos se cuentan desde ahora, no desde el approve: el contrato
+      // mira el reloj al minarse el createTask.
+      const tiempos = tiemposDeEncargo(Date.now() / 1000, deadlineHours, revisionH);
+      writeContract({
+        address: PANAL_ESCROW_V2_5_ADDRESS,
+        abi: panalEscrowV2_5Abi,
+        functionName: 'createTask',
+        args: [
+          {
+            worker: agent.workerAddress as Address,
+            taskHash,
+            deadline: tiempos.deadline,
+            acceptWindow: tiempos.acceptWindow,
+            reviewWindow: tiempos.reviewWindow,
+            currency: monedaFirmada.current ?? monedaPago,
+            amount: aBloquear,
+          },
+        ],
+        value: 0n,
+        chainId: activeChain.id,
+      });
+      return;
+    }
     writeContract({
       address: PANAL_ESCROW_V2_ADDRESS,
       abi: panalEscrowV2Abi,
@@ -590,7 +739,7 @@ function HireWizard({
       chainId: activeChain.id,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [approveMined, approvePhase, isPanal]);
+  }, [approveMined, approvePhase, esToken]);
 
   /* Push del brief al bot del agente (entrega máquina-a-máquina, headless).
      Tras minarse createTask: si el agente publica "bot:<url>" en su metadata
@@ -656,13 +805,12 @@ function HireWizard({
     if (!receipt || !address || !isOnchainAgent(agent)) return;
     setBriefEstado('enviando');
     try {
-      // taskId del evento TaskCreated del receipt.
-      const [created] = parseEventLogs({
-        abi: panalEscrowV2Abi,
-        eventName: 'TaskCreated',
-        logs: receipt.logs,
-      });
-      const taskId = created?.args?.taskId;
+      // taskId del evento TaskCreated del receipt. En el v2.5, el de fuera de
+      // la cadena (más mil millones): es el que esperan el buzón y los agentes.
+      const enLaCadena = V2_5_ENABLED
+        ? parseEventLogs({ abi: panalEscrowV2_5Abi, eventName: 'TaskCreated', logs: receipt.logs })[0]?.args?.taskId
+        : parseEventLogs({ abi: panalEscrowV2Abi, eventName: 'TaskCreated', logs: receipt.logs })[0]?.args?.taskId;
+      const taskId = enLaCadena === undefined ? undefined : V2_5_ENABLED ? idDelV2_5(enLaCadena) : enLaCadena;
       if (taskId === undefined) {
         // Sin id no hay a dónde mandar el brief. Antes se salía en silencio y
         // el cliente se quedaba mirando una pantalla de éxito sin saber que su
@@ -741,10 +889,9 @@ function HireWizard({
     void enviarBrief();
   }, [mined, receipt, realTxHash, address, agent, enviarBrief]);
 
-  const price = elegido ? Number(formatEther(elegido.wei)) : agent.pricePerTask;
-  // Sin agente on-chain no se llega a los pasos que lo enseñan; 0 no pinta nada.
-  const precioWei = elegido?.wei ?? (isOnchainAgent(agent) ? agent.priceWei : 0n);
-  const fee = price * PROTOCOL_FEE;
+  const price = isOnchainAgent(agent) ? enUnidades(precioWei, monedaPago) : agent.pricePerTask;
+  // La comisión del escrow que se usa: en el v2.5, 1,5 % en $PANAL y 2,5 % en MON y USDC.
+  const fee = V2_5_ENABLED ? (price * (isPanal ? FEE_BPS_V2_5.panal : FEE_BPS_V2_5.resto)) / 10_000 : price * PROTOCOL_FEE;
   // Lo que bloquea/firma el cliente es exactamente `price`; el fee del 2,5 %
   // se descuenta del pago al agente al liberar el escrow (ver contrato).
   const total = price;
@@ -935,9 +1082,11 @@ function HireWizard({
                     <div className="flex-1">
                       <p className="text-[0.875rem] font-semibold text-ink">{agent.name}</p>
                       <p className="font-mono text-[12px] text-ink-3">
-                        {symbol === '$PANAL'
-                          ? t('common.tokenPerTask', { price: formatMon(price) })
-                          : t('common.monPerTask', { price: formatMon(price) })}{' '}
+                        {symbol === 'USDC'
+                          ? t('hire.porTarea', { price: formatMon(price), symbol })
+                          : symbol === '$PANAL'
+                            ? t('common.tokenPerTask', { price: formatMon(price) })
+                            : t('common.monPerTask', { price: formatMon(price) })}{' '}
                         <Dolares cantidad={precioWei} moneda={symbol} />
                       </p>
                     </div>
@@ -952,7 +1101,7 @@ function HireWizard({
                   {niveles.length > 0 && !pregunta && (
                     <div className="flex flex-col gap-2">
                       <p className="text-[0.8125rem] font-medium text-ink-2">{t('hire.tier')}</p>
-                      {niveles.map((n) => {
+                      {niveles.map((n, i) => {
                         const marcado = elegido?.wei === n.wei;
                         return (
                           <button
@@ -980,12 +1129,37 @@ function HireWizard({
                               )}
                             </span>
                             <span className="shrink-0 text-right font-mono text-[0.875rem] font-semibold text-ink">
-                              {formatMon(Number(formatEther(n.wei)))} {symbol}
-                              <Dolares cantidad={n.wei} moneda={symbol} className="block font-normal" />
+                              {formatMon(enUnidades(precioDeNivel(i, n.wei), monedaPago))} {symbol}
+                              <Dolares cantidad={precioDeNivel(i, n.wei)} moneda={symbol} className="block font-normal" />
                             </span>
                           </button>
                         );
                       })}
+                    </div>
+                  )}
+                  {/* En qué se paga: solo si el agente publica precio en más de
+                      una moneda (PanalPrices, escrow v2.5). */}
+                  {monedas.length > 1 && (
+                    <div className="flex flex-col gap-1.5">
+                      <span className="text-[0.8125rem] font-medium text-ink-2">{t('hire.moneda')}</span>
+                      <div className="flex flex-wrap gap-2">
+                        {monedas.map((m) => (
+                          <button
+                            key={m}
+                            type="button"
+                            onClick={() => setMoneda(m)}
+                            aria-pressed={m.toLowerCase() === monedaPago.toLowerCase()}
+                            className={cn(
+                              'rounded-full border px-4 py-1.5 font-mono text-[0.8125rem] font-medium transition-colors',
+                              m.toLowerCase() === monedaPago.toLowerCase()
+                                ? 'border-honey bg-honey-soft text-honey-deep'
+                                : 'border-line bg-transparent text-ink-2 hover:border-honey/50 hover:text-ink',
+                            )}
+                          >
+                            {currencySymbol(m)}
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   )}
                   <textarea
@@ -1058,6 +1232,31 @@ function HireWizard({
                         ))}
                       </div>
                       <span className="text-[0.6875rem] text-ink-3">{t('hire.deadline.hint')}</span>
+                    </div>
+                  )}
+                  {/* Cuánto tiempo tienes para revisar la entrega (v2.5): pasado
+                      sin aprobar ni disputar, cobra quien trabajó. */}
+                  {V2_5_ENABLED && !pregunta && (
+                    <div className="flex flex-col gap-1.5">
+                      <span className="text-[0.8125rem] font-medium text-ink-2">{t('hire.revision.label')}</span>
+                      <div className="grid grid-cols-3 gap-2">
+                        {REVISION_OPTIONS.map((h) => (
+                          <button
+                            key={h}
+                            type="button"
+                            onClick={() => setRevisionH(h)}
+                            className={cn(
+                              'rounded-full border px-2 py-2 text-[0.75rem] font-medium transition-colors',
+                              revisionH === h
+                                ? 'border-honey bg-honey-soft text-honey-deep'
+                                : 'border-line bg-transparent text-ink-2 hover:border-honey/50 hover:text-ink',
+                            )}
+                          >
+                            {t(`hire.revision.h${h}`)}
+                          </button>
+                        ))}
+                      </div>
+                      <span className="text-[0.6875rem] text-ink-3">{t('hire.revision.hint')}</span>
                     </div>
                   )}
                   <input
@@ -1147,7 +1346,7 @@ function HireWizard({
                       <span className="text-ink">{price.toFixed(3)} {symbol}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-ink-2">{t('hire.step2.protocolFee')}</span>
+                      <span className="text-ink-2">{t('hire.step2.protocolFee', { pct: (V2_5_ENABLED && isPanal ? FEE_BPS_V2_5.panal / 100 : V2_5_ENABLED ? FEE_BPS_V2_5.resto / 100 : PROTOCOL_FEE * 100).toLocaleString(i18n.language) })}</span>
                       <span className="text-ink">{formatMon(fee, 5)} {symbol}</span>
                     </div>
                     <div className="mt-1 flex justify-between border-t border-line pt-2 font-semibold">
@@ -1160,7 +1359,7 @@ function HireWizard({
                   </div>
                   <p className="flex items-start gap-2 text-[0.8125rem] text-ink-2">
                     <Timer size={15} className="mt-0.5 shrink-0 text-honey-deep" />
-                    {t('hire.step2.autoRelease', { hours: ESCROW_AUTO_RELEASE_H })}
+                    {t('hire.step2.autoRelease', { hours: V2_5_ENABLED ? revisionH : ESCROW_AUTO_RELEASE_H })}
                   </p>
                   <label className="flex cursor-pointer items-center gap-2.5 text-[0.875rem] text-ink-2">
                     <Checkbox
@@ -1208,8 +1407,8 @@ function HireWizard({
                         disabled={!accepted || signing || approveSigning}
                         className="flex-1 rounded-full bg-honey px-5 py-3 text-[0.875rem] font-semibold text-ink transition-colors hover:bg-honey-deep hover:text-paper disabled:opacity-40"
                       >
-                        {isPanal
-                          ? t('hire.step2.signLockToken', { price: formatMon(price) })
+                        {esToken
+                          ? t('hire.step2.signLockToken', { price: formatMon(price), symbol })
                           : t('hire.step2.signLock', { price: formatMon(price) })}
                       </button>
                     </div>
@@ -1320,11 +1519,11 @@ function HireWizard({
                       {/* Paso 1/2 del flujo $PANAL: approve(escrow, precio) */}
                       <Loader2 size={40} className="animate-spin text-honey-deep" aria-hidden />
                       <div>
-                        <p className="display-m text-ink">{t('hire.approve.title')}</p>
+                        <p className="display-m text-ink">{t('hire.approve.title', { symbol })}</p>
                         <p className="mt-1 max-w-sm text-[0.875rem] text-ink-2">
                           {!approveTxHash ? t('hire.approve.signing') : t('hire.approve.confirming')}
                         </p>
-                        <p className="mt-1 font-mono text-[11px] text-ink-3">{t('hire.approve.desc')}</p>
+                        <p className="mt-1 font-mono text-[11px] text-ink-3">{t('hire.approve.desc', { symbol })}</p>
                       </div>
                       {approveTxHash && (
                         <a
@@ -1343,7 +1542,7 @@ function HireWizard({
                     <>
                       <Loader2 size={40} className="animate-spin text-honey-deep" aria-hidden />
                       <div>
-                        {isPanal && <p className="mb-1 font-mono text-[11px] text-olive">{t('hire.approve.done')}</p>}
+                        {esToken && <p className="mb-1 font-mono text-[11px] text-olive">{t('hire.approve.done')}</p>}
                         <p className="display-m text-ink">
                           {!realTxHash ? t('hire.step3.signing') : t('hire.step3.confirming')}
                         </p>
@@ -1393,8 +1592,8 @@ function HireWizard({
                       <div>
                         <p className="display-m text-ink">{t('hire.step3.sealed')}</p>
                         <p className="mt-1 text-[0.875rem] text-ink-2">
-                          {isPanal
-                            ? t('hire.step3.sealedDescRealToken', { name: agent.name, price: formatMon(price) })
+                          {esToken
+                            ? t('hire.step3.sealedDescRealToken', { name: agent.name, price: formatMon(price), symbol })
                             : t('hire.step3.sealedDescReal', { name: agent.name, price: formatMon(price) })}
                         </p>
                       </div>

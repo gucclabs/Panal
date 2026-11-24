@@ -12,7 +12,16 @@
 import { useQuery } from '@tanstack/react-query';
 import { parseAbiItem } from 'viem';
 import type { Address } from 'viem';
-import { PANAL_ESCROW_ADDRESS, PANAL_ESCROW_V2_ADDRESS, V2_ENABLED, activeChain, publicClient } from '@/contracts/config';
+import {
+  NATIVE_CURRENCY,
+  PANAL_ESCROW_ADDRESS,
+  PANAL_ESCROW_V2_5_ADDRESS,
+  PANAL_ESCROW_V2_ADDRESS,
+  V2_5_ENABLED,
+  V2_ENABLED,
+  activeChain,
+  publicClient,
+} from '@/contracts/config';
 import { useWallet } from '@/hooks/useWallet';
 
 const WITHDRAWAL_EVENT = parseAbiItem('event Withdrawal(address indexed to, uint256 amount)');
@@ -29,12 +38,14 @@ export interface WithdrawalItem {
   /** timestamp del bloque (s); 0 si no se pudo resolver */
   timestamp: number;
   amountWei: bigint;
+  /** La moneda retirada (cero = MON). En el v1 siempre MON. */
+  token: Address;
 }
 
 interface RawLog {
   blockNumber: bigint;
   transactionHash: string;
-  args: { amount?: bigint };
+  args: { amount?: bigint; token?: Address };
 }
 
 let maxRange = 5_000n;
@@ -57,8 +68,13 @@ async function fetchWithdrawals(me: Address): Promise<WithdrawalItem[]> {
     const from = to >= maxRange ? to - maxRange + 1n : 0n;
     let chunk: RawLog[];
     try {
+      // Los dos escrows a la vez (el v2 y el v2.5): el evento es el mismo.
       chunk = (await publicClient.getLogs({
-        address: V2_ENABLED ? PANAL_ESCROW_V2_ADDRESS : PANAL_ESCROW_ADDRESS,
+        address: V2_ENABLED
+          ? V2_5_ENABLED
+            ? [PANAL_ESCROW_V2_ADDRESS, PANAL_ESCROW_V2_5_ADDRESS]
+            : PANAL_ESCROW_V2_ADDRESS
+          : PANAL_ESCROW_ADDRESS,
         event: V2_ENABLED ? WITHDRAWAL_EVENT_V2 : WITHDRAWAL_EVENT,
         args: { to: me },
         fromBlock: from,
@@ -103,6 +119,7 @@ async function fetchWithdrawals(me: Address): Promise<WithdrawalItem[]> {
     blockNumber: l.blockNumber,
     timestamp: ts.get(l.blockNumber.toString()) ?? 0,
     amountWei: l.args.amount ?? 0n,
+    token: l.args.token ?? NATIVE_CURRENCY,
   }));
 }
 
@@ -118,7 +135,7 @@ export function useWithdrawals(): MyWithdrawals {
   const addr = (connected && address ? address : null) as Address | null;
 
   const query = useQuery({
-    queryKey: ['my-withdrawals', activeChain.id, addr],
+    queryKey: ['my-withdrawals', activeChain.id, V2_5_ENABLED, addr],
     enabled: !!addr,
     queryFn: () => fetchWithdrawals(addr as Address),
     staleTime: 30_000,
