@@ -76,7 +76,7 @@ export const es = {
     conNavegador: 'Descargar con el navegador',
     terminos: 'Términos de uso',
     privacidad: 'Privacidad',
-    propiedad: '© 2026 GUCCLABS · el código es MIT; el nombre y el logo, no',
+    propiedad: '© 2026 GUCCLABS · el código es MIT.\nEl nombre y el logo son de GUCCLABS.',
   },
 
   barraRed: {

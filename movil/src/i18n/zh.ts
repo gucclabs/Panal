@@ -71,7 +71,7 @@ export const zh: Textos = {
     conNavegador: '用浏览器下载',
     terminos: '使用条款',
     privacidad: '隐私',
-    propiedad: '© 2026 GUCCLABS · 代码采用 MIT 许可；名称和标志不在其内',
+    propiedad: '© 2026 GUCCLABS · 代码采用 MIT 许可。\n名称和标志归 GUCCLABS 所有。',
   },
 
   barraRed: {
