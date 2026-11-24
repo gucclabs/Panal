@@ -57,6 +57,7 @@ import {
   formatearDolares,
   erc20Abi,
   leerEjemplosDeMetadata,
+  leerNivelesDeMetadata,
   leerTipo,
   matchAttachment,
   parseAttachmentsManifest,
@@ -97,6 +98,14 @@ import {
   renderNiveles,
 } from './niveles.js';
 import { QuoteBook, SpendLedger, limitFor, limitsFromEnv } from './limits.js';
+import {
+  importe,
+  lineaOtrasMonedas,
+  monedaPorNombre,
+  otrasMonedasDe,
+  precioParaNivel,
+  type OtraMoneda,
+} from './monedas.js';
 import { Sellados } from './sellados.js';
 import { deudaDelTablon, herramientasDelTablon } from './tablon.js';
 import { herramientasDeDisputas } from './disputas.js';
@@ -410,7 +419,17 @@ function trustLine(agent: Agent): string | null {
   return `  Trust: ${partes.join('; ')}`;
 }
 
-function renderAgent(agent: Agent, niveles: Nivel[] = [], detallado = false): string {
+/**
+ * Dónde se elige pagar en otra moneda. El MCP local contrata con `panal_hire`,
+ * que paga en la moneda del registro; el remoto no paga, da un enlace a la
+ * página de contratar, y ahí la persona elige la moneda.
+ */
+const COMO_PAGAR_EN_OTRA =
+  process.env.PANAL_MCP_REMOTO === '1'
+    ? 'the person picks the currency on the hire page that panal_prepare_hire links to'
+    : 'to pay in it, pass it as `currency` to panal_quote_hire';
+
+function renderAgent(agent: Agent, niveles: Nivel[] = [], detallado = false, otras: OtraMoneda[] = []): string {
   const price = `${formatEther(agent.pricePerTask)} ${symbolOf(agent.currency)}${usd(agent.pricePerTask, agent.currency)}`;
   const skills = agent.metadata.skills.length ? agent.metadata.skills.join(', ') : '(no skills declared)';
   return [
@@ -430,6 +449,9 @@ function renderAgent(agent: Agent, niveles: Nivel[] = [], detallado = false): st
     ...(detallado
       ? renderNiveles(niveles, symbolOf(agent.currency), (wei) => usd(wei, agent.currency))
       : [lineaDeNiveles(niveles, symbolOf(agent.currency))]),
+    // Las otras monedas que publica en PanalPrices (v2.5): sin esto Lint salía
+    // solo en MON aunque se le pueda pagar en USDC.
+    ...lineaOtrasMonedas(otras, COMO_PAGAR_EN_OTRA),
     `  Skills: ${skills}`,
     agent.metadata.description ? `  Description (written by its owner): ${agent.metadata.description}` : null,
     agent.metadata.botUrl ? `  Endpoint: ${agent.metadata.botUrl}` : null,
@@ -812,17 +834,19 @@ export const READ_TOOLS: Tool[] = [
           : 'There are no active agents on the marketplace right now.';
       }
       // Los de la CADENA y sin pedir ninguna ficha: aquí una lectura por agente
-      // serían N peticiones a servidores ajenos por búsqueda.
+      // serían N peticiones a servidores ajenos por búsqueda. Las otras
+      // monedas, de todos a la vez en una sola llamada.
+      const otras = await otrasMonedasDe(panal, found);
       return `${found.length} agent(s):\n\n${found
-        .map((a) => renderAgent(a, nivelesDeAgente(a.metadataURI, [])))
+        .map((a) => renderAgent(a, nivelesDeAgente(a.metadataURI, []), false, otras.get(a.address.toLowerCase()) ?? []))
         .join('\n\n')}`;
     },
   },
   {
     name: 'panal_get_agent',
     description:
-      'Full profile of a Panal agent, by address: price, the sizes it sells if it sells several, skills, status, ' +
-      'its on-chain name and the example jobs its owner suggests.',
+      'Full profile of a Panal agent, by address: price, the sizes it sells if it sells several, the other ' +
+      'currencies it accepts (MON, $PANAL or USDC), skills, status, its on-chain name and the example jobs its owner suggests.',
     inputSchema: {
       type: 'object',
       properties: { address: { type: 'string', description: 'The agent 0x… address.' } },
@@ -841,11 +865,12 @@ export const READ_TOOLS: Tool[] = [
       // al MISMO servidor y encadenarlas dobla la espera para nada. De aquí
       // salen los nombres de los niveles —traducidos, si el agente traduce—;
       // los importes siguen viniendo de la cadena.
-      const [q, ficha] = await Promise.all([
+      const [q, ficha, otras] = await Promise.all([
         panal.quoteAgent(address, 'Price check.').catch(() => null),
         agent.metadata.botUrl
           ? fetchAgentLimits(agent.metadata.botUrl).catch(() => null)
           : Promise.resolve(null),
+        otrasMonedasDe(panal, [agent]),
       ]);
       const porLlamada = q
         ? `  Per question: ${fmt(BigInt(q.amount), q.asset)} ${symbolOf(q.asset)} (x402, answered on the spot)`
@@ -860,7 +885,7 @@ export const READ_TOOLS: Tool[] = [
           ? `\n  Example jobs its owner suggests (a starting point; the brief still needs the actual material): ` +
             ejemplos.map((e) => `"${e}"`).join(' · ')
           : '';
-      return `${renderAgent(agent, niveles, true)}\n${porLlamada}${lineaEjemplos}`;
+      return `${renderAgent(agent, niveles, true, otras.get(agent.address.toLowerCase()) ?? [])}\n${porLlamada}${lineaEjemplos}`;
     },
   },
   {
@@ -1107,6 +1132,13 @@ const WRITE_TOOLS: Tool[] = [
             'Optional paths of local files to attach to the job. They must live inside the folder this ' +
             'server is allowed to read from. Only attach files the person actually asked you to send.',
         },
+        currency: {
+          type: 'string',
+          description:
+            'Optional. Pay in another currency the agent accepts — MON, $PANAL or USDC — as panal_get_agent ' +
+            'listed under "Also accepts". The price is that currency\'s price for the chosen size. Without this, ' +
+            'the job is quoted in the agent\'s own currency.',
+        },
       },
       required: ['agent', 'brief'],
     },
@@ -1167,8 +1199,38 @@ const WRITE_TOOLS: Tool[] = [
 
       const resuelto = await resolverEncargo(agent, brief, str(args.tier));
       if ('error' in resuelto) return resuelto.error;
-      const { symbol, niveles, elegido, amount } = resuelto;
-      const negativa = revisarPresupuesto(agent.currency, amount, symbol);
+      const { niveles, elegido } = resuelto;
+      let { symbol, amount } = resuelto;
+      let currency = agent.currency;
+
+      // Pagar en otra moneda de las que acepta (PanalPrices, v2.5): el precio
+      // de ESE tamaño en esa moneda. La misma regla que la web para ofrecerla
+      // (ver monedas.ts); si no la acepta, se dice cuáles sí y no se cotiza.
+      // `panal_hire` no cambia: ya paga en la moneda de la cotización.
+      let otra: OtraMoneda | null = null;
+      const pedida = str(args.currency);
+      if (pedida) {
+        const moneda = monedaPorNombre(panal, pedida);
+        if (!moneda) return `I do not know the currency "${pedida}": use MON, $PANAL or USDC. Nothing was quoted.`;
+        if (moneda.toLowerCase() !== agent.currency.toLowerCase()) {
+          if (!panal.v2_5) {
+            return 'Paying in a currency other than the agent\'s own needs the v2.5 escrow, which this network does not have. Nothing was quoted.';
+          }
+          // Sus listas van por los niveles de la cadena: con niveles solo en la
+          // tarjeta del bot no hay orden fijo, y la web tampoco la ofrece.
+          const soloTarjeta = niveles.length > 0 && leerNivelesDeMetadata(agent.metadataURI).length === 0;
+          const otras = soloTarjeta ? [] : ((await otrasMonedasDe(panal, [agent])).get(agent.address.toLowerCase()) ?? []);
+          otra = otras.find((o) => o.currency.toLowerCase() === moneda.toLowerCase()) ?? null;
+          if (!otra) {
+            const acepta = [symbol, ...otras.map((o) => o.simbolo)].join(', ');
+            return `${agent.metadata.name || address} does not accept ${symbolOf(moneda)}: it takes ${acepta}. Nothing was quoted.`;
+          }
+          amount = precioParaNivel(otra, elegido ? Math.max(0, niveles.indexOf(elegido)) : 0);
+          currency = otra.currency;
+          symbol = otra.simbolo;
+        }
+      }
+      const negativa = revisarPresupuesto(currency, amount, symbol);
       if (negativa) return negativa;
 
       // Con quien recibe en el buzón de Panal y publicó su clave, el encargo,
@@ -1183,7 +1245,7 @@ const WRITE_TOOLS: Tool[] = [
         brief,
         amount,
         tier: elegido?.name ?? null,
-        currency: agent.currency,
+        currency,
         symbol,
         botUrl: agent.metadata.botUrl,
         adjuntos: adjuntos.map((a) => ({ file: a.file, ruta: a.ruta })),
@@ -1193,7 +1255,7 @@ const WRITE_TOOLS: Tool[] = [
 
       return [
         `Quote for ${quote.agentName}:`,
-        `  Price: ${formatEther(amount)} ${symbol}${usd(amount, agent.currency)}${elegido ? ` — size "${elegido.name}"` : ''}`,
+        `  Price: ${fmt(amount, currency)} ${symbol}${usd(amount, currency)}${elegido ? ` — size "${elegido.name}"` : ''}`,
         // Los otros tamaños se enseñan SIEMPRE que existan, también cuando ya
         // se eligió uno: quien está leyendo esto es quien paga, y enterarse de
         // que había uno más grande después de contratar no sirve de nada.
@@ -1201,7 +1263,7 @@ const WRITE_TOOLS: Tool[] = [
           ? [
               `  Other sizes: ${niveles
                 .filter((n) => n !== elegido)
-                .map((n) => `${n.name} (${precioDeNivel(n, symbol)})`)
+                .map((n) => `${n.name} (${otra ? importe(otra, precioParaNivel(otra, niveles.indexOf(n))) : precioDeNivel(n, symbol)})`)
                 .join(', ')}`,
             ]
           : []),
@@ -1402,7 +1464,7 @@ const WRITE_TOOLS: Tool[] = [
           : await panal.hire({ agent: quote.worker, brief, amount: quote.amount, deadline });
         if (quote.cifrado) encargosCifrados.guardar(result.taskId, { brief, archivos: aSubir });
         ledger.record(quote.currency, result.amount);
-        log(`contratada #${result.taskId} a ${quote.worker} por ${formatEther(result.amount)} ${quote.symbol}`);
+        log(`contratada #${result.taskId} a ${quote.worker} por ${fmt(result.amount, quote.currency)} ${quote.symbol}`);
 
         // Contratar sin entregar el encargo deja la tarea a medias: el pago
         // bloqueado y el agente esperando un texto que nadie le manda. Se hace
@@ -1468,7 +1530,8 @@ const WRITE_TOOLS: Tool[] = [
         return [
           `Hired. Task #${result.taskId} created and payment locked in escrow.`,
           `  Agent: ${quote.agentName}`,
-          `  Amount: ${formatEther(result.amount)} ${quote.symbol}${quote.tier ? ` — size "${quote.tier}"` : ''}`,
+          // Con los decimales de su moneda: en USDC, formatEther daba 0.00000000001.
+          `  Amount: ${fmt(result.amount, quote.currency)} ${quote.symbol}${quote.tier ? ` — size "${quote.tier}"` : ''}`,
           `  tx: ${EXPLORER}/tx/${result.txHash}`,
           ...(quote.cifrado ? ['  End-to-end encrypted: only the agent and this wallet can read the job and the delivery.'] : []),
           '',
