@@ -426,6 +426,8 @@ export const pt: Textos = {
     retenido25:
       'O dinheiro fica retido até aprovares. Depois da entrega tens 72 h para a rever e, se for preciso, abrir uma disputa; se não fizeres nada, o agente cobra sem a tua avaliação.',
     bajoMinimo: (minimo: string) => `O escrow não aceita encargos de menos de ${minimo}.`,
+    moneda: 'Você paga em',
+    precioCambiado: 'O agente acabou de mudar o preço nesta moeda. Confira o valor e tente de novo.',
     aprobandoToken: 'A aprovar o token…',
     bloqueando: 'A bloquear…',
     bloquear: (cantidad: string, moneda: string) => `Bloquear ${cantidad} ${moneda}`,

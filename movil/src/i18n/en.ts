@@ -426,6 +426,8 @@ export const en: Textos = {
     retenido25:
       'The money is held until you approve. After delivery you have 72 h to review it and, if needed, open a dispute; if you do nothing, the agent collects without your rating.',
     bajoMinimo: (minimo: string) => `The escrow does not take jobs under ${minimo}.`,
+    moneda: 'You pay in',
+    precioCambiado: 'The agent has just changed its price in this currency. Check the amount and try again.',
     aprobandoToken: 'Approving the token…',
     bloqueando: 'Locking…',
     bloquear: (cantidad: string, moneda: string) => `Lock ${cantidad} ${moneda}`,

@@ -1,18 +1,26 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSignMessage, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
-import { keccak256, parseEventLogs, toBytes, type Address } from 'viem';
+import { erc20Abi, keccak256, parseEventLogs, toBytes, type Address } from 'viem';
 import {
   PANAL_ESCROW_V2_5_ADDRESS,
   PANAL_ESCROW_V2_ADDRESS,
-  PANAL_TOKEN_ADDRESS,
+  PANAL_PRICES_ADDRESS,
   NATIVE_CURRENCY,
   V2_5_ENABLED,
   currencySymbol,
   activeChain,
+  publicClient,
 } from '@/contracts/config';
-import { panalEscrowV2Abi, panalTokenAbi } from '@/contracts/abis';
-import { FEE_BPS_V2_5, REVISION_POR_DEFECTO_S, idDelV2_5, panalEscrowV2_5Abi } from '@panal/sdk';
-import { minimoDelEscrowV2_5, tiemposDeEncargo } from '@/lib/monedasDeContratacion';
+import { panalEscrowV2Abi } from '@/contracts/abis';
+import { FEE_BPS_V2_5, REVISION_POR_DEFECTO_S, idDelV2_5, panalEscrowV2_5Abi, panalPricesAbi } from '@panal/sdk';
+import {
+  importeEn,
+  minimoDelEscrowV2_5,
+  monedasParaContratar,
+  tiemposDeEncargo,
+  type DatosDelAgente,
+  type PreciosPorMoneda,
+} from '@/lib/monedasDeContratacion';
 import { saveTaskBrief, saveTaskSobre } from '@/lib/taskBriefs';
 import { clavePublicaDe, nombreEnBuzon, publicarMiClave } from '@/lib/cifrado';
 import { respondeElAgente } from '@/lib/reachability';
@@ -104,9 +112,13 @@ type Entrega = 'nada' | 'enviando' | 'subiendo' | 'hecho' | 'fallo';
  * hash cuadra—, trabajaría sin el archivo, entregaría y cobraría. Nadie vería
  * un error; solo el resultado ignoraría la mitad de lo que se pidió.
  *
- * En $PANAL hacen falta DOS transacciones —aprobar y crear— porque un ERC-20
- * no se puede mandar dentro de la llamada como el MON nativo. Se encadenan
- * solas: al minarse el approve se dispara createTask.
+ * En $PANAL o USDC hacen falta DOS transacciones —aprobar y crear— porque un
+ * ERC-20 no se puede mandar dentro de la llamada como el MON nativo. Se
+ * encadenan solas: al minarse el approve se dispara createTask.
+ *
+ * LA MONEDA. En el escrow v2.5 se puede pagar en la moneda del registro del
+ * agente o en las que publique en PanalPrices, una lista por moneda con un
+ * precio por nivel. La misma regla que la web: `lib/monedasDeContratacion.ts`.
  */
 export default function HojaEncargar({
   abierta,
@@ -141,6 +153,12 @@ export default function HojaEncargar({
    */
   const [capacidades, setCapacidades] = useState<CapacidadesAgente | null>(null);
   const [nivel, setNivel] = useState<Nivel | null>(null);
+  /** Sus precios en PanalPrices (v2.5). `null` = sin leer, o no se pudo: solo la del registro. */
+  const [precios25, setPrecios25] = useState<PreciosPorMoneda | null>(null);
+  /** La moneda elegida. `null` = la del registro, que es la de siempre. */
+  const [moneda, setMoneda] = useState<Address | null>(null);
+  /** El precio cambió en PanalPrices entre abrir la hoja y pagar. */
+  const [precioCambiado, setPrecioCambiado] = useState(false);
   const entradaArchivos = useRef<HTMLInputElement>(null);
 
   const [entrega, setEntrega] = useState<Entrega>('nada');
@@ -180,7 +198,6 @@ export default function HojaEncargar({
   const recibo = useWaitForTransactionReceipt({ hash: hashTx });
   const reciboApprove = useWaitForTransactionReceipt({ hash: hashApprove });
 
-  const enPanal = datos ? currencySymbol(datos.moneda) === '$PANAL' : false;
   /** Los niveles que vende este agente. Vacío es lo normal. */
   /**
    * El precio de la CADENA, el texto de la ficha.
@@ -228,16 +245,38 @@ export default function HojaEncargar({
    * queda en la cadena. Lo que ponga el encargo no cuenta: lo escribe el
    * cliente.
    */
-  const precio = elegido?.wei ?? datos?.precioTarea ?? 0n;
-  const simbolo = datos ? currencySymbol(datos.moneda) : 'MON';
+  const precioRegistro = elegido?.wei ?? datos?.precioTarea ?? 0n;
+  /**
+   * En qué se puede pagar: la moneda del registro y, en el v2.5, las que el
+   * agente publique en PanalPrices cuadrando con sus niveles. Una pregunta de
+   * pago va siempre en la del registro: su precio sale de la ficha.
+   */
+  const registro = (datos?.moneda ?? NATIVE_CURRENCY) as Address;
+  const datosMoneda: DatosDelAgente = {
+    registro,
+    precios: precios25,
+    nivelesEnCadena: datos?.niveles?.length ?? 0,
+    nivelesVisibles: niveles.length,
+  };
+  const monedas = V2_5_ENABLED && !pregunta ? monedasParaContratar(datosMoneda) : [registro];
+  const monedaPago =
+    moneda && monedas.some((m) => m.toLowerCase() === moneda.toLowerCase()) ? moneda : registro;
+  /** Con un token (approve + createTask) y no con MON. */
+  const esToken = monedaPago.toLowerCase() !== NATIVE_CURRENCY.toLowerCase();
+  const simbolo = currencySymbol(monedaPago);
+  /** El nivel elegido, por su posición: el i de cada lista de PanalPrices es el nivel i. */
+  const nivelIdx = elegido && !pregunta ? Math.max(0, niveles.findIndex((n) => n.wei === elegido.wei)) : 0;
+  const precioDeNivel = (i: number, wei: bigint): bigint => importeEn(datosMoneda, monedaPago, i, wei) ?? wei;
+  /** Lo que se bloquea, en la moneda elegida. */
+  const precio = importeEn(datosMoneda, monedaPago, nivelIdx, precioRegistro) ?? precioRegistro;
   // La comisión sale del precio, no se suma: bloqueas el precio y el agente
-  // cobra menos. En el v2.5 es del 1,5 % en $PANAL y del 2,5 % en MON.
-  const bps = V2_5_ENABLED && enPanal ? BigInt(FEE_BPS_V2_5.panal) : 250n;
+  // cobra menos. En el v2.5 es del 1,5 % en $PANAL y del 2,5 % en MON y USDC.
+  const bps = V2_5_ENABLED && simbolo === '$PANAL' ? BigInt(FEE_BPS_V2_5.panal) : 250n;
   const comision = (precio * bps) / 10_000n;
   const pctComision = (Number(bps) / 100).toLocaleString(undefined, { maximumFractionDigits: 1 });
-  /** El v2.5 no admite menos de 0,001 MON o 1 $PANAL: el contrato lo rechazaría. */
-  const bajoMinimo =
-    V2_5_ENABLED && precio > 0n && precio < minimoDelEscrowV2_5(enPanal ? PANAL_TOKEN_ADDRESS : NATIVE_CURRENCY);
+  /** El v2.5 no admite menos de 0,001 MON, 1 $PANAL o 0,01 USDC: el contrato lo rechazaría. */
+  const minimo = minimoDelEscrowV2_5(monedaPago);
+  const bajoMinimo = V2_5_ENABLED && precio > 0n && precio < minimo;
 
   const T = useTextos();
   const idioma = useIdioma();
@@ -264,6 +303,30 @@ export default function HojaEncargar({
       vigente = false;
     };
   }, [datos?.botUrl]);
+
+  /* ── ¿en qué más cobra? ──────────────────────────────────────────────── */
+
+  useEffect(() => {
+    // Sus precios en otras monedas. Sin ellos se paga en la del registro, como
+    // siempre: no es motivo para no dejar contratar.
+    if (!abierta || !V2_5_ENABLED || pregunta) return;
+    let vigente = true;
+    void publicClient
+      .readContract({
+        address: PANAL_PRICES_ADDRESS,
+        abi: panalPricesAbi,
+        functionName: 'getAllPrices',
+        args: [agente as Address],
+      })
+      .then((r) => {
+        const [mon, panal, usdc] = r as readonly [readonly bigint[], readonly bigint[], readonly bigint[]];
+        if (vigente) setPrecios25({ mon, panal, usdc });
+      })
+      .catch(() => undefined);
+    return () => {
+      vigente = false;
+    };
+  }, [abierta, agente, pregunta]);
 
   /* ── ¿se le puede escribir cifrado? ───────────────────────────────────── */
 
@@ -440,11 +503,11 @@ export default function HojaEncargar({
     saveTaskBrief(taskHash, listo.enClaro);
     if (texto !== listo.enClaro) saveTaskSobre(taskHash, texto);
     briefFirmado.current = texto;
-    const moneda = enPanal ? PANAL_TOKEN_ADDRESS : NATIVE_CURRENCY;
+    const enMoneda = monedaPago;
 
     // Lo que esta hoja enseña y la persona ha confirmado. Con la wallet del
     // teléfono, es lo único que el conector acepta firmar como `createTask`.
-    permitirEncargo({ worker: agente as `0x${string}`, amount: precio, currency: moneda });
+    permitirEncargo({ worker: agente as `0x${string}`, amount: precio, currency: enMoneda });
     if (V2_5_ENABLED) {
       // Los tiempos se cuentan desde ahora (tras el approve, si lo hubo): el
       // contrato mira el reloj al minarse. Aceptar, hasta 15 min antes del plazo.
@@ -460,11 +523,11 @@ export default function HojaEncargar({
             deadline: t.deadline,
             acceptWindow: t.acceptWindow,
             reviewWindow: t.reviewWindow,
-            currency: moneda,
+            currency: enMoneda,
             amount: precio,
           },
         ],
-        ...(enPanal ? {} : { value: precio }),
+        ...(esToken ? {} : { value: precio }),
         chainId: activeChain.id,
       });
       return;
@@ -474,15 +537,34 @@ export default function HojaEncargar({
       address: PANAL_ESCROW_V2_ADDRESS,
       abi: panalEscrowV2Abi,
       functionName: 'createTask',
-      args: [agente as `0x${string}`, taskHash, plazo, moneda, precio],
-      ...(enPanal ? {} : { value: precio }),
+      args: [agente as `0x${string}`, taskHash, plazo, enMoneda, precio],
+      ...(esToken ? {} : { value: precio }),
       chainId: activeChain.id,
     });
   };
 
   const empezar = async () => {
     if (!datos || !brief.trim()) return;
-    // Antes de cualquier pago, y en el mismo toque: en $PANAL son dos
+    // En otra moneda, que su precio no haya cambiado desde que se abrió la
+    // hoja: lo que se bloquea tiene que ser lo que la persona ha visto.
+    if (monedaPago.toLowerCase() !== registro.toLowerCase()) {
+      const lista = (await publicClient
+        .readContract({
+          address: PANAL_PRICES_ADDRESS,
+          abi: panalPricesAbi,
+          functionName: 'getPrices',
+          args: [agente as Address, monedaPago],
+        })
+        .catch(() => null)) as readonly bigint[] | null;
+      if (lista !== null && lista[Math.min(nivelIdx, lista.length - 1)] !== precio) {
+        setPrecioCambiado(true);
+        setPrecios25(null);
+        setMoneda(null);
+        return;
+      }
+    }
+    setPrecioCambiado(false);
+    // Antes de cualquier pago, y en el mismo toque: con un token son dos
     // transacciones, y la segunda no puede depender de una firma más.
     try {
       preparado.current = await preparar();
@@ -494,10 +576,10 @@ export default function HojaEncargar({
       return;
     }
     setAvisoCifrado(null);
-    if (!enPanal) return crear();
+    if (!esToken) return crear();
     aprobar({
-      address: PANAL_TOKEN_ADDRESS,
-      abi: panalTokenAbi,
+      address: monedaPago,
+      abi: erc20Abi,
       functionName: 'approve',
       args: [ESCROW, precio],
       chainId: activeChain.id,
@@ -746,7 +828,7 @@ export default function HojaEncargar({
                 {T.encargar.nivel}
               </p>
               <ul className="mt-2 flex flex-col gap-1.5">
-                {niveles.map((n) => {
+                {niveles.map((n, i) => {
                   const activo = elegido?.wei === n.wei;
                   return (
                     <li key={n.wei.toString()}>
@@ -783,14 +865,43 @@ export default function HojaEncargar({
                           )}
                         </span>
                         <span className="shrink-0 text-right font-mono text-[12.5px] text-ink">
-                          {monto(n.wei, simbolo)} {simbolo}
-                          <Dolares wei={n.wei} simbolo={simbolo} className="block" />
+                          {monto(precioDeNivel(i, n.wei), simbolo)} {simbolo}
+                          <Dolares wei={precioDeNivel(i, n.wei)} simbolo={simbolo} className="block" />
                         </span>
                       </button>
                     </li>
                   );
                 })}
               </ul>
+            </>
+          )}
+
+          {/* En qué se paga: solo si el agente publica precio en más de una
+              moneda (PanalPrices, escrow v2.5). */}
+          {monedas.length > 1 && (
+            <>
+              <p className="mt-3 text-[11.5px] uppercase tracking-[0.06em] text-ink-3">
+                {T.encargar.moneda}
+              </p>
+              <div className="mt-2 flex gap-2">
+                {monedas.map((m) => {
+                  const activa = m.toLowerCase() === monedaPago.toLowerCase();
+                  return (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => setMoneda(m)}
+                      disabled={trabajando}
+                      aria-pressed={activa}
+                      className={`pulsable h-10 grow rounded-xl border font-mono text-[13px] font-medium disabled:opacity-40 ${
+                        activa ? 'border-honey bg-honey-soft text-honey' : 'border-line text-ink-2'
+                      }`}
+                    >
+                      {currencySymbol(m)}
+                    </button>
+                  );
+                })}
+              </div>
             </>
           )}
 
@@ -956,11 +1067,12 @@ export default function HojaEncargar({
           {responde === false ? (
             <Nota tono="miel">{T.encargar.noResponde}</Nota>
           ) : bajoMinimo ? (
-            <Nota tono="miel">{T.encargar.bajoMinimo(enPanal ? '1 $PANAL' : '0,001 MON')}</Nota>
+            <Nota tono="miel">{T.encargar.bajoMinimo(`${monto(minimo, simbolo)} ${simbolo}`)}</Nota>
           ) : (
             <Nota>{V2_5_ENABLED ? T.encargar.retenido25 : T.encargar.retenido}</Nota>
           )}
           {avisoCifrado && <Nota tono="miel">{avisoCifrado}</Nota>}
+          {precioCambiado && <Nota tono="miel">{T.encargar.precioCambiado}</Nota>}
           {claveCifrado ? (
             <Nota>{T.encargar.cifrado}</Nota>
           ) : claveCifrado === null && esBuzon(datos?.botUrl) ? (
