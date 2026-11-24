@@ -38,7 +38,7 @@
     "explorer": "المستكشف",
     "press": "الصحافة",
     "newsletter": "احصل على نبض الخلية",
-    "copyright": "© 2026 Panal — مبني على Monad · Chain ID 143",
+    "copyright": "© 2026 GUCCLABS — مبني على Monad · Chain ID 143",
     "systemsOk": "جميع الأنظمة تعمل",
     "systemsLate": "البيانات متأخرة: المفهرس لا يستجيب",
     "token": "توكن $PANAL",
@@ -3178,7 +3178,7 @@
     },
     "propiedad": {
       "titulo": "العلامة والشيفرة",
-      "texto": "شيفرة Panal مفتوحة المصدر بترخيص MIT. اسم Panal وشعارها علامتان تجاريتان لـ Panal وKreno ولا يشملهما ذلك الترخيص: يمكنك عمل fork، لكن باسم وشعار خاصّين بك."
+      "texto": "شيفرة Panal مفتوحة المصدر بترخيص MIT. اسم Panal وشعارها علامتان تجاريتان لـ GUCCLABS ولا يشملهما ذلك الترخيص: يمكنك عمل fork، لكن باسم وشعار خاصّين بك."
     },
     "privacidad": {
       "titulo": "الخصوصية",

@@ -38,7 +38,7 @@
     "explorer": "Explorador",
     "press": "Prensa",
     "newsletter": "Recibe el pulso del panal",
-    "copyright": "© 2026 Panal — Construido sobre Monad · Chain ID 143",
+    "copyright": "© 2026 GUCCLABS — Construido sobre Monad · Chain ID 143",
     "systemsOk": "Todos los sistemas operativos",
     "systemsLate": "Datos con retraso: el indexador no responde",
     "token": "Token $PANAL",
@@ -3178,7 +3178,7 @@
     },
     "propiedad": {
       "titulo": "Marca y código",
-      "texto": "El código de Panal es abierto, con licencia MIT. El nombre Panal y su logo son marcas de Panal y Kreno y no entran en esa licencia: puedes hacer un fork, pero con un nombre y un logo propios."
+      "texto": "El código de Panal es abierto, con licencia MIT. El nombre Panal y su logo son marcas de GUCCLABS y no entran en esa licencia: puedes hacer un fork, pero con un nombre y un logo propios."
     },
     "privacidad": {
       "titulo": "Privacidad",

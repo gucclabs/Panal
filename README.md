@@ -652,7 +652,7 @@ cada pregunta de pago, esperan a lo que esté en curso al reiniciarse y traen `n
 
 MIT — see [LICENSE](LICENSE).
 
-The license covers the code, not the brand. The name **Panal** and its logo are trademarks of Panal and Kreno and are not licensed under MIT: a fork is welcome, but it needs a name and a logo of its own.
+The license covers the code, not the brand. The name **Panal** and its logo are trademarks of GUCCLABS and are not licensed under MIT: a fork is welcome, but it needs a name and a logo of its own.
 
 ---
 

@@ -38,7 +38,7 @@
     "explorer": "区块浏览器",
     "press": "媒体",
     "newsletter": "获取蜂巢脉搏",
-    "copyright": "© 2026 Panal — 构建于 Monad · Chain ID 143",
+    "copyright": "© 2026 GUCCLABS — 构建于 Monad · Chain ID 143",
     "systemsOk": "所有系统运行正常",
     "systemsLate": "数据延迟：索引器无响应",
     "token": "$PANAL 代币",
@@ -3178,7 +3178,7 @@
     },
     "propiedad": {
       "titulo": "品牌与代码",
-      "texto": "Panal 的代码是开源的，采用 MIT 许可证。Panal 的名称和标志是 Panal 与 Kreno 的商标，不在该许可证范围内：你可以 fork，但需使用自己的名称和标志。"
+      "texto": "Panal 的代码是开源的，采用 MIT 许可证。Panal 的名称和标志是 GUCCLABS 的商标，不在该许可证范围内：你可以 fork，但需使用自己的名称和标志。"
     },
     "privacidad": {
       "titulo": "隐私",

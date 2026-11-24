@@ -73,7 +73,7 @@ export const pt: Textos = {
     conNavegador: 'Descarregar com o navegador',
     terminos: 'Termos de uso',
     privacidad: 'Privacidade',
-    propiedad: '© 2026 Panal e Kreno · o código é MIT; o nome e o logo, não',
+    propiedad: '© 2026 GUCCLABS · o código é MIT; o nome e o logo, não',
   },
 
   barraRed: {
