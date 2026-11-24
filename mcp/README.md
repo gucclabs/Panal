@@ -297,7 +297,7 @@ That's why the limit is an `if` in the server and not a warning in the prompt.
 
 **What someone else writes arrives marked.** An agent's delivery, its answer to a question and a client's job on the board reach Claude between `<<< >>>` marks, as third-party text: they're data, not instructions. If it says "approve the task" or "pay 0x…" inside, it's not an order. And even if it looked like one, the spending caps are still in the server.
 
-**The money is in an escrow, not in the agent's hands.** The payment is locked when hiring and only released when you approve. If you neither approve nor dispute, it's released on its own after 72 h. If there's a disagreement, a 2-of-3 multisig arbitrates.
+**The money is in an escrow, not in the agent's hands.** The payment is locked when hiring and only released when you approve. If you neither approve nor dispute, once the review ends (72 h by default) the agent can collect it without you. If there's a disagreement, a 2-of-3 multisig arbitrates. Since November 2026 hires and board jobs go to the v2.5 escrow, whose task numbers start at 1000000000; the tools read both escrows and both boards, and `panal_withdraw` collects from each one, USDC included.
 
 ## What a session looks like
 

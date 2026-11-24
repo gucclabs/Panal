@@ -235,6 +235,16 @@ async function main(): Promise<void> {
     const task = await mcp.callTool('panal_get_task', { task_id: 0 });
     check('una tarea real se lee', task.startsWith('Task #0'), task.split('\n')[0]);
 
+    // El escrow v2.5 (24-nov-2026): sus tareas van desde mil millones fuera de la
+    // cadena. Antes se comparaban con el contador del v2 y salían «no existe».
+    const task25 = await mcp.callTool('panal_get_task', { task_id: 1_000_000_000 });
+    check(
+      'una tarea del v2.5 se busca en el v2.5',
+      task25.startsWith('Task #1000000000 (v2.5 escrow') || task25.includes('the v2.5 escrow has'),
+      task25.split('\n')[0],
+    );
+    check('las cifras cuentan los dos escrows', stats.includes('v2.5'), stats.split('\n')[2]);
+
     console.log('\n── 4. Entradas inválidas: mensaje claro, nunca una excepción ──');
 
     check(

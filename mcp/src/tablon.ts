@@ -50,6 +50,7 @@ import {
   type PanalClient,
   type PublicarEnElTablon,
   type TipoDeAgente,
+  type VersionEscrow,
 } from '@panal/sdk';
 
 /** La misma forma que las herramientas de server.ts. */
@@ -234,7 +235,26 @@ function parseImporte(v: unknown): bigint | null {
 
 export function herramientasDelTablon(d: DepsTablon): { lectura: Herramienta[]; escritura: Herramienta[] } {
   const { panal } = d;
-  const tablon = (): Address => panal.addresses.tablon;
+  /**
+   * Los dos tablones (24-nov-2026): el v2.5, donde se publica desde entonces, y
+   * el v2, que sigue con lo suyo. Los encargos del v2.5 llevan, fuera de la
+   * cadena, su número + 1.000.000.000, y el SDK elige tablón por el número.
+   */
+  const versiones = (): VersionEscrow[] => (panal.v2_5 ? ['v2_5', 'v2'] : ['v2']);
+  const tablonDe = (v: VersionEscrow): Address => (v === 'v2_5' && panal.v2_5 ? panal.v2_5.tablon : panal.addresses.tablon);
+  /** Donde se publica: el v2.5 donde existe. */
+  const publicarEn = (): VersionEscrow => (panal.v2_5 ? 'v2_5' : 'v2');
+  const tablon = (): Address => tablonDe(publicarEn());
+  /** Los encargos de los dos tablones; falla solo si no se puede leer ninguno. */
+  async function deLosDos(
+    o: { limit: number; estado?: EstadoTablon | 'todos' },
+  ): Promise<EncargoConReglas[]> {
+    const leidos = await Promise.allSettled(versiones().map((version) => panal.listBoardJobs({ ...o, version })));
+    const bien = leidos.flatMap((r) => (r.status === 'fulfilled' ? r.value : []));
+    const primerFallo = leidos.find((r): r is PromiseRejectedResult => r.status === 'rejected');
+    if (primerFallo && leidos.every((r) => r.status === 'rejected')) throw primerFallo.reason;
+    return bien;
+  }
   const monedaDe = (nombre: string | undefined): Address | null => {
     const n = (nombre ?? 'MON').trim().toUpperCase().replace('$', '');
     if (n === 'MON') return NATIVE_CURRENCY;
@@ -286,21 +306,27 @@ export function herramientasDelTablon(d: DepsTablon): { lectura: Herramienta[]; 
 
   async function anunciosDe(encargos: EncargoConReglas[]): Promise<Map<string, string>> {
     const out = new Map<string, string>();
-    try {
-      const res = await fetch(`${panal.buzonUrl}/${tablon()}/lista`, { signal: AbortSignal.timeout(10_000) });
-      if (!res.ok) return out;
-      const { anuncios = [] } = (await res.json()) as { anuncios?: { jobId: string; anuncio: string; cifrado?: boolean }[] };
-      const hashes = new Map(encargos.map((j) => [j.id.toString(), j.advertHash.toLowerCase()]));
-      for (const a of anuncios) {
-        if (typeof a.anuncio === 'string' && hashes.get(a.jobId) === keccak256(toBytes(a.anuncio)).toLowerCase()) {
-          out.set(a.jobId, a.anuncio);
-          if (a.cifrado === true) confidenciales.add(a.jobId);
-          else confidenciales.delete(a.jobId);
+    const hashes = new Map(encargos.map((j) => [j.id.toString(), j.advertHash.toLowerCase()]));
+    // Cada tablón tiene su lista en el buzón: se pide solo la de los que hacen falta.
+    const pedir = [...new Set(encargos.map((j) => j.version ?? 'v2'))];
+    await Promise.all(
+      pedir.map(async (version) => {
+        try {
+          const res = await fetch(`${panal.buzonUrl}/${tablonDe(version)}/lista`, { signal: AbortSignal.timeout(10_000) });
+          if (!res.ok) return;
+          const { anuncios = [] } = (await res.json()) as { anuncios?: { jobId: string; anuncio: string; cifrado?: boolean }[] };
+          for (const a of anuncios) {
+            if (typeof a.anuncio === 'string' && hashes.get(a.jobId) === keccak256(toBytes(a.anuncio)).toLowerCase()) {
+              out.set(a.jobId, a.anuncio);
+              if (a.cifrado === true) confidenciales.add(a.jobId);
+              else confidenciales.delete(a.jobId);
+            }
+          }
+        } catch {
+          // Sin buzón el tablón se sigue leyendo: los encargos salen sin su texto.
         }
-      }
-    } catch {
-      // Sin buzón el tablón se sigue leyendo: los encargos salen sin su texto.
-    }
+      }),
+    );
     return out;
   }
 
@@ -375,7 +401,7 @@ export function herramientasDelTablon(d: DepsTablon): { lectura: Herramienta[]; 
   /** Lo abierto ahora en PanalTablon, con su anuncio y si esta wallet puede. */
   async function abiertosConReglas(filtro: number | null): Promise<string> {
     const ahora = ahoraS();
-    const abiertos = (await panal.listBoardJobs({ limit: 100 })).filter(
+    const abiertos = (await deLosDos({ limit: 100 })).filter(
       (j) => abiertoAhora(j, ahora) && (filtro === null || j.categoria === filtro),
     );
     if (!abiertos.length) return 'Nothing is open on the board with rules right now' + (filtro !== null ? ' in that category.' : '.');
@@ -573,7 +599,7 @@ export function herramientasDelTablon(d: DepsTablon): { lectura: Herramienta[]; 
             }
             siguiente.push('read the delivery with panal_board_result, then panal_approve_board_job or panal_dispute_board_job');
           }
-          siguiente.push('once the escrow is done (approved, released after 72 h, or cancelled past the deadline), panal_close_board_job settles it');
+          siguiente.push('once the escrow is done (approved, released after the review, or cancelled past the deadline), panal_close_board_job settles it');
         }
         if (siguiente.length) lineas.push(`  Next for this wallet: ${siguiente.join('; ')}.`);
 
@@ -615,11 +641,11 @@ export function herramientasDelTablon(d: DepsTablon): { lectura: Herramienta[]; 
         const yoLc = yo.toLowerCase();
         await d.refrescarPrecios();
         try {
-          const [encargos, situacion, debeMon, debePanal] = await Promise.all([
-            panal.listBoardJobs({ limit: 200, estado: 'todos' }),
-            panal.boardStanding(yo),
-            panal.getBoardRefund(yo, NATIVE_CURRENCY),
-            panal.getBoardRefund(yo, panal.addresses.panalToken),
+          const [encargos, situaciones, deudas] = await Promise.all([
+            deLosDos({ limit: 200, estado: 'todos' }),
+            // Cada tablón lleva su nivel, su cupo, sus faltas y sus categorías.
+            Promise.all(versiones().map(async (v) => ({ v, s: await panal.boardStanding(yo, v) }))),
+            deudaDelTablon(panal, yo),
           ]);
           const ahora = ahoraS();
           const publicados = encargos.filter((j) => j.cliente.toLowerCase() === yoLc);
@@ -632,18 +658,21 @@ export function herramientasDelTablon(d: DepsTablon): { lectura: Herramienta[]; 
 
           const lineas: string[] = [`Wallet ${yo} on the board with rules.`];
           lineas.push('\nAs an agent:');
-          lineas.push(
-            `  Level ${situacion.nivel}` +
-              (situacion.nivel === 0
-                ? ` (newcomer: ${situacion.novatoLibres} newcomer job(s) left, one at a time)`
-                : ` · ${situacion.hoyLibres} of ${situacion.cupoDiario} left today · ${situacion.abiertos} in progress`),
-          );
-          if (situacion.suspendidoHasta > ahora) {
-            lineas.push(`  SUSPENDED until ${new Date(situacion.suspendidoHasta * 1000).toISOString()} for a recent strike.`);
+          for (const { v, s: situacion } of situaciones) {
+            const cual = situaciones.length > 1 ? ` (${v === 'v2_5' ? 'v2.5 board' : 'v2 board'})` : '';
+            lineas.push(
+              `  Level ${situacion.nivel}${cual}` +
+                (situacion.nivel === 0
+                  ? ` (newcomer: ${situacion.novatoLibres} newcomer job(s) left, one at a time)`
+                  : ` · ${situacion.hoyLibres} of ${situacion.cupoDiario} left today · ${situacion.abiertos} in progress`),
+            );
+            if (situacion.suspendidoHasta > ahora) {
+              lineas.push(`  SUSPENDED until ${new Date(situacion.suspendidoHasta * 1000).toISOString()} for a recent strike.`);
+            }
+            lineas.push(
+              `  Categories${cual}: ${situacion.categorias.length ? situacion.categorias.map((c) => categoriaDelTablon(c) ?? c).join(', ') : 'none — it cannot take or bid on anything there; declare them with panal_set_board_categories'}`,
+            );
           }
-          lineas.push(
-            `  Categories: ${situacion.categorias.length ? situacion.categorias.map((c) => categoriaDelTablon(c) ?? c).join(', ') : 'none — it cannot take or bid on anything; declare them with panal_set_board_categories'}`,
-          );
           if (conOferta.length) lineas.push(`  Open offers on: ${conOferta.map((j) => `#${j.id}`).join(', ')}`);
           const porEntregar = asignados.filter((j) => j.estado === EstadoTablon.Asignado);
           if (porEntregar.length) {
@@ -654,11 +683,8 @@ export function herramientasDelTablon(d: DepsTablon): { lectura: Herramienta[]; 
           lineas.push('\nAs a client:');
           if (!publicados.length) lineas.push('  It has posted nothing on this board.');
           for (const j of publicados.slice(0, 20)) lineas.push(`  ${cabecera(j, ahora)} · ${ESTADO[j.estado]}`);
-          const deudas = [
-            debeMon > 0n ? importe(debeMon, NATIVE_CURRENCY) : null,
-            debePanal > 0n ? importe(debePanal, panal.addresses.panalToken) : null,
-          ].filter(Boolean);
-          if (deudas.length) lineas.push(`  The board owes this wallet ${deudas.join(' and ')}: collect it with panal_withdraw.`);
+          const debe = deudas.filter((x) => x.importe !== null && x.importe > 0n).map((x) => importe(x.importe!, x.moneda));
+          if (debe.length) lineas.push(`  The board owes this wallet ${debe.join(' and ')}: collect it with panal_withdraw.`);
           return lineas.join('\n');
         } catch (err) {
           return `Could not read this wallet's board state: ${fallo(err)}`;
@@ -689,6 +715,10 @@ export function herramientasDelTablon(d: DepsTablon): { lectura: Herramienta[]; 
           mode: { type: 'string', description: '"selection" (default) or "immediate".' },
           audience: { type: 'string', description: '"everyone" (default), "people" or "agents".' },
           delivery_hours: { type: 'number', description: 'Time to deliver once assigned. At least 1. Default 72.' },
+          review_hours: {
+            type: 'number',
+            description: 'Time you have to review the delivery before the agent can be paid without you: 24 to 168. Default 72.',
+          },
           open_hours: { type: 'number', description: 'How long it can be taken. Default 72.' },
           offer_hours: { type: 'number', description: 'Selection: time to make offers. Default 2.' },
           choose_hours: { type: 'number', description: 'Selection: time to choose after offers close (max 168). Default 24.' },
@@ -777,6 +807,11 @@ export function herramientasDelTablon(d: DepsTablon): { lectura: Herramienta[]; 
           republicar: args.relist === true,
           adjuntos,
           confidencial: args.confidential === true,
+          // En el tablón v2.5 donde existe, como la web desde el 24-nov.
+          version: publicarEn(),
+          ...(publicarEn() === 'v2_5'
+            ? { ventanaRevisionS: Math.round(Math.min(168, Math.max(24, horas(args.review_hours, 72))) * 3600) }
+            : {}),
         };
         const problema = problemaAlPublicar(p);
         if (problema) return `Not posted, nothing was spent: ${problema}`;
@@ -1015,7 +1050,7 @@ export function herramientasDelTablon(d: DepsTablon): { lectura: Herramienta[]; 
       description:
         'Move a board job along when it is stuck, choosing the right step: the client WITHDRAWS a job nobody has ' +
         'yet (money back); anyone EXPIRES one nobody took in time (money back to the client); anyone SETTLES an ' +
-        'assigned one whose escrow is done — approved, released after 72 h, or cancelled past its deadline — ' +
+        'assigned one whose escrow is done — approved, released after the review (72 h on the v2 board; the client\'s choice, 24 h to 7 days, on the v2.5 one), or cancelled past its deadline — ' +
         'which pays the agent or refunds the client and frees the agent\'s quota. With action "assign_best", ' +
         'anyone assigns a selection job whose client did not choose in time to the best offer by the rules. ' +
         'Refunds are CREDITED in the board: collect them with panal_withdraw. Costs gas.',
@@ -1063,7 +1098,7 @@ export function herramientasDelTablon(d: DepsTablon): { lectura: Herramienta[]; 
           return `Board job #${id} ${hecho}.\n  tx: ${tx(hash)}\nAnything credited to this wallet is collected with panal_withdraw.`;
         } catch (err) {
           const m = fallo(err);
-          if (/NotFinished/.test(m)) return `Board job #${id} cannot be settled yet: the escrow has not finished (delivered less than 72 h ago, or still open within its deadline).`;
+          if (/NotFinished/.test(m)) return `Board job #${id} cannot be settled yet: the escrow has not finished (delivered and still within its review, or still open within its deadline).`;
           return `Could not ${accion}: ${m}`;
         }
       },
@@ -1092,12 +1127,20 @@ export function herramientasDelTablon(d: DepsTablon): { lectura: Herramienta[]; 
           if (!numeros.includes(n)) numeros.push(n);
         }
         if (numeros.length === 0 || numeros.length > MAX_CATEGORIAS) return `Between 1 and ${MAX_CATEGORIAS} categories.`;
-        try {
-          const hash = await panal.setBoardCategories(numeros);
-          return `Categories on the board: ${numeros.map((n) => categoriaDelTablon(n)).join(', ')}.\n  tx: ${tx(hash)}`;
-        } catch (err) {
-          return `Could not set the categories: ${fallo(err)}`;
+        // En cada tablón: cada uno guarda las suyas.
+        const hechas: string[] = [];
+        for (const v of versiones()) {
+          const cual = v === 'v2_5' ? 'v2.5 board' : 'v2 board';
+          try {
+            // Dos transacciones seguidas de la misma wallet chocan en Monad.
+            if (hechas.length) await new Promise((r) => setTimeout(r, 15_000));
+            const hash = await panal.setBoardCategories(numeros, v);
+            hechas.push(`  ${cual}: tx ${tx(hash)}`);
+          } catch (err) {
+            hechas.push(`  ${cual}: could not set them (${fallo(err)})`);
+          }
         }
+        return `Categories: ${numeros.map((n) => categoriaDelTablon(n)).join(', ')}.\n${hechas.join('\n')}`;
       },
     },
     {
@@ -1246,7 +1289,7 @@ export function herramientasDelTablon(d: DepsTablon): { lectura: Herramienta[]; 
           return (
             `Board job #${id} delivered${archivos.length ? ` with ${archivos.length} file(s)` : ''}.\n  tx: ${tx(txHash)}\n  result hash: ${resultHash}\n\n` +
             'The client can now read it and approve. Once approved, the payment is CREDITED in the escrow: ' +
-            'collect it with panal_withdraw. If the client does nothing for 72 h, panal_close_board_job settles it.'
+            'collect it with panal_withdraw. If the client does nothing until its review ends, panal_close_board_job settles it.'
           );
         } catch (err) {
           return `Could not deliver board job #${id}: ${fallo(err)}`;
@@ -1299,13 +1342,31 @@ export function herramientasDelTablon(d: DepsTablon): { lectura: Herramienta[]; 
 }
 
 /**
- * Lo que el tablón le debe a una wallet, por moneda (MON y $PANAL). Para
- * `panal_wallet` y `panal_withdraw`: es dinero suyo que no aparece en el saldo.
+ * Lo que los tablones le deben a una wallet, por tablón y moneda (MON y $PANAL;
+ * en el v2.5 también USDC). Para `panal_wallet` y `panal_withdraw`: es dinero
+ * suyo que no aparece en el saldo.
  */
-export async function deudaDelTablon(panal: PanalClient, quien: Address): Promise<{ moneda: Address; importe: bigint | null }[]> {
+export async function deudaDelTablon(
+  panal: PanalClient,
+  quien: Address,
+): Promise<{ moneda: Address; importe: bigint | null; version: VersionEscrow }[]> {
   if (!panal.boardJobsAvailable) return [];
-  const monedas = [NATIVE_CURRENCY, panal.addresses.panalToken];
+  const pedir: { moneda: Address; version: VersionEscrow }[] = [
+    { moneda: NATIVE_CURRENCY, version: 'v2' },
+    { moneda: panal.addresses.panalToken, version: 'v2' },
+  ];
+  if (panal.v2_5) {
+    pedir.push(
+      { moneda: NATIVE_CURRENCY, version: 'v2_5' },
+      { moneda: panal.addresses.panalToken, version: 'v2_5' },
+      { moneda: panal.v2_5.usdc, version: 'v2_5' },
+    );
+  }
   return Promise.all(
-    monedas.map(async (moneda) => ({ moneda, importe: await panal.getBoardRefund(quien, moneda).catch(() => null) })),
+    pedir.map(async ({ moneda, version }) => ({
+      moneda,
+      version,
+      importe: await panal.getBoardRefund(quien, moneda, version).catch(() => null),
+    })),
   );
 }

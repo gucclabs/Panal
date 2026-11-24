@@ -253,7 +253,7 @@ const prepararContratacion: Tool = {
       ...(niveles.length > 1
         ? [`  Other sizes: ${niveles.filter((n) => n !== elegido).map((n) => n.name).join(', ')} (the person can switch on the page)`]
         : []),
-      `  Deadline: ${horasPedidas} h once paid. The money waits in escrow and is released when the job is approved, or on its own 72 h after delivery.`,
+      `  Deadline: ${horasPedidas} h once paid. The money waits in escrow and is released when the job is approved; if the person neither approves nor disputes, the agent can collect it once the review they choose on the page ends (72 h by default).`,
       `  Job: ${brief.length > 200 ? `${brief.slice(0, 200)}…` : brief}`,
       cifrado
         ? `  Privacy: end-to-end encrypted — only ${nombre} and the person who pays can read the job and the delivery.`
