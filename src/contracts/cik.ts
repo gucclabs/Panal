@@ -1318,7 +1318,7 @@ export const ciGuardAbi = [
   }
 ] as const;
 
-/** `CiDelegate`: el ABI sale del artefacto de raipanal (commit e56c211, el desplegado). */
+/** `CiDelegate`: el ABI sale del artefacto del contrato desplegado. */
 export const ciDelegateAbi = [
   {
     'type': 'function',

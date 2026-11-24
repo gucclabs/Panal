@@ -337,9 +337,27 @@ jobs:
       - name: Instalar Foundry
         uses: foundry-rs/foundry-toolchain@dba66c27052e63476d886f22216e119ba7e615bf # v1.9.2
 
+      # `--sizes` falla con cualquier contrato de más de 24 KB (el límite de
+      # Ethereum, EIP-170), y el tablón v2.5 ocupa 26,2 KB. Monad admite hasta
+      # 128 KB (`code_size_limit` en foundry.toml), así que el tamaño se mira
+      # aquí: todo por debajo de 24 KB menos PanalTablonV2_5, por debajo de
+      # 128 KB. Primero `forge build` a secas, para que un error de compilación
+      # no se confunda con un tamaño.
       - name: Compilar
         working-directory: contracts
-        run: forge build --sizes
+        run: |
+          forge build
+          forge build --sizes --json > tamanos.json || true
+          python3 - <<'FIN'
+          import json
+          t = json.load(open('tamanos.json'))
+          if not t:
+              raise SystemExit('forge no ha dado ningún tamaño')
+          mal = [f"{n}: {d['runtime_size']} bytes" for n, d in t.items()
+                 if d['runtime_size'] > (131072 if n == 'PanalTablonV2_5' else 24576) or d['init_margin'] < 0]
+          print('\n'.join(mal) or f'{len(t)} contratos dentro de su límite')
+          raise SystemExit(1 if mal else 0)
+          FIN
 
       - name: Tests
         working-directory: contracts
