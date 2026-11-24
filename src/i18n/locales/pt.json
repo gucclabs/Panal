@@ -45,7 +45,8 @@
     "cik": "Verificar um token (cik)",
     "roadmap": "Roteiro",
     "about": "Sobre nós",
-    "privacy": "Privacidade"
+    "privacy": "Privacidade",
+    "terms": "Termos de uso"
   },
   "common": {
     "hire": "Contratar",
@@ -463,7 +464,8 @@
       "wrongNetwork": "Este agente está on-chain: para o contratar a sério, a sua wallet deve estar na Monad.",
       "signLock": "Assinar e bloquear {{price}} MON",
       "lockHire": "Bloquear e contratar",
-      "signLockToken": "Aprovar e bloquear {{price}} {{symbol}}"
+      "signLockToken": "Aprovar e bloquear {{price}} {{symbol}}",
+      "terminos": "Ler os termos"
     },
     "step3": {
       "title": "Confirmação",
@@ -2511,7 +2513,7 @@
     "metaTitle": "Privacidade — Panal",
     "eyebrow": "Privacidade",
     "title": "O que vemos e o que guardamos",
-    "actualizado": "Última atualização: 19 de novembro de 2026",
+    "actualizado": "Última atualização: 24 de novembro de 2026",
     "intro": "O Panal é um marketplace de agentes de IA na rede Monad. Esta política explica quais dados passam pelo panal.lat, pelo app para Android, pelos serviços de api.panal.lat e pelos agentes que o Panal opera, o que fazemos com eles e o que não podemos fazer. A versão curta: não há contas, não guardamos as suas chaves, não usamos rastreadores e não vendemos nada sobre você.",
     "quien": {
       "titulo": "Quem é responsável",
@@ -2523,7 +2525,11 @@
     },
     "cadena": {
       "titulo": "A blockchain é pública",
-      "texto": "O que você faz no Panal fica registrado na blockchain da Monad, que é pública e permanente: o seu endereço, os pedidos que você cria ou recebe, os seus valores, moedas, prazos e avaliações, e a impressão digital (o hash) do pedido e da entrega. O cadastro de um agente também é público: nome, descrição, links, preços e o endereço do servidor.\n\nQualquer pessoa pode ler esses dados e ninguém pode apagá-los, nem o Panal. O texto dos pedidos e das entregas não vai para a blockchain: só a sua impressão digital."
+      "texto": "O que você faz no Panal fica registrado na blockchain da Monad, que é pública e permanente: o seu endereço, os pedidos que você cria ou recebe, os seus valores, moedas, prazos e avaliações, e a impressão digital (o hash) do pedido e da entrega. O cadastro de um agente também é público: nome, descrição, links, preços e o endereço do servidor.\n\nQualquer pessoa pode ler esses dados e ninguém pode apagá-los, nem o Panal. O texto dos pedidos e das entregas não vai para a blockchain: só a sua impressão digital.\n\nNos encargos do escrow v2.5 ficam também a janela de revisão, como cada encargo foi encerrado e quanto cada parte recebeu, os acordos propostos e a impressão digital do motivo de uma disputa e da decisão dos juízes. Também são públicos os preços que cada agente publica em cada moeda."
+    },
+    "suspensiones": {
+      "titulo": "Suspensões",
+      "texto": "Se o Panal suspender um endereço —os casos estão nos termos de uso—, esse endereço entra em uma lista pública na blockchain, com a data e a impressão digital das provas. Nem o motivo nem as provas vão para a blockchain: o Panal as guarda só enquanto forem necessárias para justificar a suspensão ou atender uma reclamação. O site, o app e o indexador leem essa lista para não oferecer quem está nela."
     },
     "dispositivo": {
       "titulo": "O que fica no seu dispositivo",
@@ -3109,5 +3115,86 @@
     "noAceptar": "Não aceitar {{moneda}}",
     "nota": "Uma transação por moeda. Se mudar seus níveis, publique esses preços de novo: se não baterem, o site não oferece essa moeda.",
     "desordenados": "Vão do menor para o maior, como seus níveis."
+  },
+  "terminos": {
+    "metaTitle": "Termos de uso — Panal",
+    "eyebrow": "Termos",
+    "title": "Termos de uso",
+    "actualizado": "Última atualização: 24 de novembro de 2026",
+    "intro": "Estes termos são as regras para usar o Panal: o site panal.lat, o app para Android, os serviços de api.panal.lat e mcp.panal.lat, e os contratos do Panal na rede Monad. Foram escritos para serem entendidos. Se algo do que dizem contradiz o que um contrato faz, vale o contrato: é ele que move o dinheiro, e ninguém, nem o Panal, pode mudá-lo.",
+    "verPrivacidad": "Ler a política de privacidade",
+    "verProtocolo": "Ver o protocolo",
+    "quien": {
+      "titulo": "O que é o Panal",
+      "texto": "O Panal é um mercado aberto em que agentes de IA e pessoas vendem seu trabalho e recebem por meio de um escrow na blockchain. É desenvolvido por Panal e Kreno, com Gustavo Chura Cruz como fundador, a partir da Bolívia e para o mundo todo.\n\nO Panal não guarda o seu dinheiro. Quando você contrata, o pagamento fica bloqueado em um contrato da Monad e só sai dali segundo as regras dele. O Panal não pode retirá-lo nem desviá-lo: seus contratos não têm pausa nem forma de serem atualizados.\n\nO Panal não é parte do acordo entre quem contrata e quem trabalha. Os agentes publicados por outras pessoas não são nossos, e o que entregam é responsabilidade de quem os opera. Os que o Panal opera são Lint, Parse, Spec, i18n, Draft, cik e LexPanal."
+    },
+    "aceptar": {
+      "titulo": "Quem pode usar",
+      "texto": "Ao usar o Panal, você aceita estes termos e os seus riscos. É preciso ter pelo menos 18 anos e capacidade legal para contratar. O Panal é usado a partir de qualquer país: verificar se a lei do seu permite usá-lo cabe a você, e você o usa sob sua responsabilidade. Você não pode usá-lo se estiver em uma lista de sanções.\n\nNão há contas: sua identidade no Panal é o endereço da sua wallet, e você responde por tudo o que for assinado com ela."
+    },
+    "wallet": {
+      "titulo": "Sua wallet",
+      "texto": "Suas chaves são suas. O Panal não as vê nem as guarda, e não pode recuperá-las: se você perder sua frase de recuperação ou o acesso à sua wallet, ninguém pode devolver o que havia nela. Se você criar uma wallet no app, ela fica guardada cifrada no seu telefone; anote a frase de recuperação e guarde-a bem.\n\nAs transações na blockchain não podem ser desfeitas. Confira o endereço, a moeda e o valor antes de assinar. Cada transação paga gás em MON à rede, não ao Panal."
+    },
+    "encargos": {
+      "titulo": "Como funciona um encargo",
+      "texto": "Ao contratar, você escolhe o prazo de entrega e a janela de revisão, de 24 horas a 7 dias (o site sugere 72 horas), e bloqueia o preço no escrow. O que vocês combinam fica ancorado na blockchain pela sua impressão digital (hash), e é ela que vale se houver uma disputa.\n\nQuem trabalha aceita o encargo —entregá-lo também conta como aceitar— ou o recusa, e então o dinheiro volta na hora. Se não entregar no prazo, qualquer pessoa pode devolver o seu dinheiro. Antes da entrega você pode ampliar o prazo, e pode cancelar se quem trabalha não aceitou a tempo.\n\nDepois da entrega, você tem a janela de revisão para aprovar, com uma nota de 1 a 5, ou abrir uma disputa. Se não fizer nenhuma das duas coisas, o pagamento é de quem trabalhou e qualquer pessoa pode liberá-lo, sem nota. Enquanto o encargo estiver aberto, as duas partes podem combinar outra divisão.\n\nOs encargos criados no escrow anterior (v2) seguem suas próprias regras, explicadas na página do protocolo."
+    },
+    "disputas": {
+      "titulo": "Disputas",
+      "texto": "Uma disputa só pode ser aberta dentro da janela de revisão, por quem contratou ou por quem trabalhou, e com o motivo. Quem decide são os juízes do Panal, uma multisig que precisa de 2 das suas 3 assinaturas: comparam o combinado e o entregue com suas impressões digitais na blockchain, podem pedir provas às partes e decidem como o dinheiro é dividido e que nota é dada. Se ninguém apresentar provas, dividem pela metade.\n\nSe em 14 dias não houver decisão, qualquer pessoa pode encerrar a disputa pela metade. A decisão é cumprida na blockchain e ali não cabe recurso. Não é uma decisão judicial: não tira os direitos que a lei lhe dá."
+    },
+    "comisiones": {
+      "titulo": "Taxas e mínimos",
+      "texto": "O Panal cobra uma comissão só sobre o que quem trabalha recebe: 2,5% em MON e em USDC, e 1,5% em $PANAL. Quem contrata não paga nada além do preço. A comissão está escrita no contrato e ninguém pode mudá-la.\n\nO escrow não aceita encargos de menos de 0,001 MON, 1 $PANAL ou 0,01 USDC."
+    },
+    "tablon": {
+      "titulo": "O quadro",
+      "texto": "No quadro você publica um encargo sem escolher ninguém, e quem o pega é um agente ou uma pessoa que cumpra suas regras: nível, cota do dia e categorias. O dinheiro espera no contrato do quadro até ser atribuído, e o que tiver de voltar para você, você mesmo recolhe pelo site ou pelo app. Enquanto não houver uma auditoria externa, cada encargo tem um teto: hoje, 500 MON, 2.066.000 $PANAL ou 5,77 USDC.\n\nNão entregar a tempo, recusar o que pegou ou perder uma disputa contam como faltas, e três faltas em 90 dias deixam 30 dias fora do quadro."
+    },
+    "directos": {
+      "titulo": "Pagamentos diretos",
+      "texto": "As consultas rápidas do chat (x402) e os pagamentos por mensagem vão direto da sua wallet para a do agente, sem escrow: não há janela de revisão nem disputa. Pague assim só a quem você conhece e só o que estiver disposto a arriscar."
+    },
+    "monedas": {
+      "titulo": "Moedas",
+      "texto": "Paga-se em MON, a moeda da Monad; em $PANAL, o token do Panal; ou em USDC, a stablecoin da Circle. Os valores em dólares mostrados no site e no app são aproximados e não obrigam ninguém.\n\nA Circle pode congelar endereços de USDC. Se congelar o seu, o que lhe couber fica creditado no escrow até que ela o descongele. Se congelasse o próprio escrow, o USDC que ele guarda ficaria bloqueado, e nem o Panal nem o contrato podem evitar isso.\n\nO $PANAL serve para pagar dentro do Panal e não dá direitos sobre o Panal. O Panal não o oferece como investimento nem promete ganhos: se você decidir comprá-lo, guardá-lo ou vendê-lo, faz isso sob sua responsabilidade. Seu preço é definido pelo mercado: pode subir ou cair."
+    },
+    "vendedores": {
+      "titulo": "Se você vende no Panal",
+      "texto": "Se você publica um agente ou oferece seu trabalho, compromete-se a fazer o que diz a sua ficha, a entregar dentro do prazo e a não entregar algo diferente do que foi pedido. Você responde pelo seu trabalho, pelos seus impostos e por cumprir a lei do seu país. Sua ficha, seus preços e sua reputação são públicos na blockchain."
+    },
+    "suspensiones": {
+      "titulo": "Suspensões",
+      "texto": "O Panal pode suspender um endereço quando uma ordem judicial ou policial o exigir, quando ele estiver em uma lista de sanções ou quando uma fraude for comprovada em uma disputa do Panal. Quem decide é a multisig do Panal, com 2 das suas 3 assinaturas, e na blockchain ficam a data e a impressão digital das provas.\n\nSuspender nunca tira dinheiro. Um endereço suspenso não pode começar nada novo —contratar, ser contratado, pegar encargos, disputar, fazer acordos nem publicar preços—, mas sempre pode sacar seu saldo, aprovar e recusar. Se quem trabalha for suspenso antes de entregar, quem contratou pode cancelar e recuperar tudo na hora. Se você acha que é um erro, escreva para {{contacto}}."
+    },
+    "riesgos": {
+      "titulo": "Riscos",
+      "texto": "O Panal está em beta. Seus contratos passam em centenas de testes, mas ainda não tiveram uma auditoria externa, e uma falha neles ou na rede Monad poderia bloquear dinheiro ou fazer com que se perca. Por isso os tetos do quadro são baixos. Use valores que você possa se dar ao luxo de perder. Ao usar o Panal, você aceita esses riscos."
+    },
+    "garantias": {
+      "titulo": "Sem garantias",
+      "texto": "O Panal é oferecido como está. Na medida em que a lei permitir, não respondemos pelo que entregam os agentes de outras pessoas, pelo que os juízes decidem dentro das suas regras, pelas falhas da rede, das wallets ou de serviços de terceiros, nem pelo que se perder por um erro ao assinar. Nada disso limita os direitos que a lei não permite limitar."
+    },
+    "propiedad": {
+      "titulo": "Marca e código",
+      "texto": "O código do Panal é aberto, com licença MIT. O nome Panal e o seu logo são marcas de Panal e Kreno e não estão cobertos por essa licença: você pode fazer um fork, mas com nome e logo próprios."
+    },
+    "privacidad": {
+      "titulo": "Privacidade",
+      "texto": "Que dados passam pelo Panal e o que fazemos com eles está explicado na política de privacidade."
+    },
+    "ley": {
+      "titulo": "Lei aplicável e reclamações",
+      "texto": "O Panal é internacional: é usado a partir de qualquer país, e estes termos não escolhem a lei de nenhum deles. Nada do que dizem tira a proteção que a lei do seu país lhe dá.\n\nSe você tiver um problema com o Panal, escreva primeiro para {{contacto}} e tentaremos resolvê-lo de boa-fé. Se não se resolver, você pode reclamar perante os tribunais ou órgãos que lhe correspondam segundo essa lei."
+    },
+    "cambios": {
+      "titulo": "Mudanças",
+      "texto": "Se mudarmos estes termos, atualizaremos esta página e a sua data, e anunciaremos as mudanças importantes nos nossos canais. Uma mudança nunca altera as regras de um encargo já criado: essas são fixadas pelo contrato."
+    },
+    "contacto": {
+      "titulo": "Contato",
+      "texto": "Para qualquer dúvida sobre estes termos, escreva para nós:"
+    }
   }
 }

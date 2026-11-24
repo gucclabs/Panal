@@ -36,6 +36,8 @@ const ROUTES = [
   "/nosotros",
   // La pide Google Play como URL pública, y tiene que poder encontrarse.
   "/privacy",
+  // Las reglas de uso: también se enlazan desde la app y desde el encargo.
+  "/terms",
 ];
 
 function seoPlugin(): Plugin {

@@ -1361,14 +1361,26 @@ function HireWizard({
                     <Timer size={15} className="mt-0.5 shrink-0 text-honey-deep" />
                     {t('hire.step2.autoRelease', { hours: V2_5_ENABLED ? revisionH : ESCROW_AUTO_RELEASE_H })}
                   </p>
-                  <label className="flex cursor-pointer items-center gap-2.5 text-[0.875rem] text-ink-2">
-                    <Checkbox
-                      checked={accepted}
-                      onCheckedChange={(v) => setAccepted(v === true)}
-                      className="border-line data-[state=checked]:border-honey data-[state=checked]:bg-honey data-[state=checked]:text-ink"
-                    />
-                    {t('hire.step2.accept')}
-                  </label>
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                    <label className="flex cursor-pointer items-center gap-2.5 text-[0.875rem] text-ink-2">
+                      <Checkbox
+                        checked={accepted}
+                        onCheckedChange={(v) => setAccepted(v === true)}
+                        className="border-line data-[state=checked]:border-honey data-[state=checked]:bg-honey data-[state=checked]:text-ink"
+                      />
+                      {t('hire.step2.accept')}
+                    </label>
+                    {/* En otra pestaña: el diálogo y lo escrito siguen aquí al volver. */}
+                    <a
+                      href="/terms"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-[0.8125rem] text-honey-deep underline-offset-2 hover:underline"
+                    >
+                      {t('hire.step2.terminos')}
+                      <ExternalLink size={12} />
+                    </a>
+                  </div>
                   {onchain && connected && wrongNetwork ? (
                     <div className="mt-1 flex flex-col gap-3">
                       <p className="flex items-start gap-2 rounded-xl border border-honey bg-honey-soft px-4 py-3 text-[0.8125rem] text-honey-deep">

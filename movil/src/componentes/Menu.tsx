@@ -10,6 +10,7 @@ import { enlaceDeVersion, useActualizacion } from '~/lib/actualizacion';
 import { instalador, useInstalador } from '~/lib/instalador';
 import { useCambio } from '~/lib/cambio';
 import { desconectarWeb, usePuente } from '~/lib/puente';
+import { abrirFuera } from '~/lib/wallets';
 import { IDIOMAS, cambiarIdioma, useIdioma, useTextos } from '~/i18n/idiomas';
 import type { Textos } from '~/i18n/idiomas';
 
@@ -265,6 +266,19 @@ function Panel({ onCerrar }: { onCerrar: () => void }): React.ReactElement {
             {/* La regla de propiedad, como en el README y en las releases: la
                 licencia MIT cubre el código, no el nombre ni el logo. */}
             <p className="mt-2 text-[10.5px] leading-snug text-ink-3">{T.menu.propiedad}</p>
+
+            {/* Con www delante a propósito: el WebView ya se llama panal.lat, y
+                una dirección de ese mismo dominio se abriría dentro de la app
+                como una ruta suya. Con www sale al navegador y el 301 la deja
+                en panal.lat. */}
+            <p className="mt-1.5 flex gap-3 text-[11px]">
+              <button type="button" onClick={() => abrirFuera('https://www.panal.lat/terms')} className="pulsable text-ink-3 underline underline-offset-2">
+                {T.menu.terminos}
+              </button>
+              <button type="button" onClick={() => abrirFuera('https://www.panal.lat/privacy')} className="pulsable text-ink-3 underline underline-offset-2">
+                {T.menu.privacidad}
+              </button>
+            </p>
           </div>
         </div>
       </div>

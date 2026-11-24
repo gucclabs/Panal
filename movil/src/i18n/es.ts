@@ -74,6 +74,8 @@ export const es = {
     noEsNuestra: 'El archivo descargado no lleva la firma de Panal: no se ha instalado.',
     falloDescarga: 'No se pudo descargar. Toca para volver a intentarlo.',
     conNavegador: 'Descargar con el navegador',
+    terminos: 'Términos de uso',
+    privacidad: 'Privacidad',
     propiedad: '© 2026 Panal y Kreno · el código es MIT; el nombre y el logo, no',
   },
 

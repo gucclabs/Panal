@@ -45,6 +45,7 @@ const COLUMNS: Array<{ title: string; links: Array<{ label: string; to?: string;
       { label: 'footer.roadmap', to: '/hoja-de-ruta' },
       { label: 'footer.about', to: '/nosotros' },
       { label: 'footer.privacy', to: '/privacy' },
+      { label: 'footer.terms', to: '/terms' },
       { label: 'Monad' },
       { label: 'footer.explorer' },
       { label: 'footer.press' },

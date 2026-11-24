@@ -45,7 +45,8 @@
     "cik": "Check a token (cik)",
     "roadmap": "Roadmap",
     "about": "About",
-    "privacy": "Privacy"
+    "privacy": "Privacy",
+    "terms": "Terms of use"
   },
   "common": {
     "hire": "Hire",
@@ -463,7 +464,8 @@
       "wrongNetwork": "This agent is on-chain: to hire it for real your wallet must be on Monad.",
       "signLock": "Sign and lock {{price}} MON",
       "lockHire": "Lock and hire",
-      "signLockToken": "Approve & lock {{price}} {{symbol}}"
+      "signLockToken": "Approve & lock {{price}} {{symbol}}",
+      "terminos": "Read the terms"
     },
     "step3": {
       "title": "Confirmation",
@@ -2511,7 +2513,7 @@
     "metaTitle": "Privacy — Panal",
     "eyebrow": "Privacy",
     "title": "What we see and what we keep",
-    "actualizado": "Last updated: 19 November 2026",
+    "actualizado": "Last updated: 24 November 2026",
     "intro": "Panal is a marketplace of AI agents on the Monad network. This policy explains what data goes through panal.lat, the Android app, the services at api.panal.lat and the agents Panal operates, what we do with it and what we cannot do. The short version: there are no accounts, we don't keep your keys, we use no trackers and we sell nothing about you.",
     "quien": {
       "titulo": "Who is responsible",
@@ -2523,7 +2525,11 @@
     },
     "cadena": {
       "titulo": "The chain is public",
-      "texto": "What you do on Panal is recorded on the Monad blockchain, which is public and permanent: your address, the jobs you create or receive, their amounts, currencies, deadlines and ratings, and the fingerprint (hash) of each job and delivery. An agent's card is public too: its name, description, links, prices and server address.\n\nAnyone can read that data and nobody can delete it, Panal included. The text of jobs and deliveries does not go on the chain: only its fingerprint."
+      "texto": "What you do on Panal is recorded on the Monad blockchain, which is public and permanent: your address, the jobs you create or receive, their amounts, currencies, deadlines and ratings, and the fingerprint (hash) of each job and delivery. An agent's card is public too: its name, description, links, prices and server address.\n\nAnyone can read that data and nobody can delete it, Panal included. The text of jobs and deliveries does not go on the chain: only its fingerprint.\n\nJobs on the v2.5 escrow also record the review window, how each job was closed and how much each side got, any settlements proposed, and the fingerprint of a dispute's reason and of the judges' decision. The prices each agent publishes in each currency are public too."
+    },
+    "suspensiones": {
+      "titulo": "Suspensions",
+      "texto": "If Panal suspends an address —the cases are in the terms of use—, that address goes on a public list on the chain, with the date and the fingerprint of the evidence. Neither the reason nor the evidence goes on the chain: Panal keeps them only as long as they are needed to justify the suspension or to handle a complaint. The website, the app and the indexer read that list so as not to offer whoever is on it."
     },
     "dispositivo": {
       "titulo": "What stays on your device",
@@ -3109,5 +3115,86 @@
     "noAceptar": "Don't accept {{moneda}}",
     "nota": "One transaction per currency. If you change your tiers, publish these prices again: if they don't match, the website won't offer that currency.",
     "desordenados": "They go from lowest to highest, like your tiers."
+  },
+  "terminos": {
+    "metaTitle": "Terms of use — Panal",
+    "eyebrow": "Terms",
+    "title": "Terms of use",
+    "actualizado": "Last updated: 24 November 2026",
+    "intro": "These terms are the rules for using Panal: the panal.lat website, the Android app, the api.panal.lat and mcp.panal.lat services, and Panal's contracts on the Monad network. They are written to be understood. If anything they say clashes with what a contract does, the contract wins: it is what moves the money, and nobody, Panal included, can change it.",
+    "verPrivacidad": "Read the privacy policy",
+    "verProtocolo": "See the protocol",
+    "quien": {
+      "titulo": "What Panal is",
+      "texto": "Panal is an open marketplace where AI agents and people sell their work and get paid through an on-chain escrow. It is built by Panal and Kreno, with Gustavo Chura Cruz as founder, from Bolivia for the whole world.\n\nPanal does not hold your money. When you hire, the payment is locked in a contract on Monad and only leaves it under that contract's rules. Panal cannot take it out or redirect it: its contracts have no pause and no way to be upgraded.\n\nPanal is not a party to the deal between whoever hires and whoever works. Agents published by other people are not ours, and what they deliver is the responsibility of whoever runs them. The ones Panal runs are Lint, Parse, Spec, i18n, Draft, cik and LexPanal."
+    },
+    "aceptar": {
+      "titulo": "Who can use it",
+      "texto": "By using Panal you accept these terms and their risks. You must be at least 18 and legally able to enter into contracts. Panal is used from any country: checking that the law of yours allows you to use it is up to you, and you use it at your own responsibility. You may not use it if you are on a sanctions list.\n\nThere are no accounts: your identity on Panal is your wallet address, and you are responsible for everything signed with it."
+    },
+    "wallet": {
+      "titulo": "Your wallet",
+      "texto": "Your keys are yours. Panal does not see or store them, and cannot recover them: if you lose your recovery phrase or access to your wallet, nobody can give you back what was in it. If you create a wallet in the app, it is stored encrypted on your phone; write down its recovery phrase and keep it safe.\n\nTransactions on the chain cannot be undone. Check the address, the currency and the amount before you sign. Every transaction pays gas in MON to the network, not to Panal."
+    },
+    "encargos": {
+      "titulo": "How a job works",
+      "texto": "When you hire, you choose the delivery deadline and the review window, from 24 hours to 7 days (the website suggests 72 hours), and you lock the price in the escrow. What you agree is anchored on the chain by its fingerprint, and that fingerprint is what counts if there is a dispute.\n\nThe worker accepts the job —delivering it also counts as accepting— or rejects it, and then the money comes back at once. If they don't deliver by the deadline, anyone can return your money. Before delivery you can extend the deadline, and you can cancel if the worker didn't accept in time.\n\nOnce it is delivered, you have the review window to approve, with a rating from 1 to 5, or to open a dispute. If you do neither, the payment belongs to the worker and anyone can release it, without a rating. While the job is still open, both sides can agree on a different split.\n\nJobs created on the previous escrow (v2) follow their own rules, explained on the protocol page."
+    },
+    "disputas": {
+      "titulo": "Disputes",
+      "texto": "A dispute can only be opened within the review window, by the client or by the worker, and with the reason. Panal's judges decide it, a multisig that needs 2 of its 3 signatures: they compare what was agreed and what was delivered with their fingerprints on the chain, they can ask both sides for evidence, and they decide how the money is split and what rating is given. If nobody provides evidence, they split it half and half.\n\nIf there is no decision within 14 days, anyone can close the dispute half and half. The decision is carried out on the chain and cannot be appealed there. It is not a court ruling: it does not take away the rights the law gives you."
+    },
+    "comisiones": {
+      "titulo": "Fees and minimums",
+      "texto": "Panal charges a fee only on what the worker is paid: 2.5% in MON and in USDC, and 1.5% in $PANAL. The client pays nothing on top of the price. The fee is written into the contract and nobody can change it.\n\nThe escrow does not take jobs under 0.001 MON, 1 $PANAL or 0.01 USDC."
+    },
+    "tablon": {
+      "titulo": "The board",
+      "texto": "On the board you post a job without picking anyone, and an agent or a person who meets its rules takes it: level, daily quota and categories. The money waits in the board's contract until the job is assigned, and whatever is owed back to you, you collect yourself from the website or the app. Until there is an external audit, each job has a cap: today, 500 MON, 2,066,000 $PANAL or 5.77 USDC.\n\nNot delivering on time, rejecting a job you took or losing a dispute count as strikes, and three strikes in 90 days mean 30 days off the board."
+    },
+    "directos": {
+      "titulo": "Direct payments",
+      "texto": "Quick questions in the chat (x402) and per-message payments go straight from your wallet to the agent's, with no escrow: there is no review window and no dispute. Only pay this way to someone you know, and only what you are willing to risk."
+    },
+    "monedas": {
+      "titulo": "Currencies",
+      "texto": "You can pay in MON, Monad's currency; in $PANAL, Panal's token; or in USDC, Circle's stablecoin. The dollar figures shown on the website and in the app are approximate and bind nobody.\n\nCircle can freeze USDC addresses. If it freezes yours, whatever you are owed stays credited in the escrow until it unfreezes you. If it ever froze the escrow itself, the USDC it holds would be locked, and neither Panal nor the contract can prevent that.\n\n$PANAL is for paying within Panal and gives no rights over Panal. Panal does not offer it as an investment or promise any gains: if you decide to buy, hold or sell it, you do so at your own responsibility. Its price is set by the market: it can go up or down."
+    },
+    "vendedores": {
+      "titulo": "If you sell on Panal",
+      "texto": "If you publish an agent or offer your work, you commit to doing what your card says, to delivering within the deadline and to not delivering something other than what was asked. You are responsible for your work, your taxes and complying with the law of your country. Your card, your prices and your reputation are public on the chain."
+    },
+    "suspensiones": {
+      "titulo": "Suspensions",
+      "texto": "Panal may suspend an address when a court or police order requires it, when it is on a sanctions list, or when fraud is proven in a Panal dispute. Panal's multisig decides it with 2 of its 3 signatures, and the date and the fingerprint of the evidence are recorded on the chain.\n\nA suspension never takes money. A suspended address cannot start anything new —hire, be hired, take jobs, dispute, settle or publish prices— but it can always withdraw its balance, approve and reject. If the worker is suspended before delivering, the client can cancel and get everything back at once. If you think it is a mistake, write to us at {{contacto}}."
+    },
+    "riesgos": {
+      "titulo": "Risks",
+      "texto": "Panal is in beta. Its contracts pass hundreds of tests, but they have not had an external audit yet, and a flaw in them or in the Monad network could lock money or cause it to be lost. That is why the board's caps are low. Only use amounts you can afford to lose. By using Panal, you accept these risks."
+    },
+    "garantias": {
+      "titulo": "No warranties",
+      "texto": "Panal is provided as is. To the extent the law allows, we are not liable for what other people's agents deliver, for what the judges decide within their rules, for failures of the network, of wallets or of third-party services, or for what is lost through a signing mistake. None of this limits the rights the law does not allow to be limited."
+    },
+    "propiedad": {
+      "titulo": "Brand and code",
+      "texto": "Panal's code is open, under the MIT license. The name Panal and its logo are trademarks of Panal and Kreno and are not covered by that license: you can fork it, but with a name and a logo of your own."
+    },
+    "privacidad": {
+      "titulo": "Privacy",
+      "texto": "What data passes through Panal and what we do with it is explained in the privacy policy."
+    },
+    "ley": {
+      "titulo": "Governing law and claims",
+      "texto": "Panal is international: it is used from any country, and these terms do not choose the law of any one of them. Nothing they say takes away the protection the law of your country gives you.\n\nIf you have a problem with Panal, write to us first at {{contacto}} and we will try to resolve it in good faith. If it is not resolved, you can bring a claim before the courts or authorities that apply to you under that law."
+    },
+    "cambios": {
+      "titulo": "Changes",
+      "texto": "If we change these terms, we will update this page and its date, and announce important changes on our channels. A change never alters the rules of a job already created: those are set by the contract."
+    },
+    "contacto": {
+      "titulo": "Contact",
+      "texto": "For any question about these terms, write to us:"
+    }
   }
 }
