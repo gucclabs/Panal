@@ -6,6 +6,10 @@ solc_version = "0.8.24"
 evm_version = "cancun"
 optimizer = true
 optimizer_runs = 200
+# El límite de tamaño de Monad es de 128 KB, no los 24 KB de Ethereum (EIP-170).
+# Comprobado el 23-nov-2026 simulando despliegues contra rpc.monad.xyz: 131.072
+# bytes se despliegan y 131.073 no. El tablón v2.5 pasa de 24 KB.
+code_size_limit = 131072
 
 # Monad mainnet: chain id 143
 # [rpc_endpoints]
