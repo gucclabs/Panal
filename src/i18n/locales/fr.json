@@ -3130,7 +3130,7 @@
     },
     "aceptar": {
       "titulo": "Qui peut l'utiliser",
-      "texto": "En utilisant Panal, vous acceptez ces conditions. Vous devez avoir au moins 18 ans et la capacité juridique de contracter. Vous ne pouvez pas utiliser Panal si vous figurez sur une liste de sanctions ou si la loi de votre pays l'interdit.\n\nIl n'y a pas de comptes : votre identité sur Panal est l'adresse de votre wallet, et vous répondez de tout ce qui est signé avec elle."
+      "texto": "En utilisant Panal, vous acceptez ces conditions et leurs risques. Vous devez avoir au moins 18 ans et la capacité juridique de contracter. Panal s'utilise depuis n'importe quel pays : vérifier que la loi du vôtre vous permet de l'utiliser vous incombe, et vous l'utilisez sous votre responsabilité. Vous ne pouvez pas l'utiliser si vous figurez sur une liste de sanctions.\n\nIl n'y a pas de comptes : votre identité sur Panal est l'adresse de votre wallet, et vous répondez de tout ce qui est signé avec elle."
     },
     "wallet": {
       "titulo": "Votre wallet",
@@ -3158,7 +3158,7 @@
     },
     "monedas": {
       "titulo": "Devises",
-      "texto": "On paie en MON, la devise de Monad ; en $PANAL, le jeton de Panal ; ou en USDC, le stablecoin de Circle. Les montants en dollars affichés sur le site et dans l'application sont approximatifs et n'engagent personne.\n\nCircle peut geler des adresses USDC. Si elle gèle la vôtre, ce qui vous revient reste crédité dans l'escrow jusqu'à ce qu'elle la dégèle. Si elle gelait l'escrow lui-même, l'USDC qu'il détient resterait bloqué, et ni Panal ni le contrat ne peuvent l'empêcher.\n\nLe $PANAL sert à payer au sein de Panal. Ce n'est pas un investissement, il ne donne aucun droit sur Panal et son prix peut tomber à zéro."
+      "texto": "On paie en MON, la devise de Monad ; en $PANAL, le jeton de Panal ; ou en USDC, le stablecoin de Circle. Les montants en dollars affichés sur le site et dans l'application sont approximatifs et n'engagent personne.\n\nCircle peut geler des adresses USDC. Si elle gèle la vôtre, ce qui vous revient reste crédité dans l'escrow jusqu'à ce qu'elle la dégèle. Si elle gelait l'escrow lui-même, l'USDC qu'il détient resterait bloqué, et ni Panal ni le contrat ne peuvent l'empêcher.\n\nLe $PANAL sert à payer au sein de Panal et ne donne aucun droit sur Panal. Panal ne le propose pas comme investissement et ne promet aucun gain : si vous décidez de l'acheter, de le conserver ou de le vendre, vous le faites sous votre responsabilité. Son prix est fixé par le marché et peut tomber à zéro."
     },
     "vendedores": {
       "titulo": "Si vous vendez sur Panal",
@@ -3166,7 +3166,7 @@
     },
     "prohibido": {
       "titulo": "Ce qui n'est pas permis",
-      "texto": "Vous ne pouvez pas utiliser Panal pour quoi que ce soit d'illégal dans votre pays ou là où vous l'utilisez ; pour faire circuler l'argent de délits ou contourner des sanctions ; pour escroquer, usurper l'identité d'autrui ou tromper les juges ; pour diffuser des logiciels malveillants, des contenus qui portent atteinte aux droits d'autrui ou du matériel d'abus sexuel sur mineurs ; ni pour attaquer ou saturer les services de Panal ou les agents d'autrui."
+      "texto": "Vous ne pouvez pas utiliser Panal pour faire circuler l'argent de délits ou contourner des sanctions ; pour escroquer, usurper l'identité d'autrui ou tromper les juges ; pour diffuser des logiciels malveillants, des contenus qui portent atteinte aux droits d'autrui ou du matériel d'abus sexuel sur mineurs ; ni pour attaquer ou saturer les services de Panal ou les agents d'autrui.\n\nAu-delà, respecter la loi de votre pays relève de votre responsabilité, pas de celle de Panal."
     },
     "suspensiones": {
       "titulo": "Suspensions",
@@ -3174,7 +3174,7 @@
     },
     "riesgos": {
       "titulo": "Risques",
-      "texto": "Panal est en bêta. Ses contrats passent des centaines de tests, mais n'ont pas encore fait l'objet d'un audit externe, et une faille dans ceux-ci ou dans le réseau Monad pourrait bloquer de l'argent ou en faire perdre. C'est pourquoi les plafonds du tableau sont bas. N'utilisez que des montants que vous pouvez vous permettre de perdre."
+      "texto": "Panal est en bêta. Ses contrats passent des centaines de tests, mais n'ont pas encore fait l'objet d'un audit externe, et une faille dans ceux-ci ou dans le réseau Monad pourrait bloquer de l'argent ou en faire perdre. C'est pourquoi les plafonds du tableau sont bas. N'utilisez que des montants que vous pouvez vous permettre de perdre. En utilisant Panal, vous acceptez ces risques."
     },
     "garantias": {
       "titulo": "Sans garantie",

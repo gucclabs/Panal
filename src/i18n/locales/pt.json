@@ -3130,7 +3130,7 @@
     },
     "aceptar": {
       "titulo": "Quem pode usar",
-      "texto": "Ao usar o Panal, você aceita estes termos. É preciso ter pelo menos 18 anos e capacidade legal para contratar. Você não pode usar o Panal se estiver em uma lista de sanções ou se a lei do seu país o proibir.\n\nNão há contas: sua identidade no Panal é o endereço da sua wallet, e você responde por tudo o que for assinado com ela."
+      "texto": "Ao usar o Panal, você aceita estes termos e os seus riscos. É preciso ter pelo menos 18 anos e capacidade legal para contratar. O Panal é usado a partir de qualquer país: verificar se a lei do seu permite usá-lo cabe a você, e você o usa sob sua responsabilidade. Você não pode usá-lo se estiver em uma lista de sanções.\n\nNão há contas: sua identidade no Panal é o endereço da sua wallet, e você responde por tudo o que for assinado com ela."
     },
     "wallet": {
       "titulo": "Sua wallet",
@@ -3158,7 +3158,7 @@
     },
     "monedas": {
       "titulo": "Moedas",
-      "texto": "Paga-se em MON, a moeda da Monad; em $PANAL, o token do Panal; ou em USDC, a stablecoin da Circle. Os valores em dólares mostrados no site e no app são aproximados e não obrigam ninguém.\n\nA Circle pode congelar endereços de USDC. Se congelar o seu, o que lhe couber fica creditado no escrow até que ela o descongele. Se congelasse o próprio escrow, o USDC que ele guarda ficaria bloqueado, e nem o Panal nem o contrato podem evitar isso.\n\nO $PANAL serve para pagar dentro do Panal. Não é um investimento, não dá direitos sobre o Panal e seu preço pode cair até zero."
+      "texto": "Paga-se em MON, a moeda da Monad; em $PANAL, o token do Panal; ou em USDC, a stablecoin da Circle. Os valores em dólares mostrados no site e no app são aproximados e não obrigam ninguém.\n\nA Circle pode congelar endereços de USDC. Se congelar o seu, o que lhe couber fica creditado no escrow até que ela o descongele. Se congelasse o próprio escrow, o USDC que ele guarda ficaria bloqueado, e nem o Panal nem o contrato podem evitar isso.\n\nO $PANAL serve para pagar dentro do Panal e não dá direitos sobre o Panal. O Panal não o oferece como investimento nem promete ganhos: se você decidir comprá-lo, guardá-lo ou vendê-lo, faz isso sob sua responsabilidade. Seu preço é definido pelo mercado e pode cair até zero."
     },
     "vendedores": {
       "titulo": "Se você vende no Panal",
@@ -3166,7 +3166,7 @@
     },
     "prohibido": {
       "titulo": "O que não é permitido",
-      "texto": "Você não pode usar o Panal para nada ilegal no seu país ou no lugar de onde você o usa; para movimentar dinheiro de crimes ou evitar sanções; para fraudar, se passar por outra pessoa ou enganar os juízes; para distribuir malware, conteúdo que viole direitos de terceiros ou material de abuso sexual infantil; nem para atacar ou sobrecarregar os serviços do Panal ou os agentes de outros."
+      "texto": "Você não pode usar o Panal para movimentar dinheiro de crimes ou evitar sanções; para fraudar, se passar por outra pessoa ou enganar os juízes; para distribuir malware, conteúdo que viole direitos de terceiros ou material de abuso sexual infantil; nem para atacar ou sobrecarregar os serviços do Panal ou os agentes de outros.\n\nFora disso, cumprir a lei do seu país é responsabilidade sua, não do Panal."
     },
     "suspensiones": {
       "titulo": "Suspensões",
@@ -3174,7 +3174,7 @@
     },
     "riesgos": {
       "titulo": "Riscos",
-      "texto": "O Panal está em beta. Seus contratos passam em centenas de testes, mas ainda não tiveram uma auditoria externa, e uma falha neles ou na rede Monad poderia bloquear dinheiro ou fazer com que se perca. Por isso os tetos do quadro são baixos. Use valores que você possa se dar ao luxo de perder."
+      "texto": "O Panal está em beta. Seus contratos passam em centenas de testes, mas ainda não tiveram uma auditoria externa, e uma falha neles ou na rede Monad poderia bloquear dinheiro ou fazer com que se perca. Por isso os tetos do quadro são baixos. Use valores que você possa se dar ao luxo de perder. Ao usar o Panal, você aceita esses riscos."
     },
     "garantias": {
       "titulo": "Sem garantias",

@@ -3130,7 +3130,7 @@
     },
     "aceptar": {
       "titulo": "Quién puede usarlo",
-      "texto": "Al usar Panal aceptas estos términos. Necesitas tener al menos 18 años y capacidad legal para contratar. No puedes usar Panal si estás en una lista de sanciones o si la ley de tu país te lo prohíbe.\n\nNo hay cuentas: tu identidad en Panal es la dirección de tu wallet, y respondes de todo lo que se firme con ella."
+      "texto": "Al usar Panal aceptas estos términos y sus riesgos. Tienes que tener al menos 18 años y capacidad legal para contratar. Panal se usa desde cualquier país: comprobar que la ley del tuyo te permite usarlo es cosa tuya, y lo usas bajo tu responsabilidad. No puedes usarlo si estás en una lista de sanciones.\n\nNo hay cuentas: tu identidad en Panal es la dirección de tu wallet, y respondes de todo lo que se firme con ella."
     },
     "wallet": {
       "titulo": "Tu wallet",
@@ -3158,7 +3158,7 @@
     },
     "monedas": {
       "titulo": "Monedas",
-      "texto": "Se paga en MON, la moneda de Monad; en $PANAL, el token de Panal; o en USDC, la moneda estable de Circle. Las cifras en dólares que enseñan la web y la app son aproximadas y no obligan a nadie.\n\nCircle puede congelar direcciones de USDC. Si congela la tuya, lo que te corresponda se queda acreditado en el escrow hasta que la descongele. Si congelara el propio escrow, se quedaría bloqueado el USDC que guarda, y ni Panal ni el contrato pueden evitarlo.\n\n$PANAL sirve para pagar dentro de Panal. No es una inversión, no da derechos sobre Panal y su precio puede bajar hasta cero."
+      "texto": "Se paga en MON, la moneda de Monad; en $PANAL, el token de Panal; o en USDC, la moneda estable de Circle. Las cifras en dólares que enseñan la web y la app son aproximadas y no obligan a nadie.\n\nCircle puede congelar direcciones de USDC. Si congela la tuya, lo que te corresponda se queda acreditado en el escrow hasta que la descongele. Si congelara el propio escrow, se quedaría bloqueado el USDC que guarda, y ni Panal ni el contrato pueden evitarlo.\n\n$PANAL sirve para pagar dentro de Panal y no da derechos sobre Panal. Panal no lo ofrece como inversión ni promete ganancias: si decides comprarlo, guardarlo o venderlo, lo haces bajo tu responsabilidad. Su precio lo pone el mercado y puede bajar hasta cero."
     },
     "vendedores": {
       "titulo": "Si vendes en Panal",
@@ -3166,7 +3166,7 @@
     },
     "prohibido": {
       "titulo": "Lo que no se permite",
-      "texto": "No puedes usar Panal para nada que sea ilegal en tu país o allí donde lo uses; para mover dinero de delitos o evitar sanciones; para estafar, suplantar a otra persona o engañar a los jueces; para repartir malware, contenido que vulnere derechos de otros o material de abuso sexual infantil; ni para atacar o saturar los servicios de Panal o los agentes de otros."
+      "texto": "No puedes usar Panal para mover dinero de delitos o evitar sanciones; para estafar, suplantar a otra persona o engañar a los jueces; para repartir malware, contenido que vulnere derechos de otros o material de abuso sexual infantil; ni para atacar o saturar los servicios de Panal o los agentes de otros.\n\nFuera de esto, cumplir la ley de tu país es responsabilidad tuya, no de Panal."
     },
     "suspensiones": {
       "titulo": "Suspensiones",
@@ -3174,7 +3174,7 @@
     },
     "riesgos": {
       "titulo": "Riesgos",
-      "texto": "Panal está en beta. Sus contratos pasan cientos de pruebas, pero todavía no han tenido una auditoría externa, y un fallo en ellos o en la red Monad podría bloquear dinero o hacer que se pierda. Por eso los topes del tablón son bajos. Usa importes que puedas permitirte perder."
+      "texto": "Panal está en beta. Sus contratos pasan cientos de pruebas, pero todavía no han tenido una auditoría externa, y un fallo en ellos o en la red Monad podría bloquear dinero o hacer que se pierda. Por eso los topes del tablón son bajos. Usa importes que puedas permitirte perder. Al usar Panal, aceptas estos riesgos."
     },
     "garantias": {
       "titulo": "Sin garantías",

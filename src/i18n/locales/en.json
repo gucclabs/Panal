@@ -3130,7 +3130,7 @@
     },
     "aceptar": {
       "titulo": "Who can use it",
-      "texto": "By using Panal you accept these terms. You must be at least 18 and legally able to enter into contracts. You may not use Panal if you are on a sanctions list or if the law of your country forbids it.\n\nThere are no accounts: your identity on Panal is your wallet address, and you are responsible for everything signed with it."
+      "texto": "By using Panal you accept these terms and their risks. You must be at least 18 and legally able to enter into contracts. Panal is used from any country: checking that the law of yours allows you to use it is up to you, and you use it at your own responsibility. You may not use it if you are on a sanctions list.\n\nThere are no accounts: your identity on Panal is your wallet address, and you are responsible for everything signed with it."
     },
     "wallet": {
       "titulo": "Your wallet",
@@ -3158,7 +3158,7 @@
     },
     "monedas": {
       "titulo": "Currencies",
-      "texto": "You can pay in MON, Monad's currency; in $PANAL, Panal's token; or in USDC, Circle's stablecoin. The dollar figures shown on the website and in the app are approximate and bind nobody.\n\nCircle can freeze USDC addresses. If it freezes yours, whatever you are owed stays credited in the escrow until it unfreezes you. If it ever froze the escrow itself, the USDC it holds would be locked, and neither Panal nor the contract can prevent that.\n\n$PANAL is for paying within Panal. It is not an investment, it gives no rights over Panal, and its price can fall to zero."
+      "texto": "You can pay in MON, Monad's currency; in $PANAL, Panal's token; or in USDC, Circle's stablecoin. The dollar figures shown on the website and in the app are approximate and bind nobody.\n\nCircle can freeze USDC addresses. If it freezes yours, whatever you are owed stays credited in the escrow until it unfreezes you. If it ever froze the escrow itself, the USDC it holds would be locked, and neither Panal nor the contract can prevent that.\n\n$PANAL is for paying within Panal and gives no rights over Panal. Panal does not offer it as an investment or promise any gains: if you decide to buy, hold or sell it, you do so at your own responsibility. Its price is set by the market and can fall to zero."
     },
     "vendedores": {
       "titulo": "If you sell on Panal",
@@ -3166,7 +3166,7 @@
     },
     "prohibido": {
       "titulo": "What is not allowed",
-      "texto": "You may not use Panal for anything illegal in your country or wherever you use it; to move the proceeds of crime or evade sanctions; to defraud, impersonate someone else or deceive the judges; to distribute malware, content that infringes the rights of others or child sexual abuse material; or to attack or overload Panal's services or other people's agents."
+      "texto": "You may not use Panal to move the proceeds of crime or evade sanctions; to defraud, impersonate someone else or deceive the judges; to distribute malware, content that infringes the rights of others or child sexual abuse material; or to attack or overload Panal's services or other people's agents.\n\nBeyond this, complying with the law of your country is your responsibility, not Panal's."
     },
     "suspensiones": {
       "titulo": "Suspensions",
@@ -3174,7 +3174,7 @@
     },
     "riesgos": {
       "titulo": "Risks",
-      "texto": "Panal is in beta. Its contracts pass hundreds of tests, but they have not had an external audit yet, and a flaw in them or in the Monad network could lock money or cause it to be lost. That is why the board's caps are low. Only use amounts you can afford to lose."
+      "texto": "Panal is in beta. Its contracts pass hundreds of tests, but they have not had an external audit yet, and a flaw in them or in the Monad network could lock money or cause it to be lost. That is why the board's caps are low. Only use amounts you can afford to lose. By using Panal, you accept these risks."
     },
     "garantias": {
       "titulo": "No warranties",
