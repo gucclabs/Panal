@@ -35,14 +35,15 @@ import { useFirmaDelTablon } from '@/hooks/useFirmaDelTablon';
 import { useLogoDeAgente } from '@/hooks/useLogoDeAgente';
 import { useDeudaDelTablon, useReglasDelTablon, type DatosDelTablon } from '@/hooks/useTablonReglas';
 import {
-  MONEDAS_TABLON,
   credencialTablon,
   credencialVigente,
   enTablon,
   firmarYEsperar,
   leerEntregaConFirma,
-  permitirPanal,
+  liberableDesde,
+  permitirToken,
   simboloDe,
+  versionDelEncargo,
   type CredencialTablon,
   type TareaDelTablon,
 } from '@/lib/tablonReglas';
@@ -50,6 +51,7 @@ import { hayEntrega } from '@/lib/expedientes';
 import { abrirBytes, abrirTexto, clavePublicaDe } from '@/lib/cifrado';
 import { darAccesoAlElegido, darAccesoALosArbitrosDelTablon } from '@/lib/accesos';
 import { cn } from '@/lib/utils';
+import { numeroVisible } from '@/lib/escrow';
 import { ListaDeArchivos } from './Archivos';
 import { Chip, Girando, Importe, NombreDeCategoria } from './comun';
 import { BOTON_LINEA, BOTON_MIEL, BOTON_OLIVA, BOTON_PELIGRO, cantidad, useAgenteDe, useDuracion, useFecha } from './util';
@@ -75,7 +77,8 @@ export default function MisEncargos({ datos, yo }: { datos: DatosDelTablon; yo: 
   const enMarcha = mios.filter((j) => j.estado === EstadoTablon.Publicado || j.estado === EstadoTablon.Asignado);
   const terminados = mios.filter((j) => j.estado !== EstadoTablon.Publicado && j.estado !== EstadoTablon.Asignado);
 
-  const porCobrar = MONEDAS_TABLON.filter((m) => (deuda?.[m.toLowerCase()] ?? 0n) > 0n);
+  // Lo que te debe cada tablón, por moneda: se cobra de cada uno por separado.
+  const porCobrar = deuda ?? [];
 
   return (
     <section className="flex min-w-0 flex-col gap-6">
@@ -83,18 +86,20 @@ export default function MisEncargos({ datos, yo }: { datos: DatosDelTablon; yo: 
         <div className="flex flex-col gap-3 rounded-2xl border border-honey/60 bg-honey-soft/60 p-5">
           <p className="text-[0.875rem] leading-relaxed text-ink">{t('tablon.mios.porCobrar')}</p>
           <div className="flex flex-wrap gap-2">
-            {porCobrar.map((m) => {
-              const clave = `cobrar:${m}`;
+            {porCobrar.map((d) => {
+              const clave = `cobrar:${d.version}:${d.moneda}`;
               return (
                 <button
-                  key={m}
+                  key={clave}
                   type="button"
                   disabled={ocupado !== null}
-                  onClick={() => void ejecutar(clave, (e, c) => firmarYEsperar(e, c, enTablon('claim', [m])))}
+                  onClick={() =>
+                    void ejecutar(clave, (e, c) => firmarYEsperar(e, c, enTablon('claim', [d.moneda], undefined, d.version)))
+                  }
                   className={BOTON_MIEL}
                 >
                   {ocupado === clave && <Girando />}
-                  {t('tablon.mios.cobrar', { n: cantidad(deuda![m.toLowerCase()]!), moneda: simboloDe(m) })}
+                  {t('tablon.mios.cobrar', { n: cantidad(d.cantidad, d.moneda), moneda: simboloDe(d.moneda) })}
                 </button>
               );
             })}
@@ -253,7 +258,7 @@ function EncargoMio({ job, datos, yo }: { job: EncargoConReglas; datos: DatosDel
       const hecho = await ejecutar(clave, async (e, c) => {
         const diferencia = o.precio > job.importe ? o.precio - job.importe : 0n;
         const nativa = simboloDe(job.moneda) === 'MON';
-        if (diferencia > 0n && !nativa) await permitirPanal(e, c, diferencia);
+        if (diferencia > 0n && !nativa) await permitirToken(e, c, job.moneda, diferencia, versionDelEncargo(job.id));
         await firmarYEsperar(e, c, enTablon('choose', [job.id, o.agente], nativa && diferencia > 0n ? diferencia : undefined));
         return true;
       });
@@ -388,7 +393,10 @@ function EncargoMio({ job, datos, yo }: { job: EncargoConReglas; datos: DatosDel
         if (confidencial) acciones = botonAcceso('elegido');
       }
     } else if (tarea.estado === ENTREGADA) {
-      const libre = reglas ? tarea.entregadaEn + reglas.liberacionS : null;
+      // La revisión del v2 son 72 h; la del v2.5, la que lleva la tarea.
+      const libre = liberableDesde(tarea, reglas);
+      // En el v2.5 solo se disputa dentro de la revisión.
+      const puedeDisputar = versionDelEncargo(job.id) === 'v2' || libre === null || ahora < libre;
       estado = libre && ahora >= libre ? t('tablon.mios.entregadaLibre') : t('tablon.mios.entregada', { cuando: libre ? fecha(libre) : '…' });
       acciones = (
         <>
@@ -401,7 +409,7 @@ function EncargoMio({ job, datos, yo }: { job: EncargoConReglas; datos: DatosDel
             ))}
           </span>
           {boton(aprobar, BOTON_OLIVA, t('tablon.mios.aprobar'))}
-          {boton({ clave: disputar.clave, ir: disputarYDarAcceso }, BOTON_PELIGRO, t('tablon.mios.disputar'))}
+          {puedeDisputar && boton({ clave: disputar.clave, ir: disputarYDarAcceso }, BOTON_PELIGRO, t('tablon.mios.disputar'))}
           {libre !== null && ahora >= libre && boton(cerrar, BOTON_LINEA, t('tablon.mios.cerrar'))}
         </>
       );
@@ -422,7 +430,10 @@ function EncargoMio({ job, datos, yo }: { job: EncargoConReglas; datos: DatosDel
           />
           {verBoton}
           {confidencial && botonAcceso('arbitros')}
-          {atascada !== null && ahora >= atascada && boton(cerrar, BOTON_MIEL, t('tablon.mios.recuperar'))}
+          {/* Caducada: en el v2 vuelve todo al cliente; en el v2.5, mitad y mitad. */}
+          {atascada !== null &&
+            ahora >= atascada &&
+            boton(cerrar, BOTON_MIEL, t(versionDelEncargo(job.id) === 'v2_5' ? 'tablon.mios.cerrar' : 'tablon.mios.recuperar'))}
         </>
       );
     } else {
@@ -476,7 +487,7 @@ function EncargoMio({ job, datos, yo }: { job: EncargoConReglas; datos: DatosDel
                 </span>
               </Chip>
             )}
-            <span className="font-mono text-[12px] text-ink-3">#{id}</span>
+            <span className="font-mono text-[12px] text-ink-3">#{numeroVisible(job.id)}</span>
           </div>
         </div>
         <Importe wei={job.importe} moneda={job.moneda} className="text-right text-[0.9375rem] font-semibold" />
@@ -557,7 +568,7 @@ function EncargoMio({ job, datos, yo }: { job: EncargoConReglas; datos: DatosDel
                   <p className="mt-0.5 font-mono text-[12px] text-ink-3">{t('tablon.entregaEn', { dur: duracion(o.plazoEntregaS) })}</p>
                   {diferencia > 0n && (
                     <p className="mt-0.5 text-[0.75rem] text-honey-deep">
-                      {t('tablon.mios.diferencia', { n: cantidad(diferencia), moneda: simboloDe(job.moneda) })}
+                      {t('tablon.mios.diferencia', { n: cantidad(diferencia, job.moneda), moneda: simboloDe(job.moneda) })}
                     </p>
                   )}
                   {sinClave && <p className="mt-0.5 text-[0.75rem] text-terra">{t('tablon.mios.ofertaSinClave')}</p>}

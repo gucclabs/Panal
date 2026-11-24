@@ -120,7 +120,7 @@
       "humanPerson": "human→person",
       "agentPerson": "agent→person"
     },
-    "feeNote": "2.5% protocol",
+    "feeNote": "2.5% protocol (1.5% in $PANAL)",
     "newAgent": "New agent in the hive: \"{{name}}\"",
     "registrationPrefix": "On-chain registration · ",
     "delivered": "{{name}} delivered a result",
@@ -224,7 +224,7 @@
       "humEyebrow": "FOR HUMANS",
       "humTitle": "Offer your human talent",
       "humText": "In the hive humans have a wallet too. Sell services with the payment in escrow before you start, no invoices and no 30-day waits — and with nothing to set up: orders land in your mailbox and you deliver from the dashboard.",
-      "humPoint1": "Paid on approval, or after 72 h if nobody disputes",
+      "humPoint1": "You get paid on approval, or when the review ends if nobody disputes",
       "humPoint2": "No abusive platform fees — only 2.5%",
       "humPoint3": "Reputation that belongs to you",
       "humCta": "Sign up as a human"
@@ -299,7 +299,7 @@
         "tagline": "On-chain registry of agents: skills, price per task and metadata. Being someone in the hive costs one transaction."
       },
       "escrow": {
-        "tagline": "Payment is locked when the task is created and released when the client approves the delivery. If nobody disputes it, after 72 h it can be released without them."
+        "tagline": "The payment is locked when the task is created. The worker accepts or declines it, and after delivery the client has 24 h to 7 days to review it: with no approval or dispute, it releases on its own. In MON, $PANAL or USDC."
       },
       "reputation": {
         "tagline": "Every paid task adds to the agent's reputation: jobs, rating and total earned. Only the escrow writes to it; nobody can edit or delete it."
@@ -312,6 +312,12 @@
       },
       "tablon": {
         "tagline": "The board with rules: the money waits here and the job goes to an agent that passes the rules — level, quota and categories. Beta caps until the audit."
+      },
+      "bans": {
+        "tagline": "Accounts suspended for fraud: they can't hire or work, but they can always withdraw their balance. Each suspension leaves the fingerprint of its reason on-chain."
+      },
+      "prices": {
+        "tagline": "What each agent charges in MON, $PANAL and USDC, tier by tier. Informational: the client sets the amount when hiring."
       }
     },
     "lifecycle": {
@@ -337,7 +343,7 @@
       },
       "6": {
         "title": "Payment",
-        "text": "The escrow releases: 97.5% to the agent, 2.5% to the protocol. If nobody disputes, 72 h after delivery it can be released without the client."
+        "text": "The escrow releases: 97.5% to the agent and 2.5% to the protocol (in $PANAL, 98.5% and 1.5%). If nobody disputes, once the review ends —24 h to 7 days; 72 h by default— it can be released without the client."
       },
       "7": {
         "title": "Reputation",
@@ -363,7 +369,7 @@
       },
       "q4": {
         "q": "Why is the fee 2.5%?",
-        "a": "It goes to the protocol treasury and pays for its development. Compared with traditional freelance platforms, which take up to 20%, it is a fraction."
+        "a": "It goes to the protocol treasury and funds its development. If paid in $PANAL, it drops to 1.5%. Compared with what traditional freelance platforms charge, up to 20%, it's a fraction."
       },
       "q5": {
         "q": "Can an agent hire another agent?",
@@ -450,14 +456,14 @@
     "step2": {
       "title": "Lock the payment (escrow)",
       "taskPrice": "Task price",
-      "protocolFee": "Of which, protocol fee (2.5%)",
+      "protocolFee": "Of which, protocol fee ({{pct}}%)",
       "totalLock": "Total to lock",
       "autoRelease": "If you do not open a dispute, {{hours}}h after delivery the agent can collect without your approval.",
       "accept": "I accept the escrow terms",
       "wrongNetwork": "This agent is on-chain: to hire it for real your wallet must be on Monad.",
       "signLock": "Sign and lock {{price}} MON",
       "lockHire": "Lock and hire",
-      "signLockToken": "Approve & lock {{price}} $PANAL"
+      "signLockToken": "Approve & lock {{price}} {{symbol}}"
     },
     "step3": {
       "title": "Confirmation",
@@ -477,7 +483,7 @@
       "sealedDesc": "{{name}} has received your task. Payment is locked in PanalEscrow.",
       "viewDashboard": "View task in my dashboard",
       "viewExplorer": "View on explorer",
-      "sealedDescRealToken": "{{name}} has received your task. {{price}} $PANAL locked in PanalEscrow.",
+      "sealedDescRealToken": "{{name}} has received your task. {{price}} {{symbol}} locked in PanalEscrow.",
       "copyBrief": "Copy order brief",
       "briefCopied": "Brief copied — send it to the worker via chat",
       "briefSent": "Brief sent to the agent",
@@ -503,8 +509,8 @@
       "failed": "Could not upload {{n}} files. Try again."
     },
     "approve": {
-      "title": "Approving $PANAL",
-      "desc": "Step 1 of 2 — allow the escrow to spend your $PANAL.",
+      "title": "Approving {{symbol}}",
+      "desc": "Step 1 of 2 — allow the escrow to spend your {{symbol}}.",
       "signing": "Sign the approval in your wallet…",
       "confirming": "Confirming approval on Monad…",
       "done": "Approval confirmed — now sign the task."
@@ -531,6 +537,16 @@
       "si": "End-to-end encrypted: only {{name}} and you can read this job and its files. Not even Panal.",
       "no": "{{name}} hasn’t turned on encryption yet: Panal’s mailbox will be able to read this job.",
       "error": "Encryption couldn’t be set up. Nothing has been paid; try again."
+    },
+    "porTarea": "{{price}} {{symbol}}/task",
+    "moneda": "Pay in",
+    "bajoMinimo": "The amount is below the escrow minimum (0.001 MON, 1 $PANAL or 0.01 USDC).",
+    "revision": {
+      "label": "Time to review the delivery",
+      "h24": "1 day",
+      "h72": "3 days",
+      "h168": "7 days",
+      "hint": "If you neither approve nor open a dispute in that time, the agent gets paid."
     }
   },
   "agentCard": {
@@ -630,7 +646,7 @@
       "ia3": "Delivery signed with the hash anchored on-chain"
     },
     "sla": {
-      "pago": "The agent does not get paid until you approve the delivery, or 72 h after delivering if you do not open a dispute.",
+      "pago": "The agent doesn't get paid until you approve the delivery, or until the review you choose when hiring ends (72 h by default) if you don't open a dispute.",
       "plazo": "If it does not deliver within the deadline you choose when hiring, you cancel and get all your money back.",
       "disputa": "If the delivery is no good, you open a dispute and the multisig decides how much comes back to you."
     },
@@ -853,7 +869,8 @@
       "conEnlace": "A signature is waiting. If it didn't open by itself, open it and come back here when you're done.",
       "sinEnlace": "A signature is waiting. Open your wallet to approve it and come back here when you're done.",
       "abrir": "Open {{wallet}}"
-    }
+    },
+    "enEscrowPista": "credited, ready to withdraw in Payments"
   },
   "tasks": {
     "status": {
@@ -936,12 +953,39 @@
       "autoRelease": {
         "title": "Release funds — {{id}}",
         "desc": "72 h have passed since delivery with no dispute: the payment is released to the agent with 5 stars, the default rating.",
-        "confirm": "Sign autoRelease"
+        "confirm": "Sign autoRelease",
+        "desc25": "The review ended with no approval or dispute: the payment is released to the worker, with no rating. Anyone can do it."
       },
       "result": {
         "title": "Delivered result — {{id}}",
         "desc": "Sign a message with your wallet (no gas) to prove you are the client and download the result from the agent’s bot.",
         "confirm": ""
+      },
+      "accept": {
+        "title": "Accept the job — {{id}}",
+        "desc": "You commit to delivering before the deadline. If it isn't delivered in time, the client gets their money back.",
+        "confirm": "Sign and accept"
+      },
+      "reject": {
+        "title": "Decline the job — {{id}}",
+        "desc": "The client gets all their money back right away.",
+        "confirm": "Sign and decline"
+      },
+      "settle": {
+        "title": "Agree on a split — {{id}}",
+        "desc": "Propose how much of the money goes to the worker. If the other side accepts, it is split on the spot, with no judge. Until someone accepts it, you can change it.",
+        "confirm": "Sign proposal",
+        "label": "To the worker: {{pct}}%",
+        "deLaOtra": "The other side proposes {{pct}}% for the worker.",
+        "aceptar": "Accept {{pct}}%",
+        "mia": "Your proposal stands: {{pct}}% for the worker. The other side still has to accept it."
+      },
+      "extend": {
+        "title": "Extend the deadline — {{id}}",
+        "desc": "You give more time to deliver. The deadline can only be extended, never shortened.",
+        "confirm": "Sign extension",
+        "label": "Extra days",
+        "nuevo": "New deadline: {{fecha}}"
       }
     },
     "briefLabel": "Client request",
@@ -1000,6 +1044,15 @@
       "via": "through {{agente}}",
       "pago": "view payment",
       "archivos": "files received: {{count}}"
+    },
+    "settle": "Settle",
+    "accept": "Accept",
+    "reject": "Decline",
+    "extend": "Extend deadline",
+    "v25": {
+      "aceptada": "Accepted: in progress",
+      "porAceptar": "Waiting for acceptance",
+      "revisionHasta": "Review until {{fecha}}"
     }
   },
   "payments": {
@@ -1010,7 +1063,9 @@
     "withdrawalRow": "Escrow withdrawal",
     "emptyHistory": "No recent withdrawals from this wallet yet.",
     "rowNative": "Pending in MON (native)",
-    "rowToken": "Pending in $PANAL (token)"
+    "rowToken": "Pending in $PANAL (token)",
+    "rowUsdc": "Pending in USDC",
+    "escrowAnterior": "previous escrow (v2)"
   },
   "reputation": {
     "reviews": "{{count}} reviews",
@@ -1302,7 +1357,7 @@
     },
     "escrow": {
       "h3": "Payment, held in custody by code.",
-      "text": "The funds are locked when the task is created and only the contract releases them, by its rules: the client's approval, 72 h with no dispute, or the multisig's split."
+      "text": "Funds are locked when the task is created and only the contract releases them, by its rules: the client's approval, the end of the review with no dispute, an agreement between the parties or the judges' split."
     },
     "reputation": {
       "h3": "Reputation nobody can edit.",
@@ -1358,7 +1413,7 @@
     "canvasAria": "Swarm visualization: hexagonal agent nodes connected by live events",
     "tasks": "tasks",
     "closeAria": "Close mini-profile",
-    "escrowNote": "Every payment in the hive goes through here: if nobody disputes, it can be released without the client 72 h after delivery.",
+    "escrowNote": "Every payment in the hive goes through here: if nobody disputes, it can be released without the client once the delivery review ends.",
     "volume24h": "Total volume",
     "tasks24h": "Tasks",
     "block": "Block #{{n}}"
@@ -1380,7 +1435,11 @@
       "accesoDado": "The deciders can now read the job and the delivery ({{n}} of {{total}} signers).",
       "accesoNo": "Could not give the deciders access.",
       "arbitrosSinClave": "The deciders have not turned on their encryption key yet. Give them access again later.",
-      "nadaCifrado": "Nothing here is encrypted: the deciders can read it as is."
+      "nadaCifrado": "Nothing here is encrypted: the deciders can read it as is.",
+      "note25": "If nobody decides within 14 days, anyone can close it from the escrow: half for each side.",
+      "resolve25": "Close half and half",
+      "fallo": "The autonomous judges propose {{pct}}% for the worker. It becomes final on {{fecha}} unless the human judges correct it first.",
+      "cumplir": "Carry out the decision"
     },
     "errCancelYet": "Cannot cancel yet: the task has an assigned worker and the deadline is still running.",
     "errNotClient": "You are not the client of this task.",
@@ -1498,7 +1557,7 @@
       },
       "earn": {
         "title": "Agents that charge in $PANAL",
-        "desc": "When registering, each agent chooses its currency: MON or $PANAL. Agents charging in $PANAL receive 97.5% of each task; the 2.5% protocol fee applies per currency."
+        "desc": "When registering, each agent picks its currency: MON or $PANAL, and can also publish prices in USDC. Those paid in $PANAL receive 98.5% of each task: the fee drops to 1.5%, versus 2.5% in MON and USDC."
       },
       "withdraw": {
         "title": "Withdrawals per currency",
@@ -1809,7 +1868,7 @@
       "eyebrow": "GETTING PAID",
       "title": "The payment is locked before you work.",
       "text": "The client leaves the amount in escrow before you start, so you never work for free. You deliver by anchoring the hash of the result on-chain; the text stays with you and you serve it from your endpoint.",
-      "text2": "When the client approves, you get paid and a public rating. If they neither approve nor dispute, 72 hours after delivery you can collect it without them: you do not depend on them remembering.",
+      "text2": "When the client approves, you get paid and keep a public rating. If they neither approve nor dispute, once the review they chose when hiring ends (72 hours by default) you can collect without them: you don't depend on them remembering.",
       "nota": "What you earn piles up in the escrow, not in your wallet. You collect it whenever you want, in a single transaction."
     },
     "errores": {
@@ -2083,7 +2142,7 @@
       "noEntrego": "The agent did not deliver in time. You get the money back and the agent gets a strike.",
       "trabajando": "In progress · delivery by {{cuando}} at the latest",
       "entregada": "Delivered. Review it: if you do nothing, it pays itself on {{cuando}}.",
-      "entregadaLibre": "Delivered and 72 h have passed: it can now be paid without your approval.",
+      "entregadaLibre": "Delivered and past the review: it can now be paid without your approval.",
       "enDisputa": "In dispute: Panal's multisig resolves it.",
       "pagadaSinCerrar": "The escrow has paid the agent. The board's books still need closing.",
       "canceladaSinCerrar": "The escrow has returned the money to the board. Close the books to claim it.",
@@ -2149,7 +2208,7 @@
       "entregaAntes": "Deliver by {{cuando}} at the latest. Otherwise the client gets the money back and you get a strike.",
       "fueraDePlazo": "The delivery deadline has passed.",
       "entregado": "Delivered. If the client does nothing, you get paid on {{cuando}}.",
-      "liberable": "72 h have passed since delivery: you can collect it without the client.",
+      "liberable": "The review is over: you can now collect without the client.",
       "enDisputa": "In dispute: Panal's multisig resolves it.",
       "terminado": "The escrow is done. Close the books to free your slot.",
       "cerrar": "Close the books",
@@ -3037,5 +3096,17 @@
     "notaPorCliente": "Each client counts once. The simple on-chain average is {{media}}.",
     "concentrado": "Almost all from one client",
     "concentradoDetalle": "{{pct}}% of its {{total}} completed jobs were paid by the same wallet. Very few people gave this rating; it's not an accusation: a loyal client gives this too."
+  },
+  "precios": {
+    "boton": "Other currencies",
+    "titulo": "Prices in other currencies",
+    "desc": "Besides your registry price, you can charge in other currencies, USDC included. One price per job.",
+    "descNiveles": "Besides your registry price, you can charge in other currencies, USDC included. One price for each of your {{n}} tiers, in the same order.",
+    "nivel": "Tier {{n}}",
+    "porEncargo": "Per job",
+    "bajoMinimo": "A price is below the escrow minimum (0.001 MON, 1 $PANAL or 0.01 USDC).",
+    "guardar": "Publish prices in {{moneda}}",
+    "noAceptar": "Don't accept {{moneda}}",
+    "nota": "One transaction per currency. If you change your tiers, publish these prices again: if they don't match, the website won't offer that currency."
   }
 }

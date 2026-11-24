@@ -36,7 +36,8 @@ import {
 } from '@panal/sdk';
 import { getAddress, keccak256, parseAbi, type Address, type Hex } from 'viem';
 import { BUZON_BASE, accesoSignMessage, expiraEn } from '@/lib/botEndpoint';
-import { PANAL_ESCROW_V2_ADDRESS, publicClient } from '@/contracts/config';
+import { PANAL_ESCROW_V2_5_ADDRESS, PANAL_ESCROW_V2_ADDRESS, publicClient } from '@/contracts/config';
+import { esDelV2_5 } from '@panal/sdk';
 
 export type Firmar = (mensaje: string) => Promise<string>;
 
@@ -217,23 +218,14 @@ export async function darAccesoA(o: {
   return nuevos.length;
 }
 
-/**
- * Quiénes deciden las disputas: los firmantes de la multisig que es el
- * `arbitrator` del escrow. Si el arbitrator fuera una cuenta y no una
- * multisig, es él.
- */
-export async function leerArbitros(): Promise<Address[]> {
-  const arbitrator = (await publicClient.readContract({
-    address: PANAL_ESCROW_V2_ADDRESS,
-    abi: parseAbi(['function arbitrator() view returns (address)']),
-    functionName: 'arbitrator',
-  })) as Address;
+/** Los firmantes de una multisig; si no es una multisig, la cuenta misma. */
+async function firmantesDe(cuenta: Address): Promise<Address[]> {
   const firmantes: Address[] = [];
   for (let i = 0; i < 10; i++) {
     try {
       firmantes.push(
         (await publicClient.readContract({
-          address: arbitrator,
+          address: cuenta,
           abi: parseAbi(['function owners(uint256) view returns (address)']),
           functionName: 'owners',
           args: [BigInt(i)],
@@ -243,7 +235,43 @@ export async function leerArbitros(): Promise<Address[]> {
       break;
     }
   }
-  return firmantes.length > 0 ? firmantes : [arbitrator];
+  return firmantes.length > 0 ? firmantes : [cuenta];
+}
+
+/**
+ * Quiénes deciden la disputa de una tarea: los firmantes de la multisig que
+ * es el `arbitrator` de su escrow. En el v2.5 también los jueces autónomos
+ * (`autoArbitrator`), que proponen la decisión y la leen igual que los humanos.
+ * Sin tarea, los del v2.
+ */
+export async function leerArbitros(taskId?: bigint): Promise<Address[]> {
+  const es25 = taskId !== undefined && esDelV2_5(taskId);
+  const escrow = es25 ? PANAL_ESCROW_V2_5_ADDRESS : PANAL_ESCROW_V2_ADDRESS;
+  const cuentas: Address[] = [
+    (await publicClient.readContract({
+      address: escrow,
+      abi: parseAbi(['function arbitrator() view returns (address)']),
+      functionName: 'arbitrator',
+    })) as Address,
+  ];
+  if (es25) {
+    const auto = (await publicClient.readContract({
+      address: escrow,
+      abi: parseAbi(['function autoArbitrator() view returns (address)']),
+      functionName: 'autoArbitrator',
+    })) as Address;
+    if (auto !== '0x0000000000000000000000000000000000000000') cuentas.push(auto);
+  }
+  const vistos = new Set<string>();
+  const todos: Address[] = [];
+  for (const c of cuentas) {
+    for (const f of await firmantesDe(c)) {
+      if (vistos.has(f.toLowerCase())) continue;
+      vistos.add(f.toLowerCase());
+      todos.push(f);
+    }
+  }
+  return todos;
 }
 
 /**
@@ -267,7 +295,7 @@ export async function darAccesoALosArbitros(o: {
   if (cifrados.length === 0) return { arbitros: 0, sinClave: [], objetos: 0 };
   const conClave: Destinatario[] = [];
   const sinClave: Address[] = [];
-  for (const a of await leerArbitros()) {
+  for (const a of await leerArbitros(o.id)) {
     const clave = await clavePublicaDe(a);
     if (clave) conClave.push({ cuenta: a, clave });
     else sinClave.push(a);

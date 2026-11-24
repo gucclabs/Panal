@@ -33,7 +33,7 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { formatEther } from 'viem';
+import { formatUnits } from 'viem';
 import { Archive, FileText, Loader2, Wallet } from 'lucide-react';
 import HexAvatar from '@/components/HexAvatar';
 import { useLogoDeAgente } from '@/hooks/useLogoDeAgente';
@@ -51,9 +51,10 @@ import { usePanalAgents, isOnchainAgent } from '@/hooks/usePanalAgents';
 import { useWallet } from '@/hooks/useWallet';
 import { getTaskBrief } from '@/lib/taskBriefs';
 import { hayEntrega, leerEntrega } from '@/lib/expedientes';
-import { currencySymbol } from '@/contracts/config';
+import { currencySymbol, decimalesDe } from '@/contracts/config';
 import { cn } from '@/lib/utils';
 import { useTituloDePagina } from '@/hooks/useTituloDePagina';
+import { etiquetaTarea } from '@/lib/escrow';
 
 /** Solo lo entregado. Un encargo sin entrega no tiene contenido que archivar. */
 function esEntrega(task: RealTask): boolean {
@@ -184,7 +185,7 @@ export default function Archivo() {
                         {nombre ?? `${task.worker.slice(0, 6)}…${task.worker.slice(-4)}`}
                       </span>
                     )}
-                    <span className="font-mono text-[0.75rem] text-ink-3">#{task.id.toString()}</span>
+                    <span className="font-mono text-[0.75rem] text-ink-3">{etiquetaTarea(task.id)}</span>
                     {et && (
                       <span
                         className={cn(
@@ -213,7 +214,7 @@ export default function Archivo() {
                     </span>
                     <span aria-hidden>·</span>
                     <span>
-                      {formatEther(task.amountWei)} {currencySymbol(task.currency)}
+                      {formatUnits(task.amountWei, decimalesDe(task.currency))} {currencySymbol(task.currency)}
                     </span>
                     {copiado && (
                       <>

@@ -120,7 +120,7 @@
       "humanPerson": "humano→pessoa",
       "agentPerson": "agente→pessoa"
     },
-    "feeNote": "2,5% protocolo",
+    "feeNote": "2,5% protocolo (1,5% em $PANAL)",
     "newAgent": "Novo agente na colmeia: \"{{name}}\"",
     "registrationPrefix": "Registo on-chain · ",
     "delivered": "{{name}} entregou um resultado",
@@ -224,7 +224,7 @@
       "humEyebrow": "PARA HUMANOS",
       "humTitle": "Ofereça o seu talento humano",
       "humText": "Na colmeia os humanos também têm wallet. Venda serviços com o pagamento em escrow antes de começar, sem faturas nem esperas de 30 dias — e sem montar nada: os encargos chegam à caixa de correio e entregam-se a partir do painel.",
-      "humPoint1": "Recebe ao ser aprovado, ou às 72 h se ninguém disputar",
+      "humPoint1": "Você recebe ao ser aprovado, ou ao fim da revisão se ninguém disputar",
       "humPoint2": "Sem taxas abusivas de plataforma — apenas 2,5%",
       "humPoint3": "Reputação que pertence a si",
       "humCta": "Registar-me como humano"
@@ -299,7 +299,7 @@
         "tagline": "Registo on-chain de agentes: competências, preço por tarefa e metadados. Ser alguém na colmeia custa uma transação."
       },
       "escrow": {
-        "tagline": "O pagamento fica bloqueado quando a tarefa é criada e é libertado quando o cliente aprova a entrega. Se ninguém a disputar, ao fim de 72 h pode ser libertado sem ele."
+        "tagline": "O pagamento fica bloqueado ao criar a tarefa. Quem trabalha a aceita ou recusa, e depois da entrega o cliente tem de 24 h a 7 dias para revisá-la: sem aprovação nem disputa, é liberado sozinho. Em MON, $PANAL ou USDC."
       },
       "reputation": {
         "tagline": "Cada tarefa paga soma à reputação do agente: trabalhos, avaliação e total ganho. Só o escrow escreve nela; ninguém a edita nem a apaga."
@@ -312,6 +312,12 @@
       },
       "tablon": {
         "tagline": "O quadro com regras: o dinheiro espera aqui e o encargo vai para o agente que cumpre as regras — nível, cota e categorias. Limites de beta até à auditoria."
+      },
+      "bans": {
+        "tagline": "As contas suspensas por fraude: não podem contratar nem trabalhar, mas sempre podem sacar seu saldo. Cada suspensão deixa na cadeia a impressão do seu motivo."
+      },
+      "prices": {
+        "tagline": "O que cada agente cobra em MON, $PANAL e USDC, nível por nível. Informativo: o valor é definido pelo cliente ao contratar."
       }
     },
     "lifecycle": {
@@ -337,7 +343,7 @@
       },
       "6": {
         "title": "Pagamento",
-        "text": "O escrow liberta: 97,5% para o agente, 2,5% para o protocolo. Se ninguém disputar, 72 h após a entrega pode ser libertado sem o cliente."
+        "text": "O escrow libera: 97,5% para o agente e 2,5% para o protocolo (em $PANAL, 98,5% e 1,5%). Se ninguém disputar, ao fim da revisão —de 24 h a 7 dias; 72 h por padrão— pode ser liberado sem o cliente."
       },
       "7": {
         "title": "Reputação",
@@ -363,7 +369,7 @@
       },
       "q4": {
         "q": "Porque é a taxa de 2,5%?",
-        "a": "Vai para a tesouraria do protocolo e paga o seu desenvolvimento. Comparado com o que cobram as plataformas freelance tradicionais, até 20%, é uma fração."
+        "a": "Vai para a tesouraria do protocolo e paga o seu desenvolvimento. Se pago em $PANAL, cai para 1,5%. Comparado com o que cobram as plataformas freelance tradicionais, de até 20%, é uma fração."
       },
       "q5": {
         "q": "Um agente pode contratar outro agente?",
@@ -450,14 +456,14 @@
     "step2": {
       "title": "Bloquear o pagamento (escrow)",
       "taskPrice": "Preço da tarefa",
-      "protocolFee": "Dos quais, taxa do protocolo (2,5%)",
+      "protocolFee": "Disso, comissão do protocolo ({{pct}}%)",
       "totalLock": "Total a bloquear",
       "autoRelease": "Se não abrir uma disputa, {{hours}} h após a entrega o agente pode receber sem a sua aprovação.",
       "accept": "Aceito os termos do escrow",
       "wrongNetwork": "Este agente está on-chain: para o contratar a sério, a sua wallet deve estar na Monad.",
       "signLock": "Assinar e bloquear {{price}} MON",
       "lockHire": "Bloquear e contratar",
-      "signLockToken": "Aprovar e bloquear {{price}} $PANAL"
+      "signLockToken": "Aprovar e bloquear {{price}} {{symbol}}"
     },
     "step3": {
       "title": "Confirmação",
@@ -477,7 +483,7 @@
       "sealedDesc": "{{name}} recebeu a sua tarefa. O pagamento está bloqueado no PanalEscrow.",
       "viewDashboard": "Ver tarefa no meu painel",
       "viewExplorer": "Ver no explorador",
-      "sealedDescRealToken": "{{name}} recebeu a sua tarefa. {{price}} $PANAL bloqueados no PanalEscrow.",
+      "sealedDescRealToken": "{{name}} recebeu a sua tarefa. {{price}} {{symbol}} bloqueados no PanalEscrow.",
       "copyBrief": "Copiar brief do pedido",
       "briefCopied": "Brief copiado — envie ao trabalhador por chat",
       "briefSent": "Brief enviado ao agente",
@@ -503,8 +509,8 @@
       "failed": "Não foi possível enviar {{n}} ficheiros. Tenta de novo."
     },
     "approve": {
-      "title": "Aprovando $PANAL",
-      "desc": "Passo 1 de 2 — autorize o escrow a usar seus $PANAL.",
+      "title": "Aprovando {{symbol}}",
+      "desc": "Passo 1 de 2 — autorize o escrow a usar seus {{symbol}}.",
       "signing": "Assine a aprovação na sua carteira…",
       "confirming": "Confirmando a aprovação na Monad…",
       "done": "Aprovação confirmada — agora assine a tarefa."
@@ -531,6 +537,16 @@
       "si": "Cifrado de ponta a ponta: só {{name}} e você podem ler este encargo e os seus ficheiros. Nem a Panal.",
       "no": "{{name}} ainda não ativou o cifrado: a caixa de correio da Panal poderá ler este encargo.",
       "error": "Não foi possível preparar o cifrado. Não se pagou nada; tente novamente."
+    },
+    "porTarea": "{{price}} {{symbol}}/tarefa",
+    "moneda": "Pagar em",
+    "bajoMinimo": "O valor está abaixo do mínimo do escrow (0,001 MON, 1 $PANAL ou 0,01 USDC).",
+    "revision": {
+      "label": "Tempo para revisar a entrega",
+      "h24": "1 dia",
+      "h72": "3 dias",
+      "h168": "7 dias",
+      "hint": "Se nesse tempo você não aprovar nem abrir disputa, o agente recebe."
     }
   },
   "agentCard": {
@@ -630,7 +646,7 @@
       "ia3": "Entrega assinada com o hash ancorado on-chain"
     },
     "sla": {
-      "pago": "O agente não recebe até aprovar a entrega, ou até 72 h depois de entregar se não abrir uma disputa.",
+      "pago": "O agente não recebe até você aprovar a entrega, ou até terminar a revisão que você escolhe ao contratar (72 h por padrão) se não abrir disputa.",
       "plazo": "Se não entregar no prazo que escolhe ao contratar, cancela e recupera todo o dinheiro.",
       "disputa": "Se a entrega não lhe serve, abre uma disputa e a multisig decide que parte volta para si."
     },
@@ -853,7 +869,8 @@
       "conEnlace": "Há uma assinatura à espera. Se não abriu sozinha, abre-a tu e volta aqui quando terminares.",
       "sinEnlace": "Há uma assinatura à espera. Abre a tua carteira para a aprovar e volta aqui quando terminares.",
       "abrir": "Abrir {{wallet}}"
-    }
+    },
+    "enEscrowPista": "creditado, pronto para sacar em Pagamentos"
   },
   "tasks": {
     "status": {
@@ -936,12 +953,39 @@
       "autoRelease": {
         "title": "Liberar fundos — {{id}}",
         "desc": "Passaram 72 h desde a entrega sem disputa: o pagamento é libertado ao agente com 5 estrelas, a avaliação por omissão.",
-        "confirm": "Assinar autoRelease"
+        "confirm": "Assinar autoRelease",
+        "desc25": "A revisão terminou sem aprovação nem disputa: o pagamento é liberado para quem trabalhou, sem nota. Qualquer pessoa pode fazer isso."
       },
       "result": {
         "title": "Resultado entregue — {{id}}",
         "desc": "Assine uma mensagem com sua carteira (sem gas) para provar que você é o cliente e baixar o resultado do bot do agente.",
         "confirm": ""
+      },
+      "accept": {
+        "title": "Aceitar o pedido — {{id}}",
+        "desc": "Você se compromete a entregá-lo antes do prazo. Se não chegar a tempo, o cliente recupera o dinheiro.",
+        "confirm": "Assinar e aceitar"
+      },
+      "reject": {
+        "title": "Recusar o pedido — {{id}}",
+        "desc": "O cliente recupera todo o dinheiro na hora.",
+        "confirm": "Assinar e recusar"
+      },
+      "settle": {
+        "title": "Combinar uma divisão — {{id}}",
+        "desc": "Proponha que parte do dinheiro fica com quem trabalha. Se a outra parte aceitar, a divisão é feita na hora, sem juiz. Enquanto ninguém aceitar, você pode alterá-la.",
+        "confirm": "Assinar proposta",
+        "label": "Para quem trabalha: {{pct}}%",
+        "deLaOtra": "A outra parte propõe {{pct}}% para quem trabalha.",
+        "aceptar": "Aceitar {{pct}}%",
+        "mia": "Sua proposta continua de pé: {{pct}}% para quem trabalha. Falta a outra parte aceitar."
+      },
+      "extend": {
+        "title": "Prorrogar o prazo — {{id}}",
+        "desc": "Você dá mais tempo para entregar. O prazo só pode ser estendido, nunca encurtado.",
+        "confirm": "Assinar prorrogação",
+        "label": "Dias a mais",
+        "nuevo": "Novo prazo: {{fecha}}"
       }
     },
     "briefLabel": "Pedido do cliente",
@@ -1000,6 +1044,15 @@
       "via": "por meio de {{agente}}",
       "pago": "ver pagamento",
       "archivos": "arquivos recebidos: {{count}}"
+    },
+    "settle": "Fazer acordo",
+    "accept": "Aceitar",
+    "reject": "Recusar",
+    "extend": "Prorrogar prazo",
+    "v25": {
+      "aceptada": "Aceita: em andamento",
+      "porAceptar": "Aguardando aceitação",
+      "revisionHasta": "Revisão até {{fecha}}"
     }
   },
   "payments": {
@@ -1010,7 +1063,9 @@
     "withdrawalRow": "Saque do escrow",
     "emptyHistory": "Ainda não há saques recentes desta carteira.",
     "rowNative": "Pendente em MON (nativo)",
-    "rowToken": "Pendente em $PANAL (token)"
+    "rowToken": "Pendente em $PANAL (token)",
+    "rowUsdc": "Pendente em USDC",
+    "escrowAnterior": "escrow anterior (v2)"
   },
   "reputation": {
     "reviews": "{{count}} avaliações",
@@ -1302,7 +1357,7 @@
     },
     "escrow": {
       "h3": "Pagamento, sob custódia do código.",
-      "text": "Os fundos são bloqueados quando a tarefa é criada e só o contrato os liberta, segundo as suas regras: a aprovação do cliente, 72 h sem disputa ou a repartição da multisig."
+      "text": "Os fundos são bloqueados ao criar a tarefa e só o contrato os libera, segundo suas regras: a aprovação do cliente, o fim da revisão sem disputa, um acordo entre as partes ou a divisão dos juízes."
     },
     "reputation": {
       "h3": "Reputação que ninguém pode editar.",
@@ -1358,7 +1413,7 @@
     "canvasAria": "Visualização do enxame: nós hexagonais de agentes ligados por eventos ao vivo",
     "tasks": "tarefas",
     "closeAria": "Fechar mini-perfil",
-    "escrowNote": "Todos os pagamentos da colmeia passam por aqui: se ninguém disputar, podem ser libertados sem o cliente 72 h após a entrega.",
+    "escrowNote": "Todos os pagamentos da colmeia passam por aqui: se ninguém disputar, podem ser liberados sem o cliente ao fim da revisão da entrega.",
     "volume24h": "Volume total",
     "tasks24h": "Tarefas",
     "block": "Bloco #{{n}}"
@@ -1380,7 +1435,11 @@
       "accesoDado": "Quem decide já pode ler o encargo e a entrega ({{n}} de {{total}} signatários).",
       "accesoNo": "Não foi possível dar acesso a quem decide.",
       "arbitrosSinClave": "Quem decide ainda não ativou a chave de cifrado. Dê acesso de novo mais tarde.",
-      "nadaCifrado": "Aqui não há nada cifrado: quem decide pode ler tal como está."
+      "nadaCifrado": "Aqui não há nada cifrado: quem decide pode ler tal como está.",
+      "note25": "Se ninguém decidir em 14 dias, qualquer pessoa pode encerrá-la pelo escrow: metade para cada parte.",
+      "resolve25": "Encerrar meio a meio",
+      "fallo": "Os juízes autônomos propõem {{pct}}% para quem trabalha. Fica definitiva em {{fecha}} se os juízes humanos não a corrigirem antes.",
+      "cumplir": "Cumprir a decisão"
     },
     "errCancelYet": "Ainda não é possível cancelar: a tarefa tem trabalhador atribuído e o prazo continua.",
     "errNotClient": "Você não é o cliente desta tarefa.",
@@ -1498,7 +1557,7 @@
       },
       "earn": {
         "title": "Agentes que cobram em $PANAL",
-        "desc": "Ao se registrar, cada agente escolhe sua moeda: MON ou $PANAL. Quem cobra em $PANAL recebe 97,5% de cada tarefa; a taxa do protocolo de 2,5% se aplica por moeda."
+        "desc": "Ao se registrar, cada agente escolhe sua moeda: MON ou $PANAL, e também pode publicar preços em USDC. Quem recebe em $PANAL fica com 98,5% de cada tarefa: a comissão cai para 1,5%, contra 2,5% em MON e USDC."
       },
       "withdraw": {
         "title": "Saques por moeda",
@@ -1809,7 +1868,7 @@
       "eyebrow": "RECEBER",
       "title": "O pagamento fica bloqueado antes de trabalhar.",
       "text": "O cliente deixa o valor num escrow antes de começar, por isso nunca trabalha de graça. Você entrega ancorando o hash do resultado na cadeia; o texto fica consigo e é servido pelo seu endpoint.",
-      "text2": "Quando o cliente aprova, recebe e fica-lhe uma avaliação pública. Se não aprovar nem disputar, 72 horas após a entrega pode recebê-lo sem ele: não depende de ele se lembrar.",
+      "text2": "Quando o cliente aprova, você recebe e fica com uma avaliação pública. Se ele não aprovar nem disputar, ao fim da revisão que escolheu ao contratar (72 horas por padrão) você pode receber sem ele: não depende de ele lembrar.",
       "nota": "O que recebe acumula-se no escrow, não na sua carteira. Levanta-o quando quiser, numa só transação."
     },
     "errores": {
@@ -2083,7 +2142,7 @@
       "noEntrego": "O agente não entregou a tempo. Recupera o dinheiro e ele leva uma falta.",
       "trabajando": "Em trabalho · entrega até {{cuando}}",
       "entregada": "Entregue. Reveja-o: se não fizer nada, é pago sozinho em {{cuando}}.",
-      "entregadaLibre": "Entregue e passadas 72 h: já pode ser pago sem a sua aprovação.",
+      "entregadaLibre": "Entregue e passada a revisão: já pode ser pago sem a sua aprovação.",
       "enDisputa": "Em disputa: a multisig da Panal resolve.",
       "pagadaSinCerrar": "O escrow já pagou ao agente. Falta fechar as contas no quadro.",
       "canceladaSinCerrar": "O escrow já devolveu o dinheiro ao quadro. Feche as contas para o receber.",
@@ -2149,7 +2208,7 @@
       "entregaAntes": "Entregue até {{cuando}}. Caso contrário, o cliente recupera o dinheiro e leva uma falta.",
       "fueraDePlazo": "O prazo de entrega passou.",
       "entregado": "Entregue. Se o cliente não fizer nada, é pago em {{cuando}}.",
-      "liberable": "Passaram 72 h desde a entrega: já pode receber sem o cliente.",
+      "liberable": "A revisão terminou: você já pode receber sem o cliente.",
       "enDisputa": "Em disputa: a multisig da Panal resolve.",
       "terminado": "O escrow já terminou. Feche as contas para libertar a sua vaga.",
       "cerrar": "Fechar contas",
@@ -3037,5 +3096,17 @@
     "notaPorCliente": "Cada cliente conta uma vez. A média simples na cadeia é {{media}}.",
     "concentrado": "Quase tudo de um mesmo cliente",
     "concentradoDetalle": "{{pct}} % dos seus {{total}} trabalhos concluídos foram pagos pela mesma wallet. Pouquíssimas pessoas deram esta nota; não é uma acusação: um cliente fiel também dá isto."
+  },
+  "precios": {
+    "boton": "Outras moedas",
+    "titulo": "Preços em outras moedas",
+    "desc": "Além do preço do seu registro, você pode cobrar em outras moedas, incluindo USDC. Um preço por pedido.",
+    "descNiveles": "Além do preço do seu registro, você pode cobrar em outras moedas, incluindo USDC. Um preço para cada um dos seus {{n}} níveis, na mesma ordem.",
+    "nivel": "Nível {{n}}",
+    "porEncargo": "Por pedido",
+    "bajoMinimo": "Há um preço abaixo do mínimo do escrow (0,001 MON, 1 $PANAL ou 0,01 USDC).",
+    "guardar": "Publicar preços em {{moneda}}",
+    "noAceptar": "Não aceitar {{moneda}}",
+    "nota": "Uma transação por moeda. Se mudar seus níveis, publique esses preços de novo: se não baterem, o site não oferece essa moeda."
   }
 }

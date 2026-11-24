@@ -33,10 +33,13 @@
 
 import { useQuery } from '@tanstack/react-query';
 import type { Address, Hex } from 'viem';
+import { EstadoV2_5, comoTask, panalEscrowV2_5Abi, tareaV2_5DeLaCadena } from '@panal/sdk';
 import {
   NATIVE_CURRENCY,
   PANAL_ESCROW_ADDRESS,
+  PANAL_ESCROW_V2_5_ADDRESS,
   PANAL_ESCROW_V2_ADDRESS,
+  V2_5_ENABLED,
   V2_ENABLED,
   activeChain,
   publicClient,
@@ -44,6 +47,7 @@ import {
 import { panalEscrowAbi, panalEscrowV2Abi } from '@/contracts/abis';
 import { useWallet } from '@/hooks/useWallet';
 import { fetchTaskIdsOf } from '@/lib/indexer';
+import { esDelV2_5, idDelV2_5, idEnLaCadena, type VersionEscrow } from '@/lib/escrow';
 
 /** Escrow y ABI activos (v2 dual-moneda cuando V2_ENABLED). */
 export const ACTIVE_ESCROW_ADDRESS = V2_ENABLED ? PANAL_ESCROW_V2_ADDRESS : PANAL_ESCROW_ADDRESS;
@@ -59,7 +63,13 @@ export const TASK_STATUS = {
 } as const;
 
 export interface RealTask {
+  /**
+   * El número de fuera de la cadena: el de siempre en el v2, y el de la cadena
+   * más mil millones en el v2.5 (ver lib/escrow.ts). Para firmar, `llamadaDeEscrow`.
+   */
   id: bigint;
+  /** De qué escrow es. */
+  version: VersionEscrow;
   client: Address;
   worker: Address;
   amountWei: bigint;
@@ -73,6 +83,19 @@ export interface RealTask {
   /** timestamp de entrega (solo si status === Delivered) */
   deliveredAt?: bigint;
   role: 'client' | 'worker';
+  // ── Solo v2.5 ──
+  /** Quien trabaja ya la aceptó (sigue «abierta» en `status`: todavía se entrega). */
+  aceptada?: boolean;
+  /** Hasta cuándo puede aceptar, o entregar sin haber aceptado. */
+  acceptBy?: bigint;
+  /** Segundos que tiene el cliente para revisar la entrega. */
+  reviewWindow?: number;
+  /** Cómo se cerró (`CierreV2_5`), si está cerrada. */
+  cierre?: number;
+  /** Cuándo se abrió la disputa, si la hay. */
+  disputedAt?: bigint;
+  /** Al cerrar, la parte de quien trabajó (10.000 = todo). */
+  workerShareBps?: number;
 }
 
 const CHUNK = 5;
@@ -105,7 +128,93 @@ interface RawTaskTuple {
   currency?: Address;
 }
 
+/**
+ * Las del escrow v2.5: los números del indexador desde mil millones, más el
+ * final del escrow por lo mismo que en el v2. Se leen con `getTask`, que trae
+ * de una vez lo que en el v2 son tres lecturas (deliveredAt, disputedAt…).
+ */
+async function fetchMyTasksV2_5(me: Address, delIndice: bigint[] | null): Promise<RealTask[]> {
+  if (!V2_5_ENABLED) return [];
+  const count = (await publicClient.readContract({
+    address: PANAL_ESCROW_V2_5_ADDRESS,
+    abi: panalEscrowV2_5Abi,
+    functionName: 'getTaskCount',
+  })) as bigint;
+  if (count === 0n) return [];
+  const aLeer = new Set<bigint>();
+  for (const id of delIndice ?? []) if (esDelV2_5(id) && idEnLaCadena(id) < count) aLeer.add(idEnLaCadena(id));
+  const ventana = delIndice !== null ? BigInt(VENTANA_RECIENTE) : BigInt(MAX_TASKS_SCAN);
+  for (let i = count > ventana ? count - ventana : 0n; i < count; i++) aLeer.add(i);
+
+  const ids = [...aLeer].sort((a, b) => (a > b ? 1 : a < b ? -1 : 0));
+  const meLc = me.toLowerCase();
+  const mine: RealTask[] = [];
+  for (let i = 0; i < ids.length; i += CHUNK) {
+    const chunk = ids.slice(i, i + CHUNK);
+    const rows = await Promise.all(
+      chunk.map(
+        (id) =>
+          publicClient.readContract({
+            address: PANAL_ESCROW_V2_5_ADDRESS,
+            abi: panalEscrowV2_5Abi,
+            functionName: 'getTask',
+            args: [id],
+          }) as Promise<Record<string, unknown>>,
+      ),
+    );
+    rows.forEach((row, j) => {
+      const t = tareaV2_5DeLaCadena(idDelV2_5(chunk[j]), row);
+      const isClient = t.client.toLowerCase() === meLc;
+      const isWorker = t.worker.toLowerCase() === meLc;
+      if (!isClient && !isWorker) return;
+      const v2 = comoTask(t);
+      mine.push({
+        id: t.id,
+        version: 'v2_5',
+        client: t.client,
+        worker: t.worker,
+        amountWei: t.amount,
+        taskHash: t.taskHash,
+        resultHash: t.resultHash,
+        deadline: t.deadline,
+        createdAt: t.createdAt,
+        status: v2.status,
+        currency: t.currency,
+        deliveredAt: t.deliveredAt > 0n ? t.deliveredAt : undefined,
+        role: isClient ? 'client' : 'worker',
+        aceptada: t.estado === EstadoV2_5.Aceptada,
+        acceptBy: t.acceptBy,
+        reviewWindow: t.reviewWindow,
+        cierre: t.cierre,
+        disputedAt: t.disputedAt > 0n ? t.disputedAt : undefined,
+        workerShareBps: t.workerShareBps,
+      });
+    });
+    if (i + CHUNK < ids.length) await sleep(CHUNK_SLEEP_MS);
+  }
+  return mine;
+}
+
 async function fetchMyTasks(me: Address): Promise<RealTask[]> {
+  // Los números que me nombran, de los dos escrows; null = el indexador no
+  // respondió o va atrasado, y cada escrow cae a su escaneo de respaldo.
+  const cabeza = await publicClient.getBlockNumber().catch(() => undefined);
+  const delIndice = await fetchTaskIdsOf(me, cabeza);
+  // Las del v2.5 no pueden tumbar las del v2: es la pantalla donde se cobra.
+  const [v2, v25] = await Promise.all([
+    fetchMyTasksV2(me, delIndice),
+    fetchMyTasksV2_5(me, delIndice).catch((e: unknown) => {
+      console.warn('[mis tareas] no se pudieron leer las del escrow v2.5', e);
+      return [] as RealTask[];
+    }),
+  ]);
+  // Más recientes primero, de los dos escrows juntos.
+  return [...v2, ...v25].sort((a, b) =>
+    a.createdAt !== b.createdAt ? (a.createdAt > b.createdAt ? -1 : 1) : a.id > b.id ? -1 : a.id < b.id ? 1 : 0,
+  );
+}
+
+async function fetchMyTasksV2(me: Address, delIndice: bigint[] | null): Promise<RealTask[]> {
   const count = (await publicClient.readContract({
     address: ACTIVE_ESCROW_ADDRESS,
     abi: ACTIVE_ESCROW_ABI,
@@ -115,14 +224,10 @@ async function fetchMyTasks(me: Address): Promise<RealTask[]> {
   const total = Number(count);
   if (total === 0) return [];
 
-  // Los ids que me nombran, según el indexador. null = no respondió, o va
-  // tan atrasado que su lista estaría incompleta.
-  const cabeza = await publicClient.getBlockNumber().catch(() => undefined);
-  const delIndice = await fetchTaskIdsOf(me, cabeza);
-
   const aLeer = new Set<string>();
   if (delIndice !== null) {
-    for (const id of delIndice) aLeer.add(id.toString());
+    // Solo los del v2: los del v2.5 van desde mil millones.
+    for (const id of delIndice) if (!esDelV2_5(id)) aLeer.add(id.toString());
     // Su lista va 15 s por detrás, así que se le suma el final del escrow: sin
     // esto, contratas y tu tarea recién creada no aparece en el panel.
     for (let i = Math.max(0, total - VENTANA_RECIENTE); i < total; i++) aLeer.add(String(i));
@@ -162,6 +267,7 @@ async function fetchMyTasks(me: Address): Promise<RealTask[]> {
       if (!isClient && !isWorker) return;
       mine.push({
         id: chunk[j],
+        version: 'v2',
         client: row.client,
         worker: row.worker,
         amountWei: row.amount,
@@ -200,8 +306,7 @@ async function fetchMyTasks(me: Address): Promise<RealTask[]> {
     if (i + CHUNK < delivered.length) await sleep(CHUNK_SLEEP_MS);
   }
 
-  // Más recientes primero.
-  return mine.sort((a, b) => (a.id > b.id ? -1 : a.id < b.id ? 1 : 0));
+  return mine;
 }
 
 export interface MyTasks {
@@ -216,7 +321,7 @@ export function useMyTasks(): MyTasks {
   const addr = (connected && address ? address : null) as Address | null;
 
   const query = useQuery({
-    queryKey: ['my-tasks', activeChain.id, V2_ENABLED, addr],
+    queryKey: ['my-tasks', activeChain.id, V2_ENABLED, V2_5_ENABLED, addr],
     enabled: !!addr,
     queryFn: () => fetchMyTasks(addr as Address),
     staleTime: 10_000,

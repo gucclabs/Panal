@@ -15,6 +15,7 @@ import HexAvatar from '@/components/HexAvatar';
 import EditProfileDialog from '@/components/dashboard/EditProfileDialog';
 import VerificarCuentaDialog from '@/components/dashboard/VerificarCuentaDialog';
 import ClaimNameCard from '@/components/dashboard/ClaimNameCard';
+import PreciosEnMonedas from '@/components/dashboard/PreciosEnMonedas';
 import { parseAgentMetadata } from '@/lib/agentMetadata';
 import { MARCA_VACIA } from '@/lib/marca';
 import { Switch } from '@/components/ui/switch';
@@ -36,6 +37,7 @@ import {
   PANAL_REGISTRY_ADDRESS,
   PANAL_TOKEN_ADDRESS,
   PANAL_REGISTRY_V2_ADDRESS,
+  V2_5_ENABLED,
   V2_ENABLED,
   currencySymbol,
 } from '@/contracts/config';
@@ -57,6 +59,8 @@ export default function OwnAgentCard({ onRegister }: { onRegister: (tipo: 'perso
   const [dialogOpen, setDialogOpen] = useState(false);
   const [profileDialogOpen, setProfileDialogOpen] = useState(false);
   const [cuentaDialogOpen, setCuentaDialogOpen] = useState(false);
+  /** Los precios en otras monedas (PanalPrices, v2.5). */
+  const [preciosOpen, setPreciosOpen] = useState(false);
   const [priceInput, setPriceInput] = useState('');
   /** Moneda elegida en el diálogo de edición (v2: updatePrice la lleva). */
   const [editCurrency, setEditCurrency] = useState<'MON' | '$PANAL'>('MON');
@@ -284,6 +288,17 @@ export default function OwnAgentCard({ onRegister }: { onRegister: (tipo: 'perso
             {t('ownAgent.editProfile.v2Only')}
           </span>
         )}
+        {/* Cobrar también en otras monedas (USDC incluido): PanalPrices, v2.5. */}
+        {V2_5_ENABLED && (
+          <button
+            type="button"
+            onClick={() => setPreciosOpen(true)}
+            disabled={!agent}
+            className="rounded-full border border-line bg-transparent px-3.5 py-1.5 text-[0.8125rem] font-medium text-ink-2 transition-colors hover:border-honey hover:text-honey-deep disabled:opacity-40"
+          >
+            {t('precios.boton')}
+          </button>
+        )}
         {/* La insignia que sí está al alcance de una persona. La del dominio
             solo la gana quien tiene servidor propio, y quien se registró como
             persona recibe en el buzón, que es nuestro: sin esto no tenía nada
@@ -335,6 +350,16 @@ export default function OwnAgentCard({ onRegister }: { onRegister: (tipo: 'perso
           agentName={name}
           agentAddress={address ?? ''}
           onMined={() => profile.refetch()}
+        />
+      )}
+
+      {agent && V2_5_ENABLED && address && (
+        <PreciosEnMonedas
+          open={preciosOpen}
+          onOpenChange={setPreciosOpen}
+          agente={address as `0x${string}`}
+          metadataURI={agent.metadataURI}
+          monedaDelRegistro={agent.currency ?? NATIVE_CURRENCY}
         />
       )}
 

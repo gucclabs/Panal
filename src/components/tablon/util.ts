@@ -7,7 +7,8 @@
 
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { formatEther } from 'viem';
+import { formatUnits } from 'viem';
+import { decimalesDe } from '@/contracts/config';
 import { shortAddress } from '@/hooks/useWallet';
 import { usePanalAgents } from '@/hooks/usePanalAgents';
 import { cn } from '@/lib/utils';
@@ -27,8 +28,9 @@ export const CAMPO =
  * cola y con separador de miles, que en $PANAL las cantidades son de siete
  * cifras. Con punto decimal, como el resto de cantidades de la web.
  */
-export function cantidad(wei: bigint): string {
-  return Number(formatEther(wei)).toLocaleString('en-US', { maximumFractionDigits: 3 });
+/** Un importe en su moneda: USDC lleva 6 decimales, MON y $PANAL 18 (sin moneda, 18). */
+export function cantidad(wei: bigint, moneda?: string | null): string {
+  return Number(formatUnits(wei, decimalesDe(moneda))).toLocaleString('en-US', { maximumFractionDigits: 3 });
 }
 
 /**

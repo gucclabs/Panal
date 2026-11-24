@@ -3,14 +3,13 @@ import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
 import { Check, Download } from 'lucide-react';
 import { toast } from 'sonner';
-import { formatEther } from 'viem';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import TxHash from '@/components/TxHash';
 import { cn } from '@/lib/utils';
 import type { Agent } from '@/data/agents';
 import { formatMon } from '@/data/agents';
 import { timeAgo, truncateHash } from '@/data/events';
-import { currencySymbol } from '@/contracts/config';
+import { currencySymbol, enUnidades } from '@/contracts/config';
 import { useIndexAgentEvents, type IndexedEvent } from '@/lib/indexer';
 
 type ActivityStatus = 'completada' | 'en-curso' | 'disputa';
@@ -65,7 +64,7 @@ function amountOf(ev: IndexedEvent): string | null {
   if (wei === undefined) return null;
   const currency = String(ev.args['currency'] ?? ev.args['token'] ?? '');
   try {
-    return `${formatMon(Number(formatEther(BigInt(String(wei)))), 5)} ${currencySymbol(currency || null)}`;
+    return `${formatMon(enUnidades(BigInt(String(wei)), currency || null), 5)} ${currencySymbol(currency || null)}`;
   } catch {
     return null;
   }

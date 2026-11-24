@@ -45,7 +45,7 @@ const DEEP_DIVE_COPY: Partial<Record<ContractInfo['id'], DeepDiveCopy>> = {
     h3: 'deepdive.escrow.h3',
     text: 'deepdive.escrow.text',
     bullets: [],
-    snippet: 'function approveAndRelease(uint256 taskId, uint8 rating) external; // o autoRelease(taskId), 72 h tras la entrega',
+    snippet: 'function approveAndRelease(uint256 taskId, uint8 rating) external; // o release([taskId]) al acabar la revisión (24 h a 7 días)',
   },
   reputation: {
     h3: 'deepdive.reputation.h3',

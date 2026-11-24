@@ -19,6 +19,12 @@
  * LECTURAS EN BLOQUE. Una fila del tablón son varias lecturas (el encargo, sus
  * ofertas, su tarea del escrow), y el RPC público limita. Van por Multicall3:
  * cincuenta encargos son una sola petición.
+ *
+ * DOS TABLONES (24-nov-2026). Lo nuevo se publica en el tablón v2.5, que
+ * reparte en el escrow v2.5 y admite USDC; el v2 sigue para lo que ya estaba
+ * en marcha. Igual que las tareas, los encargos del v2.5 llevan FUERA DE LA
+ * CADENA su número más mil millones: con ese número se elige el contrato
+ * (`enTablon`) y el buzón (`buzonDelTablon`), y a la cadena va el de verdad.
  */
 
 import {
@@ -32,6 +38,15 @@ import {
 } from 'viem';
 import {
   MAX_FILE_BYTES,
+  REVISION_POR_DEFECTO_S,
+  comoTask,
+  esDelV2_5,
+  idDelV2_5,
+  idEnLaCadena,
+  panalEscrowV2_5Abi,
+  panalTablonV2_5Abi,
+  tareaV2_5DeLaCadena,
+  type VersionEscrow,
   encargoDeLaCadena,
   ofertaDeLaCadena,
   panalTablonAbi,
@@ -52,18 +67,51 @@ import {
 import {
   MULTICALL3_ADDRESS,
   NATIVE_CURRENCY,
+  PANAL_ESCROW_V2_5_ADDRESS,
   PANAL_ESCROW_V2_ADDRESS,
   PANAL_TABLON_ADDRESS,
+  PANAL_TABLON_V2_5_ADDRESS,
   PANAL_TOKEN_ADDRESS,
+  USDC_TOKEN_ADDRESS,
+  V2_5_ENABLED,
+  currencySymbol,
   publicClient,
+  type SimboloMoneda,
 } from '@/contracts/config';
 import { panalEscrowV2Abi } from '@/contracts/abis';
 import { BUZON_BASE, cabecerasFirma, expiraEn } from '@/lib/botEndpoint';
 import { nombreEnBuzon } from '@/lib/cifrado';
+import { llamadaDeEscrow } from '@/lib/escrow';
 
 const TABLON = PANAL_TABLON_ADDRESS as Address;
-export const BUZON_DEL_TABLON = `${BUZON_BASE}/${PANAL_TABLON_ADDRESS}`;
+const TABLON_V2_5 = PANAL_TABLON_V2_5_ADDRESS as Address;
 const ABI = panalTablonAbi as unknown as Abi;
+const ABI_V2_5 = panalTablonV2_5Abi as unknown as Abi;
+
+/** Dónde se publica lo nuevo: el tablón v2.5 en mainnet, el v2 donde no está. */
+export const VERSION_PARA_PUBLICAR: VersionEscrow = V2_5_ENABLED ? 'v2_5' : 'v2';
+
+/** De qué tablón es un encargo, por su número de fuera de la cadena. */
+export function versionDelEncargo(jobId: bigint): VersionEscrow {
+  return esDelV2_5(jobId) ? 'v2_5' : 'v2';
+}
+
+function tablonDe(version: VersionEscrow): { address: Address; abi: Abi } {
+  return version === 'v2_5' ? { address: TABLON_V2_5, abi: ABI_V2_5 } : { address: TABLON, abi: ABI };
+}
+
+/** El buzón de un tablón: los textos van bajo su dirección. */
+function buzonDe(version: VersionEscrow): string {
+  return `${BUZON_BASE}/${version === 'v2_5' ? PANAL_TABLON_V2_5_ADDRESS : PANAL_TABLON_ADDRESS}`;
+}
+
+/** El buzón donde viven los textos de un encargo (por su número de fuera). */
+export function buzonDelTablon(jobId: bigint): string {
+  return buzonDe(versionDelEncargo(jobId));
+}
+
+/** El buzón del tablón donde se publica ahora. */
+export const BUZON_PARA_PUBLICAR = buzonDe(VERSION_PARA_PUBLICAR);
 
 /** Encargos por llamada a Multicall3. Cincuenta structs caben de sobra. */
 const POR_LOTE = 50;
@@ -71,19 +119,27 @@ const POR_LOTE = 50;
 /** Gas como mucho para una firma en el tablón: la que más gasta crea la tarea. */
 const TOPE_GAS = 3_000_000n;
 
-/** Las dos monedas del tablón: MON nativo y $PANAL. */
-export const MONEDAS_TABLON = [NATIVE_CURRENCY, PANAL_TOKEN_ADDRESS as Address] as const;
+/** Las monedas de cada tablón: MON y $PANAL en el v2; además USDC en el v2.5. */
+export const MONEDAS_DE_TABLON: Record<VersionEscrow, readonly Address[]> = {
+  v2: [NATIVE_CURRENCY, PANAL_TOKEN_ADDRESS as Address],
+  v2_5: [NATIVE_CURRENCY, PANAL_TOKEN_ADDRESS as Address, USDC_TOKEN_ADDRESS],
+};
+
+/** Las monedas en que se puede publicar ahora. */
+export const MONEDAS_TABLON = MONEDAS_DE_TABLON[VERSION_PARA_PUBLICAR];
 
 /**
  * Una tarea del escrow que repartió PanalTablon: en el escrow, su cliente es el
  * tablón, no quien publicó. Se enseña como «Tablón», no como una dirección.
+ * Cualquiera de los dos tablones.
  */
 export function esDelTablon(cliente: string): boolean {
-  return cliente.toLowerCase() === PANAL_TABLON_ADDRESS.toLowerCase();
+  const c = cliente.toLowerCase();
+  return c === PANAL_TABLON_ADDRESS.toLowerCase() || c === PANAL_TABLON_V2_5_ADDRESS.toLowerCase();
 }
 
-export function simboloDe(moneda: Address): 'MON' | '$PANAL' {
-  return moneda.toLowerCase() === PANAL_TOKEN_ADDRESS.toLowerCase() ? '$PANAL' : 'MON';
+export function simboloDe(moneda: Address): SimboloMoneda {
+  return currencySymbol(moneda);
 }
 
 /* ── lecturas ─────────────────────────────────────────────────────────── */
@@ -107,21 +163,38 @@ async function enBloque<T>(llamadas: { functionName: string; args?: readonly unk
   return out;
 }
 
-/** Los últimos `limite` encargos, del más nuevo al más viejo, en cualquier estado. */
-export async function leerEncargos(limite = 200): Promise<EncargoConReglas[]> {
-  const total = (await publicClient.readContract({ address: TABLON, abi: ABI, functionName: 'jobCount' })) as bigint;
+/** Los últimos `limite` encargos de un tablón, con su número de fuera de la cadena. */
+async function encargosDe(version: VersionEscrow, limite: number): Promise<EncargoConReglas[]> {
+  const tablon = tablonDe(version);
+  const total = (await publicClient.readContract({ ...tablon, functionName: 'jobCount' })) as bigint;
   const ids: bigint[] = [];
   for (let i = total - 1n; i >= 0n && ids.length < limite; i--) ids.push(i);
   if (ids.length === 0) return [];
-  const crudos = await enBloque<Record<string, unknown>>(ids.map((id) => ({ functionName: 'getJob', args: [id] })));
-  return crudos.map((j, k) => encargoDeLaCadena(ids[k]!, j));
+  const crudos = await enBloque<Record<string, unknown>>(ids.map((id) => ({ ...tablon, functionName: 'getJob', args: [id] })));
+  return crudos.map((j, k) =>
+    version === 'v2_5' ? encargoDeLaCadena(idDelV2_5(ids[k]!), j, 'v2_5') : encargoDeLaCadena(ids[k]!, j),
+  );
 }
 
-/** Las ofertas de varios encargos de selección, por número de encargo. */
+/**
+ * Los últimos encargos de los dos tablones, del más nuevo al más viejo, en
+ * cualquier estado. Si el v2.5 no responde, quedan los del v2 (y al revés).
+ */
+export async function leerEncargos(limite = 200): Promise<EncargoConReglas[]> {
+  const [v25, v2] = await Promise.all([
+    V2_5_ENABLED ? encargosDe('v2_5', limite).catch(() => [] as EncargoConReglas[]) : Promise.resolve([]),
+    encargosDe('v2', limite),
+  ]);
+  return [...v25, ...v2].sort((a, b) => b.publicadoEn - a.publicadoEn).slice(0, limite);
+}
+
+/** Las ofertas de varios encargos de selección, por número de encargo (de fuera). */
 export async function leerOfertas(ids: bigint[]): Promise<Map<string, OfertaConReglas[]>> {
   const out = new Map<string, OfertaConReglas[]>();
   if (ids.length === 0) return out;
-  const listas = await enBloque<readonly Record<string, unknown>[]>(ids.map((id) => ({ functionName: 'offers', args: [id] })));
+  const listas = await enBloque<readonly Record<string, unknown>[]>(
+    ids.map((id) => ({ ...tablonDe(versionDelEncargo(id)), functionName: 'offers', args: [idEnLaCadena(id)] })),
+  );
   listas.forEach((lista, k) => out.set(ids[k]!.toString(), lista.map(ofertaDeLaCadena)));
   return out;
 }
@@ -134,81 +207,129 @@ export interface TareaDelTablon {
   resultHash: Hex;
   entregadaEn: number;
   disputadaEn: number;
+  /** Solo v2.5: la revisión de esta tarea, en segundos (en el v2, la de `ReglasDelTablon`). */
+  revisionS?: number;
 }
 
-/** Las tareas del escrow de los encargos asignados, por id de tarea. */
+/** Las tareas del escrow de los encargos asignados, por id de tarea (de fuera de la cadena). */
 export async function leerTareas(taskIds: bigint[]): Promise<Map<string, TareaDelTablon>> {
   const out = new Map<string, TareaDelTablon>();
-  if (taskIds.length === 0) return out;
-  const escrow = { address: PANAL_ESCROW_V2_ADDRESS as Address, abi: panalEscrowV2Abi as unknown as Abi };
-  const res = await enBloque<unknown>(
-    taskIds.flatMap((id) => [
-      { ...escrow, functionName: 'tasks', args: [id] },
-      { ...escrow, functionName: 'deliveredAt', args: [id] },
-      { ...escrow, functionName: 'disputedAt', args: [id] },
-    ]),
-  );
-  taskIds.forEach((id, k) => {
-    const t = res[k * 3] as { status: number; deadline: bigint; resultHash: Hex };
-    out.set(id.toString(), {
-      estado: Number(t.status),
-      plazo: Number(t.deadline),
-      resultHash: t.resultHash,
-      entregadaEn: Number(res[k * 3 + 1] as bigint),
-      disputadaEn: Number(res[k * 3 + 2] as bigint),
+  const delV2 = taskIds.filter((id) => !esDelV2_5(id));
+  const delV25 = taskIds.filter((id) => esDelV2_5(id));
+  if (delV2.length > 0) {
+    const escrow = { address: PANAL_ESCROW_V2_ADDRESS as Address, abi: panalEscrowV2Abi as unknown as Abi };
+    const res = await enBloque<unknown>(
+      delV2.flatMap((id) => [
+        { ...escrow, functionName: 'tasks', args: [id] },
+        { ...escrow, functionName: 'deliveredAt', args: [id] },
+        { ...escrow, functionName: 'disputedAt', args: [id] },
+      ]),
+    );
+    delV2.forEach((id, k) => {
+      const t = res[k * 3] as { status: number; deadline: bigint; resultHash: Hex };
+      out.set(id.toString(), {
+        estado: Number(t.status),
+        plazo: Number(t.deadline),
+        resultHash: t.resultHash,
+        entregadaEn: Number(res[k * 3 + 1] as bigint),
+        disputadaEn: Number(res[k * 3 + 2] as bigint),
+      });
     });
-  });
+  }
+  if (delV25.length > 0) {
+    // En el v2.5, `getTask` trae todo de una vez; el estado se da con la forma
+    // del v2 (aceptada cuenta como abierta: todavía se entrega).
+    const escrow = { address: PANAL_ESCROW_V2_5_ADDRESS as Address, abi: panalEscrowV2_5Abi as unknown as Abi };
+    const res = await enBloque<Record<string, unknown>>(
+      delV25.map((id) => ({ ...escrow, functionName: 'getTask', args: [idEnLaCadena(id)] })),
+    );
+    delV25.forEach((id, k) => {
+      const t = tareaV2_5DeLaCadena(id, res[k]!);
+      out.set(id.toString(), {
+        estado: Number(comoTask(t).status),
+        plazo: Number(t.deadline),
+        resultHash: t.resultHash,
+        entregadaEn: Number(t.deliveredAt),
+        disputadaEn: Number(t.disputedAt),
+        revisionS: t.reviewWindow,
+      });
+    });
+  }
   return out;
 }
 
-/** Los topes de la beta, lo que ya ocupa cada moneda y los mínimos. */
+/** Los topes de la beta, lo que ya ocupa cada moneda y los mínimos: los del tablón donde se publica. */
 export interface ReglasDelTablon {
+  /** Solo el tablón v2 se podía pausar; el v2.5 no tiene pausa. */
   pausado: boolean;
   /** Por moneda (dirección en minúsculas). 0 = sin tope. */
   topes: Record<string, { porEncargo: bigint; total: bigint; ocupado: bigint }>;
-  minimoMon: bigint;
-  minimoPanal: bigint;
-  /** Del escrow: liberación automática y disputa atascada, en segundos. */
+  /** El mínimo por encargo, por moneda (dirección en minúsculas). */
+  minimos: Record<string, bigint>;
+  /**
+   * La revisión de las tareas del v2 (72 h, `AUTO_RELEASE`), en segundos. Las
+   * del v2.5 traen la suya (`TareaDelTablon.revisionS`).
+   */
   liberacionS: number;
+  /** Lo que tarda en caducar una disputa (14 días en los dos escrows). */
   disputaS: number;
 }
 
 export async function leerReglas(): Promise<ReglasDelTablon> {
   const escrow = { address: PANAL_ESCROW_V2_ADDRESS as Address, abi: panalEscrowV2Abi as unknown as Abi };
-  const [pausado, minMon, minPanal, liberacion, disputa, ...porMoneda] = await enBloque<unknown>([
-    { functionName: 'paused' },
-    { functionName: 'MIN_NATIVE' },
-    { functionName: 'MIN_TOKEN' },
+  const tablon = tablonDe(VERSION_PARA_PUBLICAR);
+  const es25 = VERSION_PARA_PUBLICAR === 'v2_5';
+  const monedas = MONEDAS_TABLON;
+  // Los mínimos: MIN_NATIVE en los dos; MIN_TOKEN en el v2; MIN_PANAL y MIN_USDC en el v2.5.
+  const nombresMinimos = es25 ? ['MIN_NATIVE', 'MIN_PANAL', 'MIN_USDC'] : ['MIN_NATIVE', 'MIN_TOKEN'];
+  const [liberacion, disputa, ...resto] = await enBloque<unknown>([
     { ...escrow, functionName: 'AUTO_RELEASE' },
     { ...escrow, functionName: 'DISPUTE_TIMEOUT' },
-    ...MONEDAS_TABLON.flatMap((m) => [
-      { functionName: 'caps', args: [m] },
-      { functionName: 'books', args: [m] },
+    ...(es25 ? [] : [{ ...tablon, functionName: 'paused' }]),
+    ...nombresMinimos.map((n) => ({ ...tablon, functionName: n })),
+    ...monedas.flatMap((m) => [
+      { ...tablon, functionName: 'caps', args: [m] },
+      { ...tablon, functionName: 'books', args: [m] },
     ]),
   ]);
+  const pausado = es25 ? false : Boolean(resto.shift());
+  const minimos: Record<string, bigint> = {};
+  monedas.forEach((m) => {
+    minimos[m.toLowerCase()] = resto.shift() as bigint;
+  });
   const topes: ReglasDelTablon['topes'] = {};
-  MONEDAS_TABLON.forEach((m, k) => {
-    const [porEncargo, total] = porMoneda[k * 2] as readonly [bigint, bigint];
-    const [posted, inEscrow] = porMoneda[k * 2 + 1] as readonly [bigint, bigint, bigint, bigint, bigint];
-    topes[m.toLowerCase()] = { porEncargo, total, ocupado: posted + inEscrow };
+  monedas.forEach((m, k) => {
+    const [porEncargo, total] = resto[k * 2] as readonly [bigint, bigint];
+    // `books`: (posted, inEscrow, owedTotal[, pulled, attributed] en el v2).
+    const [posted, inEscrow] = resto[k * 2 + 1] as readonly bigint[];
+    topes[m.toLowerCase()] = { porEncargo, total, ocupado: posted! + inEscrow! };
   });
   return {
-    pausado: Boolean(pausado),
+    pausado,
     topes,
-    minimoMon: minMon as bigint,
-    minimoPanal: minPanal as bigint,
+    minimos,
     liberacionS: Number(liberacion as bigint),
     disputaS: Number(disputa as bigint),
   };
 }
 
-/** Nivel, cupo, suspensión y categorías de un agente. */
+/** Cuándo se puede liberar una tarea del tablón entregada (unix), o null. */
+export function liberableDesde(tarea: TareaDelTablon, reglas: ReglasDelTablon | undefined): number | null {
+  const revision = tarea.revisionS ?? reglas?.liberacionS;
+  return revision === undefined ? null : tarea.entregadaEn + revision;
+}
+
+/** La revisión que se pone a los encargos que se publican ahora (v2.5). */
+export const REVISION_AL_PUBLICAR_S = REVISION_POR_DEFECTO_S;
+
+/** Nivel, cupo, suspensión y categorías de un agente, en el tablón donde se publica ahora. */
 export async function leerSituacion(agente: Address): Promise<SituacionEnElTablon> {
+  const tablon = tablonDe(VERSION_PARA_PUBLICAR);
   const [[nivel, cupo], stats, novato, mascara] = (await enBloque<unknown>([
-    { functionName: 'levelOf', args: [agente] },
-    { functionName: 'agentStats', args: [agente] },
-    { functionName: 'newcomerJobs' },
-    { functionName: 'categoryMask', args: [agente] },
+    { ...tablon, functionName: 'levelOf', args: [agente] },
+    { ...tablon, functionName: 'agentStats', args: [agente] },
+    { ...tablon, functionName: 'newcomerJobs' },
+    { ...tablon, functionName: 'categoryMask', args: [agente] },
   ])) as [readonly [number, number], readonly [number, number, number, number, bigint], number, bigint];
   return situacionDe(
     {
@@ -228,17 +349,31 @@ export async function leerSituacion(agente: Address): Promise<SituacionEnElTablo
   );
 }
 
-/** Lo que el tablón le debe a una dirección, por moneda (minúsculas). */
-export async function leerDeuda(quien: Address): Promise<Record<string, bigint>> {
-  const res = await enBloque<bigint>(MONEDAS_TABLON.map((m) => ({ functionName: 'owed', args: [quien, m] })));
-  return Object.fromEntries(MONEDAS_TABLON.map((m, k) => [m.toLowerCase(), res[k]!]));
+/** Lo que un tablón le debe a alguien en una moneda. */
+export interface Deuda {
+  version: VersionEscrow;
+  moneda: Address;
+  cantidad: bigint;
+}
+
+/** Lo que los dos tablones le deben a una dirección, por tablón y moneda (solo lo que no es cero). */
+export async function leerDeuda(quien: Address): Promise<Deuda[]> {
+  const pares = (V2_5_ENABLED ? (['v2_5', 'v2'] as const) : (['v2'] as const)).flatMap((version) =>
+    MONEDAS_DE_TABLON[version].map((moneda) => ({ version, moneda })),
+  );
+  const res = await enBloque<bigint>(
+    pares.map(({ version, moneda }) => ({ ...tablonDe(version), functionName: 'owed', args: [quien, moneda] })),
+  );
+  return pares.map((p, k) => ({ ...p, cantidad: res[k]! })).filter((d) => d.cantidad > 0n);
 }
 
 /** Si un agente puede coger u ofertar en cada encargo, y por qué no. */
 export async function leerPermisos(agente: Address, ids: bigint[]): Promise<Map<string, { ok: boolean; motivo: string }>> {
   const out = new Map<string, { ok: boolean; motivo: string }>();
   if (ids.length === 0) return out;
-  const res = await enBloque<readonly [boolean, string]>(ids.map((id) => ({ functionName: 'canTake', args: [agente, id] })));
+  const res = await enBloque<readonly [boolean, string]>(
+    ids.map((id) => ({ ...tablonDe(versionDelEncargo(id)), functionName: 'canTake', args: [agente, idEnLaCadena(id)] })),
+  );
   res.forEach(([ok, motivo], k) => out.set(ids[k]!.toString(), { ok, motivo }));
   return out;
 }
@@ -254,9 +389,21 @@ export async function leerAnuncios(
 ): Promise<{ anuncios: Map<string, string>; confidenciales: Set<string> }> {
   const out = new Map<string, string>();
   const confidenciales = new Set<string>();
-  const res = await fetch(`${BUZON_DEL_TABLON}/lista`, { signal: AbortSignal.timeout(10_000) });
-  if (!res.ok) return { anuncios: out, confidenciales };
-  const { anuncios = [] } = (await res.json()) as { anuncios?: { jobId: string; anuncio: string; cifrado?: boolean }[] };
+  // Los de los dos tablones: cada buzón tiene los suyos.
+  const versiones = V2_5_ENABLED ? (['v2_5', 'v2'] as const) : (['v2'] as const);
+  const listas = await Promise.all(
+    versiones.map(async (v) => {
+      try {
+        const res = await fetch(`${buzonDe(v)}/lista`, { signal: AbortSignal.timeout(10_000) });
+        if (!res.ok) return [];
+        const cuerpo = (await res.json()) as { anuncios?: { jobId: string; anuncio: string; cifrado?: boolean }[] };
+        return cuerpo.anuncios ?? [];
+      } catch {
+        return [];
+      }
+    }),
+  );
+  const anuncios = listas.flat();
   const hashes = new Map(encargos.map((j) => [j.id.toString(), j.advertHash.toLowerCase()]));
   for (const a of anuncios) {
     if (typeof a.anuncio !== 'string') continue;
@@ -277,7 +424,7 @@ export async function leerAnuncios(
  */
 export async function buzonAceptaElTablon(): Promise<boolean> {
   try {
-    const res = await fetch(`${BUZON_DEL_TABLON}/lista`, { signal: AbortSignal.timeout(10_000) });
+    const res = await fetch(`${BUZON_PARA_PUBLICAR}/lista`, { signal: AbortSignal.timeout(10_000) });
     if (!res.ok) return false;
     const cuerpo = (await res.json()) as { anuncios?: unknown };
     return Array.isArray(cuerpo.anuncios);
@@ -295,7 +442,12 @@ export async function buzonAceptaElTablon(): Promise<boolean> {
  */
 export async function buzonAceptaArchivos(): Promise<boolean> {
   try {
-    const res = await fetch(`${BUZON_DEL_TABLON}/archivo/0`, { method: 'POST', signal: AbortSignal.timeout(10_000) });
+    // Un número del tablón donde se publica: el buzón rechaza con 404 los del otro.
+    const cero = VERSION_PARA_PUBLICAR === 'v2_5' ? idDelV2_5(0n) : 0n;
+    const res = await fetch(`${BUZON_PARA_PUBLICAR}/archivo/${cero.toString()}`, {
+      method: 'POST',
+      signal: AbortSignal.timeout(10_000),
+    });
     return res.status !== 404;
   } catch {
     return false;
@@ -312,7 +464,7 @@ export async function guardarTextos(jobId: bigint, anuncio: string, encargo: str
     ['anuncio', 'anuncio', anuncio],
     ['brief', 'brief', encargo],
   ] as const) {
-    const res = await fetch(`${BUZON_DEL_TABLON}/${ruta}/${jobId.toString()}`, {
+    const res = await fetch(`${buzonDelTablon(jobId)}/${ruta}/${jobId.toString()}`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ [campo]: texto }),
@@ -369,7 +521,7 @@ export async function leerEncargoConFirma(
   job: EncargoConReglas,
   cred: CredencialTablon,
 ): Promise<{ brief: string | null; cred: CredencialTablon; accesos: Acceso[] }> {
-  const res = await fetch(`${BUZON_DEL_TABLON}/encargo/${job.id.toString()}`, {
+  const res = await fetch(`${buzonDelTablon(job.id)}/encargo/${job.id.toString()}`, {
     headers: cabecerasFirma(cred.yo, cred.firma, cred.expira),
     signal: AbortSignal.timeout(15_000),
   });
@@ -393,7 +545,7 @@ export async function dejarEntrega(jobId: bigint, texto: string, yo: Address, fi
   const hash = keccak256(toBytes(texto));
   const expira = expiraEn();
   const firma = await firmar(tablonEntregaSignMessage(jobId, hash, expira));
-  const res = await fetch(`${BUZON_DEL_TABLON}/entrega/${jobId.toString()}`, {
+  const res = await fetch(`${buzonDelTablon(jobId)}/entrega/${jobId.toString()}`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ entrega: texto, address: yo, signature: firma, expira }),
@@ -414,7 +566,7 @@ export async function leerEntregaConFirma(
   resultHash: Hex,
   cred: CredencialTablon,
 ): Promise<{ texto: string | null; cred: CredencialTablon; accesos: Acceso[] }> {
-  const res = await fetch(`${BUZON_DEL_TABLON}/result/${jobId.toString()}`, {
+  const res = await fetch(`${buzonDelTablon(jobId)}/result/${jobId.toString()}`, {
     headers: cabecerasFirma(cred.yo, cred.firma, cred.expira),
     signal: AbortSignal.timeout(15_000),
   });
@@ -446,7 +598,7 @@ export async function subirArchivosDelTablon(
   let hechos = 0;
   for (const a of archivos) {
     const nombre = sanitizeFileName(a.name);
-    const res = await fetch(`${BUZON_DEL_TABLON}/archivo/${jobId.toString()}`, {
+    const res = await fetch(`${buzonDelTablon(jobId)}/archivo/${jobId.toString()}`, {
       method: 'POST',
       headers: {
         ...cabecerasFirma(cred.yo, cred.firma, cred.expira),
@@ -480,7 +632,7 @@ export async function bajarArchivoDelTablon(
   // opaco: el de verdad solo lo sabe quien leyó ese texto.
   const nombre = cifrado ? nombreEnBuzon(archivo.hash) : sanitizeFileName(archivo.name);
   const res = await fetch(
-    `${BUZON_DEL_TABLON}/archivo/${jobId.toString()}/${encodeURIComponent(nombre)}?de=${de}`,
+    `${buzonDelTablon(jobId)}/archivo/${jobId.toString()}/${encodeURIComponent(nombre)}?de=${de}`,
     { headers: cabecerasFirma(cred.yo, cred.firma, cred.expira), signal: AbortSignal.timeout(180_000) },
   );
   if (!res.ok) throw new Error(`«${nombre}»: HTTP ${res.status}`);
@@ -502,8 +654,51 @@ export interface FirmaEnTablon {
   value?: bigint;
 }
 
-export function enTablon(functionName: string, args: readonly unknown[], value?: bigint): FirmaEnTablon {
-  return { address: TABLON, abi: ABI, functionName, args, ...(value ? { value } : {}) };
+/** Funciones del tablón cuyo primer argumento es el número de un encargo. */
+const CON_ENCARGO = new Set([
+  'take',
+  'applyFor',
+  'withdrawOffer',
+  'withdrawJob',
+  'choose',
+  'autoAssign',
+  'approve',
+  'dispute',
+  'settle',
+  'expire',
+  'attestResolution',
+  // Solo v2.5:
+  'proposeSettlement',
+  'acceptSettlement',
+  'extendDeadline',
+]);
+
+const CERO32 = `0x${'0'.repeat(64)}` as Hex;
+
+/**
+ * Una firma en el tablón que toca. Con un encargo (primer argumento), el de
+ * su versión y su número de la cadena; sin él (publicar, categorías), el
+ * tablón donde se publica ahora, salvo que se diga otro (`version`: cobrar lo
+ * que debe cada tablón).
+ */
+export function enTablon(
+  functionName: string,
+  args: readonly unknown[],
+  value?: bigint,
+  version?: VersionEscrow,
+): FirmaEnTablon {
+  let v: VersionEscrow = version ?? VERSION_PARA_PUBLICAR;
+  let a = args;
+  if (CON_ENCARGO.has(functionName) && typeof args[0] === 'bigint') {
+    v = versionDelEncargo(args[0]);
+    a = [idEnLaCadena(args[0]), ...args.slice(1)];
+  }
+  // El v2.5 deja en la cadena la huella del motivo de la disputa; cero si no hay.
+  if (functionName === 'dispute' && v === 'v2_5' && a.length === 1) a = [...a, CERO32];
+  if (functionName === 'dispute' && v === 'v2_5' && typeof a[1] === 'string' && !a[1].startsWith('0x')) {
+    a = [a[0], a[1].trim() ? keccak256(toBytes(a[1].trim())) : CERO32];
+  }
+  return { ...tablonDe(v), functionName, args: a, ...(value ? { value } : {}) };
 }
 
 /**
@@ -619,28 +814,33 @@ const erc20 = [
 ] as const satisfies Abi;
 
 /**
- * En $PANAL, el permiso EXACTO al tablón antes de pagar. Nunca infinito: un
- * fallo del contrato no puede llevarse más de lo que se iba a pagar. Si ya
- * hay permiso suficiente, no pide nada.
+ * Con un token ($PANAL, o USDC en el v2.5), el permiso EXACTO al tablón antes
+ * de pagar. Nunca infinito: un fallo del contrato no puede llevarse más de lo
+ * que se iba a pagar. Si ya hay permiso suficiente, no pide nada.
+ *
+ * `version`: el tablón al que se paga (el donde se publica, o el de un encargo
+ * ya publicado, al elegir una oferta más cara).
  */
-export async function permitirPanal(escribir: Escribir, cuenta: Address, importe: bigint): Promise<Hex | null> {
-  const token = PANAL_TOKEN_ADDRESS as Address;
+export async function permitirToken(
+  escribir: Escribir,
+  cuenta: Address,
+  token: Address,
+  importe: bigint,
+  version: VersionEscrow = VERSION_PARA_PUBLICAR,
+): Promise<Hex | null> {
+  const tablon = tablonDe(version).address;
   const actual = (await publicClient.readContract({
     address: token,
     abi: erc20,
     functionName: 'allowance',
-    args: [cuenta, TABLON],
+    args: [cuenta, tablon],
   })) as bigint;
   if (actual >= importe) return null;
-  return firmarYEsperar(escribir, cuenta, { address: token, abi: erc20 as unknown as Abi, functionName: 'approve', args: [TABLON, importe] });
+  return firmarYEsperar(escribir, cuenta, { address: token, abi: erc20 as unknown as Abi, functionName: 'approve', args: [tablon, importe] });
 }
 
-/** Entregar en el escrow: el agente ancla el hash de lo que dejó en el buzón. */
+/** Entregar en el escrow (el de la tarea): el agente ancla el hash de lo que dejó en el buzón. */
 export function entregarEnEscrow(taskId: bigint, resultHash: Hex): FirmaEnTablon {
-  return {
-    address: PANAL_ESCROW_V2_ADDRESS as Address,
-    abi: panalEscrowV2Abi as unknown as Abi,
-    functionName: 'deliverResult',
-    args: [taskId, resultHash],
-  };
+  const l = llamadaDeEscrow(taskId, { tipo: 'entregar', resultHash });
+  return { address: l.address, abi: l.abi as unknown as Abi, functionName: l.functionName, args: l.args ?? [] };
 }

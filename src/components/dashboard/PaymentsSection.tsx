@@ -18,46 +18,52 @@ import TxHash from '@/components/TxHash';
 import { useWallet } from '@/hooks/useWallet';
 import { useContractAction } from '@/hooks/useContractAction';
 import { useWithdrawals } from '@/hooks/useWithdrawals';
+import { usePendientes, type Pendiente } from '@/hooks/usePendientes';
 import {
   EXPLORER_TX,
-  NATIVE_CURRENCY,
   PANAL_ESCROW_ADDRESS,
-  PANAL_ESCROW_V2_ADDRESS,
-  PANAL_TOKEN_ADDRESS,
   V2_ENABLED,
   activeChain,
+  currencySymbol,
+  enUnidades,
   publicClient,
+  type SimboloMoneda,
 } from '@/contracts/config';
-import { panalEscrowAbi, panalEscrowV2Abi } from '@/contracts/abis';
+import { panalEscrowAbi } from '@/contracts/abis';
+import { escrowDe } from '@/lib/escrow';
 import { formatMonEs } from './data';
 
+/** La etiqueta de cada moneda. */
+const ETIQUETA: Record<SimboloMoneda, string> = {
+  MON: 'payments.rowNative',
+  $PANAL: 'payments.rowToken',
+  USDC: 'payments.rowUsdc',
+};
+
 /**
- * Fila de pendiente por moneda (escrow v2): pendingWithdrawals(token, me) y
- * botón withdraw(token) con el patrón de escritura obligatorio.
+ * Fila de pendiente por moneda y escrow: pendingWithdrawals(token, me) y
+ * botón withdraw(token) con el patrón de escritura obligatorio. Cada escrow
+ * guarda su saldo, así que se retira de cada uno por separado.
  */
-function PendingRowV2({ token, symbol, labelKey }: { token: Address; symbol: string; labelKey: string }) {
+function PendingRow({ p, onMined }: { p: Pendiente; onMined: () => void }) {
   const { t } = useTranslation();
   const { address } = useWallet();
-  const addr = (address ?? null) as `0x${string}` | null;
+  const pending = p.cantidad;
 
-  const { data: pending, refetch: refetchPending } = useReadContract({
-    address: PANAL_ESCROW_V2_ADDRESS,
-    abi: panalEscrowV2Abi,
-    functionName: 'pendingWithdrawals',
-    args: addr ? [token, addr] : undefined,
-    chainId: activeChain.id,
-    query: { enabled: !!addr, refetchInterval: 15_000, retry: 1 },
-  });
+  const action = useContractAction({ onMined });
 
-  const action = useContractAction({ onMined: () => void refetchPending() });
-
-  const pendingNum = pending !== undefined ? Number(formatEther(pending)) : null;
+  const pendingNum = pending !== undefined ? enUnidades(pending, p.currency) : null;
   const canWithdraw = pending !== undefined && pending > 0n && !action.busy;
+  const symbol = p.simbolo;
+  const token = p.currency;
 
   return (
     <div className="flex flex-col gap-4 rounded-2xl border border-line bg-paper p-6 shadow-card sm:flex-row sm:items-center sm:justify-between">
       <div>
-        <p className="eyebrow text-ink-3">{t(labelKey)}</p>
+        <p className="eyebrow text-ink-3">
+          {t(ETIQUETA[symbol])}
+          {p.version === 'v2' && ` · ${t('payments.escrowAnterior')}`}
+        </p>
         <p className="mt-1 font-mono text-[2rem] font-medium leading-none text-ink">
           {pendingNum === null ? '…' : formatMonEs(pendingNum)}
           <span className="ml-1.5 text-[0.5em] text-ink-3">{symbol}</span>
@@ -93,8 +99,7 @@ function PendingRowV2({ token, symbol, labelKey }: { token: Address; symbol: str
               // Gas fijado a mano: sin él, Monad puede cobrar por retirar más
               // de lo que se retira. Ver `gasDeRetirada`.
               const llamada = {
-                address: PANAL_ESCROW_V2_ADDRESS,
-                abi: panalEscrowV2Abi,
+                ...escrowDe(p.version),
                 functionName: 'withdraw',
                 args: [token],
               } as const;
@@ -126,6 +131,15 @@ export default function PaymentsSection() {
   const addr = (address ?? null) as `0x${string}` | null;
 
   const withdrawals = useWithdrawals();
+  const pendientes = usePendientes();
+  /**
+   * Qué filas se enseñan: del v2.5 (donde va todo lo nuevo), MON y $PANAL
+   * siempre y USDC si hay algo; del v2, solo lo que quede por retirar.
+   */
+  const filas = pendientes.pendientes.filter(
+    (p) =>
+      (p.version === 'v2_5' && p.simbolo !== 'USDC') || (p.cantidad !== undefined && p.cantidad > 0n),
+  );
 
   const { data: pending, refetch: refetchPending } = useReadContract({
     address: PANAL_ESCROW_ADDRESS,
@@ -160,12 +174,17 @@ export default function PaymentsSection() {
   return (
     <div className="flex flex-col gap-6">
       {/* Pendiente de retiro + Withdraw real (v2: una fila por moneda) */}
-      {V2_ENABLED && (
-        <>
-          <PendingRowV2 token={NATIVE_CURRENCY} symbol="MON" labelKey="payments.rowNative" />
-          <PendingRowV2 token={PANAL_TOKEN_ADDRESS as Address} symbol="$PANAL" labelKey="payments.rowToken" />
-        </>
-      )}
+      {V2_ENABLED &&
+        filas.map((p) => (
+          <PendingRow
+            key={`${p.version}-${p.currency}`}
+            p={p}
+            onMined={() => {
+              pendientes.refetch();
+              withdrawals.refetch();
+            }}
+          />
+        ))}
       {!V2_ENABLED && (
       <div className="flex flex-col gap-5 rounded-2xl border border-line bg-paper p-6 shadow-card sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -256,7 +275,7 @@ export default function PaymentsSection() {
                   </div>
                   <div className="flex shrink-0 flex-col items-end gap-1">
                     <span className="font-mono text-[0.9375rem] font-medium text-olive">
-                      +{formatMonEs(Number(formatEther(w.amountWei)))} MON
+                      +{formatMonEs(enUnidades(w.amountWei, w.token))} {currencySymbol(w.token)}
                     </span>
                     <TxHash hash={w.txHash} className="text-[0.6875rem]" />
                   </div>

@@ -42,6 +42,7 @@ import {
   enTablon,
   entregaConArchivos,
   entregarEnEscrow,
+  liberableDesde,
   firmarYEsperar,
   leerEncargoConFirma,
   simboloDe,
@@ -50,6 +51,7 @@ import {
 } from '@/lib/tablonReglas';
 import { abrirBytes, abrirTexto, cifrarArchivos, clavePublicaDe, publicarMiClave } from '@/lib/cifrado';
 import { cn } from '@/lib/utils';
+import { numeroVisible } from '@/lib/escrow';
 import PruebasDeLaDisputa from '@/components/dashboard/PruebasDeLaDisputa';
 import { ElegirArchivos, ListaDeArchivos } from './Archivos';
 import { Chip, Girando, Importe, NombreDeCategoria } from './comun';
@@ -150,7 +152,7 @@ export default function MiTrabajo({ datos, yo, esAgente }: { datos: DatosDelTabl
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-[0.875rem] text-ink">{datos.anuncios.get(j.id.toString()) ?? `#${j.id.toString()}`}</p>
                     <p className="mt-1 text-[0.75rem] text-ink-3">
-                      {t('tablon.tuOferta', { n: cantidad(o.precio), moneda: simboloDe(j.moneda), dur: duracion(o.plazoEntregaS) })}
+                      {t('tablon.tuOferta', { n: cantidad(o.precio, j.moneda), moneda: simboloDe(j.moneda), dur: duracion(o.plazoEntregaS) })}
                       {' · '}
                       {ahora < finOfertas
                         ? t('tablon.ofertasQuedan', { dur: duracion(finOfertas - ahora), n: (datos.ofertas.get(j.id.toString()) ?? []).length })
@@ -379,7 +381,7 @@ function Asignado({ job, datos, yo }: { job: EncargoConReglas; datos: DatosDelTa
     puedeEntregar = ahora <= tarea.plazo;
     estado = puedeEntregar ? t('tablon.trabajo.entregaAntes', { cuando: fecha(tarea.plazo) }) : t('tablon.trabajo.fueraDePlazo');
   } else if (tarea.estado === ENTREGADA) {
-    const libre = reglas ? tarea.entregadaEn + reglas.liberacionS : null;
+    const libre = liberableDesde(tarea, reglas);
     puedeCerrar = libre !== null && ahora >= libre;
     estado = puedeCerrar ? t('tablon.trabajo.liberable') : t('tablon.trabajo.entregado', { cuando: libre ? fecha(libre) : '…' });
   } else if (tarea.estado === EN_DISPUTA) {
@@ -410,7 +412,7 @@ function Asignado({ job, datos, yo }: { job: EncargoConReglas; datos: DatosDelTa
               </Chip>
             )}
             <span className="font-mono text-[12px] text-ink-3">
-              #{id} · {t('tablon.trabajo.tarea', { id: job.escrowTaskId.toString() })}
+              #{numeroVisible(job.id)} · {t('tablon.trabajo.tarea', { id: numeroVisible(job.escrowTaskId) })}
             </span>
           </div>
         </div>

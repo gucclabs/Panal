@@ -26,10 +26,10 @@
  */
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { formatEther } from 'viem';
 import { leerTipo } from '@panal/sdk';
 import i18n from '@/i18n';
-import { currencySymbol } from '@/contracts/config';
+import { currencySymbol, enUnidades } from '@/contracts/config';
+import { numeroVisible } from '@/lib/escrow';
 import { formatMon } from '@/data/agents';
 import { truncateHash } from '@/data/events';
 import type { LiveEvent, PartyKind } from '@/data/events';
@@ -81,12 +81,20 @@ async function quienesSon(): Promise<Quienes> {
 
 const t = (key: string, opts?: Record<string, unknown>) => i18n.t(key, opts);
 
-/** Las cantidades llegan como texto (wei): no caben en un number. */
-function monto(v: unknown): number | undefined {
+/**
+ * Las cantidades llegan como texto (unidades mínimas): no caben en un number.
+ * Con la moneda, en sus decimales (USDC lleva 6); sin ella, 18.
+ */
+function monto(v: unknown, moneda?: unknown): number | undefined {
   if (typeof v !== 'string' && typeof v !== 'number') return undefined;
   const s = String(v);
   if (!/^\d+$/.test(s)) return undefined;
-  return Number(formatEther(BigInt(s)));
+  return enUnidades(BigInt(s), typeof moneda === 'string' ? moneda : null);
+}
+
+/** El número de una tarea tal y como se enseña: «140», o «5 · v2.5» en el escrow v2.5. */
+function numeroDeTarea(id: string): string {
+  return /^\d+$/.test(id) ? numeroVisible(BigInt(id)) : id;
 }
 
 function relationFor(fromKind: PartyKind, toKind: PartyKind): string | undefined {
@@ -119,7 +127,9 @@ function mapEvent(ev: IndexedEvent, q: Quienes, tareas: Map<string, DeLaTarea>, 
     txHash: ev.txHash,
     secondsAgo: Math.max(0, nowSec - ev.ts),
   };
-  const taskId = args.taskId !== undefined ? String(args.taskId) : undefined;
+  const taskIdCrudo = args.taskId !== undefined ? String(args.taskId) : undefined;
+  // Para enseñarlo: los del v2.5 llegan con su número más mil millones.
+  const taskId = taskIdCrudo !== undefined ? numeroDeTarea(taskIdCrudo) : undefined;
 
   switch (ev.event) {
     case 'AgentRegistered':
@@ -149,11 +159,13 @@ function mapEvent(ev: IndexedEvent, q: Quienes, tareas: Map<string, DeLaTarea>, 
         toAddress: completa(args.worker),
         toKind,
         task: taskId ? t('live.taskNum', { id: taskId }) : undefined,
-        amount: monto(args.amount),
+        amount: monto(args.amount, args.currency),
         currency: typeof args.currency === 'string' ? args.currency : undefined,
         relation: relationFor(fromKind, toKind),
       };
     }
+    // v2.5: quien trabaja acepta (o coge una abierta). Se enseña como el «reclamada» del v2.
+    case 'TaskAccepted':
     case 'TaskClaimed':
       return {
         ...base,
@@ -166,7 +178,7 @@ function mapEvent(ev: IndexedEvent, q: Quienes, tareas: Map<string, DeLaTarea>, 
     case 'TaskDelivered': {
       // El evento no dice quién entrega: se saca de la contratación de esa
       // tarea si está entre los eventos pedidos.
-      const quien = taskId ? tareas.get(taskId)?.trabajador : undefined;
+      const quien = taskIdCrudo ? tareas.get(taskIdCrudo)?.trabajador : undefined;
       return {
         ...base,
         type: 'entrega',
@@ -185,11 +197,32 @@ function mapEvent(ev: IndexedEvent, q: Quienes, tareas: Map<string, DeLaTarea>, 
         toAddress: completa(args.worker),
         toKind: kindOf(args.worker),
         task: taskId ? t('live.taskCompleted', { id: taskId }) : undefined,
-        amount: monto(args.workerPaid),
+        amount: monto(args.workerPaid, taskIdCrudo ? tareas.get(taskIdCrudo)?.moneda : undefined),
         // El pago no dice la moneda; la dice la contratación. Sin ella salía
         // un pago en $PANAL como si fuera MON.
-        currency: taskId ? tareas.get(taskId)?.moneda : undefined,
+        currency: taskIdCrudo ? tareas.get(taskIdCrudo)?.moneda : undefined,
       };
+    case 'TaskClosed': {
+      // v2.5: el cierre de una tarea. Es un pago si quien trabajó cobró algo
+      // (aprobada, por tiempo, acuerdo o decisión); si no, se devolvió.
+      const moneda = taskIdCrudo ? tareas.get(taskIdCrudo)?.moneda : undefined;
+      const cobrado = monto(args.workerPaid, moneda) ?? 0;
+      if (cobrado <= 0) return null;
+      const quien = taskIdCrudo ? tareas.get(taskIdCrudo)?.trabajador : undefined;
+      return {
+        ...base,
+        type: 'pago',
+        from: short(quien),
+        fromAddress: completa(quien),
+        fromKind: quien ? kindOf(quien) : 'agente',
+        to: short(quien),
+        toAddress: completa(quien),
+        toKind: quien ? kindOf(quien) : 'agente',
+        task: taskId ? t('live.taskCompleted', { id: taskId }) : undefined,
+        amount: cobrado,
+        currency: moneda,
+      };
+    }
     case 'TaskDisputed':
       return {
         ...base,
@@ -211,7 +244,7 @@ function mapEvent(ev: IndexedEvent, q: Quienes, tareas: Map<string, DeLaTarea>, 
         toAddress: completa(args.to),
         toKind: kindOf(args.to),
         task: t('live.withdrawal'),
-        amount: monto(args.amount),
+        amount: monto(args.amount, args.token),
         currency: typeof args.token === 'string' ? args.token : undefined,
       };
     default:
@@ -235,7 +268,7 @@ async function fetchOnchainEvents(prev: LiveEvent[] | undefined): Promise<LiveEv
   );
   const tareas = new Map<string, DeLaTarea>();
   for (const ev of ordenados) {
-    if (ev.event !== 'TaskCreated' && ev.event !== 'TaskClaimed') continue;
+    if (ev.event !== 'TaskCreated' && ev.event !== 'TaskClaimed' && ev.event !== 'TaskAccepted') continue;
     const id = String(ev.args?.taskId);
     const tarea = tareas.get(id) ?? {};
     if (!tarea.trabajador && typeof ev.args?.worker === 'string') tarea.trabajador = ev.args.worker;

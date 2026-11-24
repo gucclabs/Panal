@@ -13,7 +13,7 @@ import { motion } from 'framer-motion';
 import { Check, Copy, Plus, Wallet } from 'lucide-react';
 import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
-import { formatEther } from 'viem';
+import { formatEther, formatUnits } from 'viem';
 import type { Address } from 'viem';
 import HexAvatar from '@/components/HexAvatar';
 import SectionHeader from '@/components/SectionHeader';
@@ -36,7 +36,7 @@ import { formatMonEs, formatRatingEs } from '@/components/dashboard/data';
 import { TASK_STATUS, useMyTasks } from '@/hooks/useMyTasks';
 import type { RealTask } from '@/hooks/useMyTasks';
 import { avgRating, useMyAgentProfile } from '@/hooks/useMyAgentProfile';
-import { NATIVE_CURRENCY, PANAL_TOKEN_ADDRESS, currencySymbol } from '@/contracts/config';
+import { NATIVE_CURRENCY, PANAL_TOKEN_ADDRESS, currencySymbol, enUnidades } from '@/contracts/config';
 
 type RangeKey = '7' | '30' | '90';
 
@@ -54,7 +54,8 @@ function sumaPorMoneda(tareas: RealTask[]): { symbol: string; amount: number }[]
     porMoneda.set(s, (porMoneda.get(s) ?? 0n) + tk.amountWei);
   }
   return [...porMoneda]
-    .map(([symbol, wei]) => ({ symbol, amount: Number(formatEther(wei)) }))
+    // USDC lleva 6 decimales; MON y $PANAL, 18.
+    .map(([symbol, wei]) => ({ symbol, amount: Number(formatUnits(wei, symbol === 'USDC' ? 6 : 18)) }))
     .filter((x) => x.amount > 0)
     // MON primero por ser la nativa; con una sola moneda da igual el orden.
     .sort((a, b) => (a.symbol === currencySymbol(NATIVE_CURRENCY) ? -1 : b.symbol === currencySymbol(NATIVE_CURRENCY) ? 1 : 0));
@@ -101,7 +102,7 @@ function buildCumulativeSeries(tasks: RealTask[], days: number, currency: Addres
     .filter((tk) => tk.currency.toLowerCase() === currency.toLowerCase())
     .map((tk) => ({
       t: Number(tk.createdAt),
-      mon: Number(formatEther(tk.amountWei)),
+      mon: enUnidades(tk.amountWei, tk.currency),
     }));
   const out: EarningsPoint[] = [];
   let acc = amounts.filter((a) => a.t < start).reduce((s, a) => s + a.mon, 0);

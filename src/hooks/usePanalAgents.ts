@@ -350,7 +350,9 @@ function descripcionEnIdioma(f: CatalogAgent, idioma: string): string {
 
 function delCatalogo(fichas: CatalogAgent[], idioma: string): OnchainAgent[] {
   return fichas
-    .filter((f) => f.active)
+    // Ni los inactivos ni los suspendidos en PanalBans: el escrow v2.5 no
+    // deja contratarlos, y ofrecerlos acabaría en una firma que revierte.
+    .filter((f) => f.active && f.suspended !== true)
     .map((f) => {
       const addr = f.address as Address;
       const priceWei = BigInt(f.pricePerTask);

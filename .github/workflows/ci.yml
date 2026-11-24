@@ -196,6 +196,12 @@ jobs:
       - name: La reputación cuenta clientes, no solo estrellas
         run: pnpm exec tsx scripts/test-reputacion.ts
 
+      # Las dos versiones del escrow: cada acción a su contrato y con el número
+      # de la cadena, los botones con las reglas del v2.5, y ninguna moneda con
+      # precios que no cuadren con los niveles.
+      - name: El escrow v2 y el v2.5 en la web
+        run: pnpm exec tsx scripts/test-escrow-web.ts
+
       - name: Build de produccion
         run: pnpm exec vite build
 

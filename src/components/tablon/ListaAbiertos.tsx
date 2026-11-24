@@ -13,7 +13,8 @@ import { Link } from 'react-router-dom';
 import { useSignMessage } from 'wagmi';
 import { toast } from 'sonner';
 import { Lock, TriangleAlert } from 'lucide-react';
-import { parseEther, type Address } from 'viem';
+import { parseUnits, type Address } from 'viem';
+import { decimalesDe } from '@/contracts/config';
 import {
   CATEGORIAS_TABLON,
   EstadoTablon,
@@ -33,6 +34,7 @@ import type { DatosDelTablon } from '@/hooks/useTablonReglas';
 import { claveDeMotivo, enTablon, firmarYEsperar, simboloDe } from '@/lib/tablonReglas';
 import { clavePublicaDe, publicarMiClave } from '@/lib/cifrado';
 import { cn } from '@/lib/utils';
+import { numeroVisible } from '@/lib/escrow';
 import { Chip, Girando, Importe, NombreDeCategoria } from './comun';
 import { BOTON_LINEA, BOTON_MIEL, BOTON_PELIGRO, CAMPO, cantidad, useDuracion } from './util';
 
@@ -268,7 +270,7 @@ function TarjetaAbierta({
             {esMio && <Chip tono="miel">{t('tablon.esTuyo')}</Chip>}
           </div>
           <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[12px] text-ink-3">
-            <span>#{id}</span>
+            <span>#{numeroVisible(job.id)}</span>
             <span>{shortAddress(job.cliente)}</span>
             <span>{t('tablon.entregaEn', { dur: duracion(job.plazoEntregaS) })}</span>
             <span>
@@ -288,7 +290,7 @@ function TarjetaAbierta({
               miOferta ? (
                 <div className="flex flex-col items-end gap-1.5 text-right">
                   <span className="text-[0.75rem] text-ink-2">
-                    {t('tablon.tuOferta', { n: cantidad(miOferta.precio), moneda: simboloDe(job.moneda), dur: duracion(miOferta.plazoEntregaS) })}
+                    {t('tablon.tuOferta', { n: cantidad(miOferta.precio, job.moneda), moneda: simboloDe(job.moneda), dur: duracion(miOferta.plazoEntregaS) })}
                   </span>
                   <div className="flex gap-1.5">
                     <button type="button" onClick={() => setOfertando((v) => !v)} disabled={ocupado !== null} className={BOTON_LINEA}>
@@ -346,11 +348,13 @@ function FormOferta({ job, previa, onHecho }: { job: EncargoConReglas; previa?: 
   const duracion = useDuracion();
   const { ejecutar, ocupado } = useFirmaDelTablon();
   const simbolo = simboloDe(job.moneda);
-  const [precio, setPrecio] = useState(cantidad(previa?.precio ?? job.importe));
+  const [precio, setPrecio] = useState(cantidad(previa?.precio ?? job.importe, job.moneda));
   const plazos = [...new Set([...PLAZOS_OFERTA.filter((p) => p < job.plazoEntregaS), job.plazoEntregaS])].sort((a, b) => a - b);
   const [plazo, setPlazo] = useState(previa?.plazoEntregaS ?? job.plazoEntregaS);
   const precioStr = precio.replace(',', '.').trim();
-  const precioWei = /^\d+(\.\d{1,18})?$/.test(precioStr) ? parseEther(precioStr) : null;
+  // En la moneda del encargo: USDC lleva 6 decimales.
+  const decimales = decimalesDe(job.moneda);
+  const precioWei = new RegExp(`^\\d+(\\.\\d{1,${decimales}})?$`).test(precioStr) ? parseUnits(precioStr, decimales) : null;
   const porEncima = precioWei !== null && precioWei > job.importe;
   const clave = `ofertar:${job.id.toString()}`;
 
