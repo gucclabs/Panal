@@ -32,7 +32,7 @@ interface IERC20PermitV2_5 {
 }
 
 /// @title PanalEscrowV2_5
-/// @notice El escrow de Panal, versión 2.5. Diseño y datos en escrow-v2.5/README.md.
+/// @notice El escrow de Panal, versión 2.5. Reglas y despliegue en contracts/V2_5.md.
 ///
 /// LA REGLA (del fundador, 23-nov-2026):
 ///   Si quien trabaja no entrega en el plazo, el cliente recupera el dinero, y
