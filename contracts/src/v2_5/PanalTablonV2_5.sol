@@ -15,7 +15,7 @@ interface ITablonToken {
 /// @title PanalTablonV2_5
 /// @notice El tablón con reglas, delante de PanalEscrowV2_5. Es el tablón v2
 ///         (BOARD.md) puesto sobre el escrow v2.5; lo que cambia está en
-///         V2_5.md.
+///         escrow-v2.5/contratos/TABLON.md.
 ///
 ///         El dinero espera aquí, no en el escrow. Cuando un agente pasa las
 ///         reglas (nivel, cupo, categoría, faltas, campaña, suspensiones), este
