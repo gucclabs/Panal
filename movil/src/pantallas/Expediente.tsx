@@ -40,6 +40,7 @@ import HojaConversacion from '~/componentes/HojaConversacion';
 import HojaPruebas from '~/componentes/HojaPruebas';
 import { etiquetaIdioma, useTextos } from '~/i18n/idiomas';
 import type { Textos } from '~/i18n/idiomas';
+import { numeroVisible } from '@/lib/escrow';
 
 /**
  * Un encargo, entero.
@@ -369,7 +370,7 @@ export default function Expediente(): React.ReactElement {
         </button>
         <div className="min-w-0 grow">
           <h1 className="font-display text-[19px] font-semibold -tracking-[0.015em]">
-            {T.expediente.titulo(String(e.id))}
+            {T.expediente.titulo(numeroVisible(BigInt(e.id)))}
           </h1>
           <p className="truncate text-[11.5px] text-ink-3">
             {datosAgente?.nombre ?? corta(e.agente)} · {dia(e.cadena.creado)}
@@ -396,7 +397,7 @@ export default function Expediente(): React.ReactElement {
             {rotulo}
           </span>
           <span className="ml-auto font-mono text-[13px]" style={{ color }}>
-            {monto(e.cadena.importe)} {e.cadena.simbolo}
+            {monto(e.cadena.importe, e.cadena.simbolo)} {e.cadena.simbolo}
           </span>
         </div>
 

@@ -4,14 +4,14 @@ import { useWaitForTransactionReceipt, useWriteContract } from 'wagmi';
 import type { Address } from 'viem';
 import { useWallet } from '@/hooks/useWallet';
 import { useAhora } from '@/hooks/useAhora';
-import { panalEscrowV2Abi } from '@/contracts/abis';
 import {
   NATIVE_CURRENCY,
-  PANAL_ESCROW_V2_ADDRESS,
   PANAL_TOKEN_ADDRESS,
+  USDC_TOKEN_ADDRESS,
   currencySymbol,
   publicClient,
 } from '@/contracts/config';
+import { escrowDe } from '@/lib/escrow';
 import { gasDeRetirada } from '@/lib/reservaDeGas';
 import Icono from '~/componentes/Icono';
 import type { NombreIcono } from '~/componentes/Icono';
@@ -185,11 +185,14 @@ function FilaGuardia({
    */
   const [sinFirmar, setSinFirmar] = useState(false);
   const cobrar = async (): Promise<void> => {
+    // Del escrow de la fila: cada uno guarda su saldo, y el v2.5 también en USDC.
+    const moneda =
+      fila.moneda ??
+      (fila.simbolo === '$PANAL' ? PANAL_TOKEN_ADDRESS : fila.simbolo === 'USDC' ? USDC_TOKEN_ADDRESS : NATIVE_CURRENCY);
     const llamada = {
-      address: PANAL_ESCROW_V2_ADDRESS,
-      abi: panalEscrowV2Abi,
+      ...escrowDe(fila.escrow ?? 'v2'),
       functionName: 'withdraw',
-      args: [(fila.simbolo === '$PANAL' ? PANAL_TOKEN_ADDRESS : NATIVE_CURRENCY) as Address],
+      args: [moneda as Address],
     } as const;
     setSinFirmar(false);
     try {
@@ -234,7 +237,7 @@ function FilaGuardia({
           disabled={trabajando}
           className="pulsable tocable mt-3 w-full rounded-full bg-monad py-2.5 text-[14px] font-semibold text-white shadow-monad disabled:opacity-50"
         >
-          {trabajando ? T.guardia.firmando : T.guardia.cobrar(monto(fila.importe), fila.simbolo)}
+          {trabajando ? T.guardia.firmando : T.guardia.cobrar(monto(fila.importe, fila.simbolo), fila.simbolo)}
         </button>
       )}
       {sinFirmar && <p className="mt-2 text-[12px] leading-[1.5] text-terra">{T.panel.retiradaNoSeFirmo}</p>}
@@ -263,7 +266,7 @@ function FilaGuardia({
  * es — el dinero está dentro del escrow, no en manos de nadie.
  */
 function explicar(f: Fila, vencida: boolean, T: Textos): string {
-  const deposito = T.guardia.deposito(monto(f.importe), f.simbolo);
+  const deposito = T.guardia.deposito(monto(f.importe, f.simbolo), f.simbolo);
   switch (f.motivo) {
     case 'sin-entregar':
       return vencida
@@ -272,7 +275,7 @@ function explicar(f: Fila, vencida: boolean, T: Textos): string {
     case 'sin-cobrar':
       // La cantidad va en el texto y no solo en el botón: siguiendo un agente
       // que no es tuyo no hay botón, y sin ella la fila no decía nada.
-      return T.guardia.explSinCobrar(monto(f.importe), f.simbolo);
+      return T.guardia.explSinCobrar(monto(f.importe, f.simbolo), f.simbolo);
     case 'sin-aprobar':
       return T.guardia.explSinAprobar(deposito);
     case 'disputa':

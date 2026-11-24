@@ -35,7 +35,7 @@ export default function Barras({ cuentas }: { cuentas: Cuentas }): React.ReactEl
     <div className="shrink-0 rounded-[18px] border border-line bg-cream p-[18px]">
       <div className="flex items-baseline justify-between gap-3">
         <p className="text-[13px] font-semibold">{T.informe.grafico}</p>
-        <p className="shrink-0 font-mono text-[12px] text-ink-3">{montoCuadro(mayor)}</p>
+        <p className="shrink-0 font-mono text-[12px] text-ink-3">{montoCuadro(mayor, cuentas.moneda)}</p>
       </div>
 
       {/* `items-end` para que crezcan desde abajo, que es de donde crece el

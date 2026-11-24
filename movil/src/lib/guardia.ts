@@ -23,6 +23,8 @@
  * Un botón «Entregar ahora» prometería algo que esta pantalla no puede cumplir.
  */
 
+import type { Address } from 'viem';
+import type { VersionEscrow } from '@panal/sdk';
 import { ESTADO } from '@/lib/conversaciones';
 import { AUTO_RELEASE_MS } from '~/lib/formato';
 
@@ -43,6 +45,9 @@ export interface Fila {
   /** Lo que hay dentro, para pintar la cantidad sin volver a buscarla. */
   importe: bigint;
   simbolo: string;
+  /** Solo en «sin cobrar»: de qué escrow y en qué moneda se saca (una firma). */
+  escrow?: VersionEscrow;
+  moneda?: Address;
 }
 
 export interface TareaGuardia {
@@ -52,6 +57,22 @@ export interface TareaGuardia {
   deadline: bigint;
   status: number;
   deliveredAt?: bigint;
+  /** Segundos de revisión (v2.5); sin él, las 72 h del escrow v2. */
+  reviewWindow?: number;
+}
+
+/** Un saldo sin sacar de un escrow, en una moneda. */
+export interface SaldoGuardia {
+  version: VersionEscrow;
+  /** Sin ella, la pantalla la saca del símbolo. */
+  moneda?: Address;
+  simbolo: string;
+  importe: bigint;
+}
+
+/** El número que se enseña: «#5 · v2.5» en el v2.5 (su número de fuera lleva mil millones más). */
+export function refDeTarea(id: bigint): string {
+  return id >= 1_000_000_000n ? `#${(id - 1_000_000_000n).toString()} · v2.5` : `#${id.toString()}`;
 }
 
 /**
@@ -66,7 +87,7 @@ export interface TareaGuardia {
  */
 export function revisar(
   tareas: TareaGuardia[],
-  pendiente: { panal: bigint; mon: bigint },
+  pendiente: { panal: bigint; mon: bigint; lista?: SaldoGuardia[] },
   simboloDe: (moneda: string) => string,
 ): Fila[] {
   const filas: Fila[] = [];
@@ -82,7 +103,7 @@ export function revisar(
         clave: `sin-entregar-${id}`,
         motivo: 'sin-entregar',
         urgente: true,
-        ref: `#${id}`,
+        ref: refDeTarea(t.id),
         vence: Number(t.deadline) * 1000,
         importe: t.amountWei,
         simbolo,
@@ -94,10 +115,13 @@ export function revisar(
       filas.push({
         clave: `sin-aprobar-${id}`,
         motivo: 'sin-aprobar',
-        // No corre prisa: si el cliente no hace nada, se cobra solo.
+        // No corre prisa: si el cliente no hace nada, al acabar la revisión se
+        // cobra sin él (72 h en el v2; en el v2.5, la que eligió al contratar).
         urgente: false,
-        ref: `#${id}`,
-        vence: t.deliveredAt ? Number(t.deliveredAt) * 1000 + AUTO_RELEASE_MS : null,
+        ref: refDeTarea(t.id),
+        vence: t.deliveredAt
+          ? Number(t.deliveredAt) * 1000 + (t.reviewWindow !== undefined ? t.reviewWindow * 1000 : AUTO_RELEASE_MS)
+          : null,
         importe: t.amountWei,
         simbolo,
       });
@@ -109,7 +133,7 @@ export function revisar(
         clave: `disputa-${id}`,
         motivo: 'disputa',
         urgente: true,
-        ref: `#${id}`,
+        ref: refDeTarea(t.id),
         // El escrow guarda `disputedAt`, que aquí no se lee para no doblar las
         // llamadas: se enseña el plazo sin reloj antes que un reloj inventado.
         vence: null,
@@ -133,26 +157,28 @@ export function revisar(
   // Una fila por moneda, y CADA UNA lleva su símbolo de referencia: son dos
   // firmas distintas, y sin el símbolo las dos filas salían idénticas — que es
   // justo lo que pasó la primera vez que se pintó esta pantalla.
-  if (pendiente.panal > 0n) {
+  // Con la lista, una fila por escrow y moneda (desde el v2.5 puede haber MON
+  // en los dos, y son dos firmas); sin ella, una por moneda del escrow v2.
+  const saldos: SaldoGuardia[] = pendiente.lista ?? [
+    { version: 'v2', simbolo: 'MON', importe: pendiente.mon },
+    { version: 'v2', simbolo: '$PANAL', importe: pendiente.panal },
+  ];
+  const dosEscrows = new Set(saldos.map((x) => x.version)).size > 1;
+  // `unshift` las pone delante en orden inverso: se recorren al revés para
+  // que salgan en el orden de la lista.
+  for (const x of [...saldos].reverse()) {
+    if (x.importe <= 0n) continue;
+    const marca = x.simbolo === '$PANAL' ? 'panal' : x.simbolo.toLowerCase();
     filas.unshift({
-      clave: 'sin-cobrar-panal',
+      clave: x.version === 'v2' ? `sin-cobrar-${marca}` : `sin-cobrar-${marca}-v2_5`,
       motivo: 'sin-cobrar',
       urgente: true,
-      ref: '$PANAL',
+      ref: dosEscrows || x.version === 'v2_5' ? `${x.simbolo} · ${x.version === 'v2_5' ? 'v2.5' : 'v2'}` : x.simbolo,
       vence: null,
-      importe: pendiente.panal,
-      simbolo: '$PANAL',
-    });
-  }
-  if (pendiente.mon > 0n) {
-    filas.unshift({
-      clave: 'sin-cobrar-mon',
-      motivo: 'sin-cobrar',
-      urgente: true,
-      ref: 'MON',
-      vence: null,
-      importe: pendiente.mon,
-      simbolo: 'MON',
+      importe: x.importe,
+      simbolo: x.simbolo,
+      escrow: x.version,
+      ...(x.moneda ? { moneda: x.moneda } : {}),
     });
   }
 

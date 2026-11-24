@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react';
 import { useSignMessage, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
 import type { Address, Hex } from 'viem';
 import { esTextoCifrado } from '@panal/sdk';
-import { PANAL_ESCROW_V2_ADDRESS, activeChain, publicClient } from '@/contracts/config';
-import { panalEscrowV2Abi } from '@/contracts/abis';
+import { activeChain, publicClient } from '@/contracts/config';
+import { escrowDe, idEnLaCadena, llamadaDeEscrow, quePuede, versionDeTarea } from '@/lib/escrow';
 import { usePanalAgents } from '@/hooks/usePanalAgents';
 import { useWallet } from '@/hooks/useWallet';
 import { darAccesoALosArbitrosDeUnaTarea } from '@/lib/accesos';
@@ -14,7 +14,8 @@ import { hayEntrega } from '@/lib/expedientes';
 import { getTaskSobre } from '@/lib/taskBriefs';
 import Hoja, { Boton, Fila, Nota, Tarjeta } from '~/componentes/Hoja';
 import Dolares from '~/componentes/Dolares';
-import { monto, restante } from '~/lib/formato';
+import { AUTO_RELEASE_MS, monto, restante } from '~/lib/formato';
+import { useAhora } from '@/hooks/useAhora';
 import { useTextos } from '~/i18n/idiomas';
 
 
@@ -25,9 +26,13 @@ import { useTextos } from '~/i18n/idiomas';
  * nota de 1 a 5: aprobar sin puntuar no existe en el contrato, así que el botón
  * espera a que elijas en vez de mandar un 5 por defecto en tu nombre.
  *
- * Y la cuenta atrás va arriba del todo porque callarse NO es neutral: a los
- * tres días de la entrega `autoRelease` lo cobra cualquiera y deja un 5
- * registrado. No decir nada es pagar y poner sobresaliente.
+ * Y la cuenta atrás va arriba del todo porque callarse NO es neutral: en el
+ * escrow v2, a los tres días de la entrega `autoRelease` lo cobra cualquiera y
+ * deja un 5 registrado; en el v2.5, al acabar la revisión que eligió el
+ * cliente se libera sin nota. No decir nada es pagar.
+ *
+ * En el v2.5 solo se disputa DENTRO de la revisión: pasada, el botón no sale
+ * (el contrato lo rechazaría).
  *
  * Abierta la disputa con alguien que recibe en el buzón de Panal, si algo va
  * cifrado se le da acceso a quien decide en el mismo paso: sin él no podría
@@ -50,6 +55,7 @@ export default function HojaRevisar({
   const { address } = useWallet();
   const { agents } = usePanalAgents();
   const { signMessageAsync } = useSignMessage();
+  const ahoraS = useAhora();
   // Tras la disputa: cómo fue darle acceso a quien decide. `null` mientras se da.
   const [acceso, setAcceso] = useState<string | null>(null);
   // Solo con quien recibe en el buzón hay algo que pueda ir cifrado.
@@ -66,12 +72,13 @@ export default function HojaRevisar({
     // Sin el sobre cifrado guardado ni clave propia publicada, nada va cifrado: ni una firma.
     if (!(sobre && esTextoCifrado(sobre)) && !(await clavePublicaDe(yo))) return null;
     try {
+      // En su escrow, con el número de la cadena: `tasks` en el v2, `getTask` en el v2.5.
+      const version = versionDeTarea(BigInt(e.id));
       const tarea = (await publicClient.readContract({
-        address: PANAL_ESCROW_V2_ADDRESS,
-        abi: panalEscrowV2Abi,
-        functionName: 'tasks',
-        args: [BigInt(e.id)],
-      })) as unknown as { resultHash: Hex };
+        ...escrowDe(version),
+        functionName: version === 'v2_5' ? 'getTask' : 'tasks',
+        args: [idEnLaCadena(BigInt(e.id))],
+      } as never)) as unknown as { resultHash: Hex };
       const r = await darAccesoALosArbitrosDeUnaTarea({
         botUrl: buzon!,
         taskId: BigInt(e.id),
@@ -107,28 +114,35 @@ export default function HojaRevisar({
   if (!encargo) return null;
 
   const trabajando = isPending || recibo.isLoading;
-  const alAgente = (BigInt(encargo.importe) * 9_750n) / 10_000n;
-  const comision = BigInt(encargo.importe) - alAgente;
+  const id = BigInt(encargo.id);
+  const version = versionDeTarea(id);
+  // La comisión del v2.5 es del 1,5 % en $PANAL y del 2,5 % en MON y USDC; la del v2, 2,5 % siempre.
+  const bps = version === 'v2_5' && encargo.simbolo === '$PANAL' ? 150n : 250n;
+  const comision = (BigInt(encargo.importe) * bps) / 10_000n;
+  const alAgente = BigInt(encargo.importe) - comision;
+  const pct = (Number(bps) / 100).toLocaleString(undefined, { maximumFractionDigits: 1 });
+  const revisionMs = encargo.revisionS !== undefined ? encargo.revisionS * 1000 : AUTO_RELEASE_MS;
+  // Las reglas del contrato de su versión (lib/escrow.ts de la web).
+  const puede = quePuede(
+    {
+      id,
+      version,
+      status: encargo.estado,
+      worker: encargo.agente as Address,
+      deadline: 0n,
+      deliveredAt: encargo.entregado ? BigInt(Math.floor(encargo.entregado / 1000)) : undefined,
+      reviewWindow: encargo.revisionS,
+    },
+    ahoraS,
+  );
 
   const aprobar = () => {
     if (estrellas < 1) return;
-    writeContract({
-      address: PANAL_ESCROW_V2_ADDRESS,
-      abi: panalEscrowV2Abi,
-      functionName: 'approveAndRelease',
-      args: [BigInt(encargo.id), estrellas],
-      chainId: activeChain.id,
-    });
+    writeContract({ ...llamadaDeEscrow(id, { tipo: 'aprobar', nota: estrellas }), chainId: activeChain.id } as never);
   };
 
   const abrirDisputa = () => {
-    writeContract({
-      address: PANAL_ESCROW_V2_ADDRESS,
-      abi: panalEscrowV2Abi,
-      functionName: 'openDispute',
-      args: [BigInt(encargo.id)],
-      chainId: activeChain.id,
-    });
+    writeContract({ ...llamadaDeEscrow(id, { tipo: 'disputar' }), chainId: activeChain.id } as never);
   };
 
   if (disputando && recibo.isSuccess && conBuzon) {
@@ -155,7 +169,7 @@ export default function HojaRevisar({
         bloqueada={trabajando}
       >
         <p className="mt-1.5 text-[13.5px] leading-[1.55] text-ink-2">
-          {T.revisar.disputaTexto(monto(encargo.importe), encargo.simbolo)}
+          {T.revisar.disputaTexto(monto(encargo.importe, encargo.simbolo), encargo.simbolo)}
         </p>
 
         {/* Sin campo de motivo a propósito: openDispute no acepta texto, y
@@ -181,7 +195,7 @@ export default function HojaRevisar({
           />
         </Tarjeta>
 
-        <Nota>{T.revisar.catorceDias}</Nota>
+        <Nota>{version === 'v2_5' ? T.revisar.catorceDias25 : T.revisar.catorceDias}</Nota>
 
         <div className="mt-[18px] flex gap-2.5 pb-1">
           <div className="grow">
@@ -219,9 +233,9 @@ export default function HojaRevisar({
             <path d="M12 7.5V12l3 2" />
           </svg>
           <p className="text-[12.5px] leading-[1.45] text-honey">
-            {T.revisar.seApruebaSolo}{' '}
-            <strong className="font-semibold">{restante(encargo.entregado)}</strong>
-            , con 5 estrellas.
+            {version === 'v2_5' ? T.revisar.sePagaSinTi : T.revisar.seApruebaSolo}{' '}
+            <strong className="font-semibold">{restante(encargo.entregado, ahoraS * 1000, revisionMs)}</strong>
+            {version === 'v2_5' ? T.revisar.sinNota : T.revisar.conCinco}
           </p>
         </div>
       )}
@@ -277,15 +291,15 @@ export default function HojaRevisar({
           etiqueta={T.revisar.alAgente}
           valor={
             <span className="text-right">
-              {monto(alAgente)} {encargo.simbolo}
+              {monto(alAgente, encargo.simbolo)} {encargo.simbolo}
               <Dolares wei={alAgente} simbolo={encargo.simbolo} className="block" />
             </span>
           }
           color="text-ink"
         />
         <Fila
-          etiqueta={T.revisar.protocolo}
-          valor={`${monto(comision)} ${encargo.simbolo}`}
+          etiqueta={T.revisar.protocolo(pct)}
+          valor={`${monto(comision, encargo.simbolo)} ${encargo.simbolo}`}
           color="text-ink-2"
         />
       </Tarjeta>
@@ -299,11 +313,12 @@ export default function HojaRevisar({
           {trabajando
             ? T.revisar.firmando
             : estrellas > 0
-              ? T.revisar.aprobarYPagar(monto(encargo.importe), encargo.simbolo)
+              ? T.revisar.aprobarYPagar(monto(encargo.importe, encargo.simbolo), encargo.simbolo)
               : T.revisar.eligeValoracion}
         </Boton>
       </div>
 
+      {puede.disputarComoCliente && (
       <button
         type="button"
         onClick={() => setDisputando(true)}
@@ -326,6 +341,7 @@ export default function HojaRevisar({
         </svg>
         {T.revisar.algoNoCuadra}
       </button>
+      )}
     </Hoja>
   );
 }

@@ -416,12 +416,15 @@ export const en: Textos = {
     dias: (n: number) => `${n} d`,
     plazoPie: 'If it does not deliver in time, you get the whole payment back.',
     precioAgente: "The agent's price",
-    protocolo: 'Protocol · 2.5%',
+    protocolo: (pct: string) => `Protocol · ${pct}%`,
     bloqueasAhora: 'You lock now',
     noResponde:
       'This agent is not responding right now: its server does not answer and the job would not reach it. The payment would stay locked until the deadline. Try later or choose another.',
     retenido:
       'The money is held until you approve. The delivery is anchored on the chain and you can open a dispute.',
+    retenido25:
+      'The money is held until you approve. After delivery you have 72 h to review it and, if needed, open a dispute; if you do nothing, the agent collects without your rating.',
+    bajoMinimo: (minimo: string) => `The escrow does not take jobs under ${minimo}.`,
     aprobandoToken: 'Approving the token…',
     bloqueando: 'Locking…',
     bloquear: (cantidad: string, moneda: string) => `Lock ${cantidad} ${moneda}`,
@@ -456,6 +459,9 @@ export const en: Textos = {
   revisar: {
     titulo: 'Review the delivery',
     seApruebaSolo: 'Auto-approves in',
+    conCinco: ', with 5 stars.',
+    sePagaSinTi: 'If you do nothing, the agent can collect it in',
+    sinNota: ', without your rating.',
     loQuePediste: 'What you asked for',
     briefPerdido: 'The text is not on this phone. Only its hash travels on the chain.',
     tuValoracion: 'Your rating',
@@ -463,7 +469,7 @@ export const en: Textos = {
     estrellas: (v: number) => `${v} out of 5`,
     quedaEnElRegistro: "It stays on the agent's record. It cannot be changed afterwards.",
     alAgente: 'To the agent',
-    protocolo: 'Protocol · 2.5%',
+    protocolo: (pct: string) => `Protocol · ${pct}%`,
     firmando: 'Signing…',
     aprobarYPagar: (cantidad: string, moneda: string) => `Approve and pay ${cantidad} ${moneda}`,
     eligeValoracion: 'Pick a rating',
@@ -483,6 +489,8 @@ export const en: Textos = {
     decidePie: 'a 2-of-3, not a single key',
     catorceDias:
       'If the arbitrator does not settle within 14 days, you get the whole payment back. Anyone can claim it and their permission is not needed.',
+    catorceDias25:
+      'If nobody decides within 14 days, it closes half and half: half comes back to you and half goes to the agent. Anyone can close it.',
     abriendo: 'Opening…',
     abrirDisputa: 'Open dispute',
   },
@@ -793,7 +801,7 @@ export const en: Textos = {
     explSinCobrar: (cantidad: string, moneda: string) =>
       `There are ${cantidad} ${moneda} settled and still inside the escrow. They do not expire, but they do not come out on their own either.`,
     explSinAprobar: (deposito: string) =>
-      `It is anchored. If the client neither approves nor disputes it, 3 days after delivery you can collect ${deposito} without them.`,
+      `It is anchored. If the client neither approves nor disputes it, once their review ends (72 h by default) you can collect ${deposito} without them.`,
     explDisputa: (deposito: string) =>
       `The client opened it. ${deposito[0]!.toUpperCase()}${deposito.slice(1)} is frozen: neither of you gets paid until the arbitrator decides.`,
   },
@@ -1057,6 +1065,8 @@ export const en: Textos = {
     cuentaAtrasTitulo: (id: string) => `6 h left before #${id} auto-approves`,
     cuentaAtrasCuerpo: (cantidad: string, moneda: string) =>
       `If you do nothing, ${cantidad} ${moneda} are paid and it counts as 5 stars.`,
+    cuentaAtrasCuerpo25: (cantidad: string, moneda: string) =>
+      `If you do nothing, the agent will be able to collect ${cantidad} ${moneda} without your rating.`,
     plazoTitulo: (id: string) => `#${id} expired with no delivery`,
     plazoCuerpo: (cantidad: string, moneda: string) =>
       `You can take back the ${cantidad} ${moneda} deposit you locked.`,
@@ -1302,7 +1312,7 @@ export const en: Textos = {
       noEntrego: 'The agent did not deliver in time. You get the money back and the agent gets a strike.',
       trabajando: (cuando: string) => `In progress · delivery by ${cuando} at the latest`,
       entregada: (cuando: string) => `Delivered. Review it: if you do nothing, it pays itself on ${cuando}.`,
-      entregadaLibre: 'Delivered and 72 h have passed: it can now be paid without your approval.',
+      entregadaLibre: 'Delivered and the review is over: it can now be paid without your approval.',
       enDisputa: "In dispute: Panal's multisig resolves it.",
       pagadaSinCerrar: "The escrow has paid the agent. The board's books still need closing.",
       canceladaSinCerrar: 'The escrow has returned the money to the board. Close the books to claim it.',
@@ -1414,7 +1424,7 @@ export const en: Textos = {
       entregaAntes: (cuando: string) => `Deliver by ${cuando} at the latest. Otherwise the client gets the money back and you get a strike.`,
       fueraDePlazo: 'The delivery deadline has passed.',
       entregado: (cuando: string) => `Delivered. If the client does nothing, you get paid on ${cuando}.`,
-      liberable: '72 h have passed since delivery: you can collect it without the client.',
+      liberable: "The client's review is over: you can collect it without them.",
       enDisputa: "In dispute: Panal's multisig resolves it.",
       terminado: 'The escrow is done. Close the books to free your slot.',
       cerrar: 'Close the books',
@@ -1595,11 +1605,12 @@ export const en: Textos = {
       permit: 'Pay an agent for a message',
       pagoMon: 'Pay for a message in MON',
       encargo: 'Commission a job',
-      aprobarEscrow: 'Let the escrow use your $PANAL',
-      aprobarTablon: 'Let the board use your $PANAL',
+      aprobarEscrow: (s: string) => `Let the escrow use your ${s}`,
+      aprobarTablon: (s: string) => `Let the board use your ${s}`,
       escrow: (f: string) => `Escrow · ${f}`,
       tablon: (f: string) => `Board · ${f}`,
       registro: (f: string) => `Registry · ${f}`,
+      precios: (m: string, lista: string) => (lista ? `Your prices in ${m}: ${lista}` : `Stop accepting ${m}`),
     },
     avisoPagoMon:
       "It's a plain MON transfer. Only approve it if it's the payment for a message you just sent on the website.",

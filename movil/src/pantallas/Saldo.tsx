@@ -177,7 +177,7 @@ export default function Saldo(): React.ReactElement {
               han pagado: el escrow ACREDITA, no envía. Por eso se dice aquí, con
               la cantidad, y lleva al panel, donde retirarlo es un botón. Solo
               sale si hay algo esperando. */}
-          {address && pendiente && (pendiente.mon > 0n || pendiente.panal > 0n) && (
+          {address && pendiente?.hay && (
             <Link
               to={`/panel/${address.toLowerCase()}`}
               className="pulsable flex shrink-0 items-center gap-3 rounded-[14px] border border-honey-line bg-honey-soft p-3.5"
@@ -189,6 +189,7 @@ export default function Saldo(): React.ReactElement {
                     [
                       pendiente.mon > 0n ? `${monto(pendiente.mon)} MON` : null,
                       pendiente.panal > 0n ? `${monto(pendiente.panal)} $PANAL` : null,
+                      pendiente.usdc > 0n ? `${monto(pendiente.usdc, 'USDC')} USDC` : null,
                     ]
                       .filter(Boolean)
                       .join(' · '),

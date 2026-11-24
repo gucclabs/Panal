@@ -157,5 +157,28 @@ dice('una corta no', !esDireccion('0x6073'));
 dice('sin 0x tampoco', !esDireccion('6073e8b4e0c5a1f2d3b4c5d6e7f8a9b0c1d2b7B4'));
 dice('con letras de más, no', !esDireccion('0xZZ73e8b4e0c5a1f2d3b4c5d6e7f8a9b0c1d2b7B4'));
 
+console.log('\nel escrow v2.5: un saldo por escrow y moneda, y la revisión de cada tarea');
+{
+  const lista = [
+    { version: 'v2', moneda: '0x0000000000000000000000000000000000000000', simbolo: 'MON', importe: 5n },
+    { version: 'v2_5', moneda: '0x0000000000000000000000000000000000000000', simbolo: 'MON', importe: 7n },
+    { version: 'v2_5', moneda: '0xusdc', simbolo: 'USDC', importe: 2_000_000n },
+  ];
+  const f = revisar([], { panal: 0n, mon: 12n, lista }, simboloDe);
+  dice('MON en los dos escrows son dos filas, no una suma', f.filter((x) => x.simbolo === 'MON').length === 2);
+  dice('cada una sabe de qué escrow sale', f.some((x) => x.escrow === 'v2') && f.some((x) => x.escrow === 'v2_5'));
+  dice('y se distinguen en pantalla', new Set(f.map((x) => x.ref)).size === 3);
+  dice('USDC sale con su moneda para el withdraw', f.some((x) => x.simbolo === 'USDC' && x.moneda === '0xusdc'));
+  dice('en el orden de la lista', f[0].escrow === 'v2' && f[2].simbolo === 'USDC');
+
+  // Una tarea del v2.5 entregada hace 1 h con 24 h de revisión: vence a las 23 h, no a las 71.
+  const t25 = { ...entregada(1_000_000_005, 3_600_000), reviewWindow: 24 * 3600 };
+  const g = revisar([t25], SIN, simboloDe);
+  dice('la revisión del v2.5 es la de la tarea', g[0].vence === AHORA - 3_600_000 + 24 * 3_600_000);
+  dice('y el número sale como #5 · v2.5', g[0].ref === '#5 · v2.5');
+  const v2 = revisar([entregada(57, 3_600_000)], SIN, simboloDe);
+  dice('la del v2 sigue en 72 h', v2[0].vence === AHORA - 3_600_000 + 72 * 3_600_000);
+}
+
 console.log(`\n${bien} bien, ${mal} mal\n`);
 process.exit(mal ? 1 : 0);

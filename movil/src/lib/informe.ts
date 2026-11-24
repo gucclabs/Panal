@@ -33,7 +33,8 @@ export async function traerEventos(): Promise<IndexedEvent[]> {
   let cursor: string | null = null;
 
   for (let i = 0; i < MAX_PAGINAS; i++) {
-    const url = `${INDEXER_URL}/index/events?limit=200${cursor ? `&before=${cursor}` : ''}`;
+    // `v=all`: también los del escrow v2.5 (sin él, el indexador da solo los del v2).
+    const url = `${INDEXER_URL}/index/events?limit=200&v=all${cursor ? `&before=${cursor}` : ''}`;
     const res = await fetch(url);
     if (!res.ok) break;
     const datos = (await res.json()) as RespuestaEventos;
@@ -46,7 +47,7 @@ export async function traerEventos(): Promise<IndexedEvent[]> {
 
 export async function traerTareas(direccion: string): Promise<TareaIndexada[]> {
   const res = await fetch(
-    `${INDEXER_URL}/index/tasks?address=${direccion}&role=worker&limit=200`,
+    `${INDEXER_URL}/index/tasks?address=${direccion}&role=worker&limit=200&v=all`,
   );
   if (!res.ok) return [];
   const datos = (await res.json()) as { tasks: TareaIndexada[] };

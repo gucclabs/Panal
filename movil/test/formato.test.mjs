@@ -75,5 +75,12 @@ dice('en chino, como en inglés', f.conDecimales(1000n * UNO, 18) === '1,000.00'
 cambiarIdioma('es');
 dice('y al volver al español, como antes', f.conDecimales(1000n * UNO, 18) === '1.000,00');
 
+console.log('\nUSDC con sus 6 decimales');
+cambiarIdioma('es');
+dice('un dólar en USDC no es «<0,0001»', f.monto(1_000_000n, 'USDC') === '1');
+dice('con el símbolo de la moneda', f.monto(2_500_000n, 'USDC') === f.monto(2_500_000n, 6));
+dice('MON y $PANAL siguen con 18', f.monto(UNO, 'MON') === f.monto(UNO) && f.monto(UNO, '$PANAL') === f.monto(UNO));
+dice('en la columna, igual', f.montoCuadro(1_000_000n, 'USDC') === f.montoCuadro(UNO));
+
 console.log(`\n${bien} bien · ${mal} mal\n`);
 process.exit(mal === 0 ? 0 : 1);

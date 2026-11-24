@@ -59,12 +59,12 @@ export function reciboHtml({ linea, agente, direccionAgente, brief }: DatosRecib
   // `textos()` y no un hook: esto genera un archivo, no pinta una pantalla.
   const T = textos().recibo;
   const filas = [
-    [T.precioEncargo, `${montoCuadro(linea.bruto)} ${linea.moneda}`, false],
+    [T.precioEncargo, `${montoCuadro(linea.bruto, linea.moneda)} ${linea.moneda}`, false],
     ...(linea.devuelto > 0n
-      ? [[T.devuelto, `−${montoCuadro(linea.devuelto)} ${linea.moneda}`, false]]
+      ? [[T.devuelto, `−${montoCuadro(linea.devuelto, linea.moneda)} ${linea.moneda}`, false]]
       : []),
-    [T.comision, `−${montoCuadro(linea.comision)} ${linea.moneda}`, false],
-    [T.cobrado, `${montoCuadro(linea.pagado)} ${linea.moneda}`, true],
+    [T.comision, `−${montoCuadro(linea.comision, linea.moneda)} ${linea.moneda}`, false],
+    [T.cobrado, `${montoCuadro(linea.pagado, linea.moneda)} ${linea.moneda}`, true],
   ]
     .map(
       ([et, cif, fuerte]) =>
@@ -170,7 +170,7 @@ ${
  */
 export function informeCsv(cuentas: Cuentas[], agente: string, direccion: string): string {
   const C = textos().recibo.csv;
-  const es = (v: bigint): string => montoCuadro(v).replace(/\./g, '');
+  const es = (v: bigint, moneda: string): string => montoCuadro(v, moneda).replace(/\./g, '');
   const filas: string[][] = [
     [C.encargo, C.fecha, C.cliente, C.moneda, C.facturado, C.devuelto, C.comision, C.cobrado, C.nota, C.transaccion, C.hashEntrega],
   ];
@@ -182,17 +182,17 @@ export function informeCsv(cuentas: Cuentas[], agente: string, direccion: string
         new Date(l.ts * 1000).toISOString().slice(0, 10),
         l.cliente,
         l.moneda,
-        es(l.bruto),
-        es(l.devuelto),
-        es(l.comision),
-        es(l.pagado),
+        es(l.bruto, l.moneda),
+        es(l.devuelto, l.moneda),
+        es(l.comision, l.moneda),
+        es(l.pagado, l.moneda),
         l.rating !== null ? C.estrellas(l.rating) : '',
         l.txHash ?? '',
         l.resultHash ?? '',
       ]);
     }
     filas.push([]);
-    filas.push([C.total(c.moneda), '', '', c.moneda, es(c.bruto), es(c.devuelto), es(c.comision), es(c.neto), '', '', '']);
+    filas.push([C.total(c.moneda), '', '', c.moneda, es(c.bruto, c.moneda), es(c.devuelto, c.moneda), es(c.comision, c.moneda), es(c.neto, c.moneda), '', '', '']);
     filas.push([]);
   }
 

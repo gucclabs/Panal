@@ -38,18 +38,25 @@ import { useSyncExternalStore } from 'react';
 import { Capacitor, registerPlugin } from '@capacitor/core';
 import { decodeFunctionData, getAddress, hexToString, isAddress, isAddressEqual, isHex } from 'viem';
 import type { Abi, Address, Hex, TypedDataDefinition } from 'viem';
-import { X402_NATIVE, panalTablonAbi } from '@panal/sdk';
-import { panalEscrowV2Abi, panalRegistryV2Abi, panalTokenAbi } from '@/contracts/abis';
+import { erc20Abi } from 'viem';
+import { X402_NATIVE, idDelV2_5, panalPricesAbi } from '@panal/sdk';
+import { panalRegistryV2Abi, panalTokenAbi } from '@/contracts/abis';
 import {
-  PANAL_ESCROW_V2_ADDRESS,
+  PANAL_PRICES_ADDRESS,
   PANAL_REGISTRY_V2_ADDRESS,
-  PANAL_TABLON_ADDRESS,
   PANAL_TOKEN_ADDRESS,
+  V2_5_ENABLED,
   activeChain,
 } from '@/contracts/config';
 import { EN_PLAY } from '~/lib/canal';
 import {
   FirmaBloqueada,
+  abiDelEscrow,
+  abiDelTablon,
+  datosDeCreateTask,
+  esEscrow,
+  esTablon,
+  esTokenDePago,
   permitirEncargo,
   permitirPago,
   permitirTablon,
@@ -169,10 +176,13 @@ export type Peticion =
   | { tipo: 'permit'; token: Address; importe: bigint; a: Address; caduca: number }
   | { tipo: 'pagoMon'; importe: bigint; a: Address }
   | { tipo: 'encargo'; agente: Address; importe: bigint; moneda: Address }
-  | { tipo: 'aprobar'; importe: bigint; para: 'escrow' | 'tablon' }
+  /** `moneda`: el token que se aprueba ($PANAL o, en el v2.5, USDC). */
+  | { tipo: 'aprobar'; importe: bigint; para: 'escrow' | 'tablon'; moneda: Address }
   | { tipo: 'escrow'; funcion: string }
   | { tipo: 'tablon'; funcion: string; importe?: bigint; moneda?: Address; agente?: Address; jobId?: bigint }
   | { tipo: 'registro'; funcion: string }
+  /** Los precios propios en otra moneda (PanalPrices, v2.5); lista vacía = dejar de aceptarla. */
+  | { tipo: 'precios'; moneda: Address; importes: readonly bigint[] }
   | { tipo: 'bloqueada'; motivo: string };
 
 interface TxCruda {
@@ -261,26 +271,30 @@ export function describir(metodo: string, params: unknown, cuenta: Address, ahor
           return { tipo: 'pagoMon', importe: valor, a };
         }
 
-        if (isAddressEqual(a, PANAL_ESCROW_V2_ADDRESS)) {
-          const l = llamada(panalEscrowV2Abi as Abi, datos);
+        const escrow = esEscrow(a);
+        if (escrow) {
+          const l = llamada(abiDelEscrow(escrow), datos);
           if (!l) return bloqueada(`una llamada que el escrow no tiene (${datos.slice(0, 10)})`);
           if (l.functionName === 'createTask') {
-            const [agente, , , moneda, importe] = l.args as readonly [Address, Hex, bigint, Address, bigint];
-            return { tipo: 'encargo', agente: getAddress(agente), importe, moneda: getAddress(moneda) };
+            const { worker, currency, amount } = datosDeCreateTask(escrow, l.args ?? []);
+            return { tipo: 'encargo', agente: getAddress(worker), importe: amount, moneda: getAddress(currency) };
           }
           revisarTransaccion({ to: a, data: datos, value: valor }, ahora);
           return { tipo: 'escrow', funcion: l.functionName };
         }
 
-        if (isAddressEqual(a, PANAL_TABLON_ADDRESS)) {
-          const l = llamada(panalTablonAbi as unknown as Abi, datos);
+        const tablonV = esTablon(a);
+        if (tablonV) {
+          const l = llamada(abiDelTablon(tablonV), datos);
           if (!l) return bloqueada(`una llamada que el tablón no tiene (${datos.slice(0, 10)})`);
           if (l.functionName === 'post') {
             const [p] = l.args as readonly [{ amount: bigint; currency: Address }];
             return { tipo: 'tablon', funcion: 'post', importe: p.amount, moneda: getAddress(p.currency) };
           }
           if (l.functionName === 'choose') {
-            const [jobId, agente] = l.args as readonly [bigint, Address];
+            const [enLaCadena, agente] = l.args as readonly [bigint, Address];
+            // El número de fuera de la cadena, como lo arman las hojas de la app.
+            const jobId = tablonV === 'v2_5' ? idDelV2_5(enLaCadena) : enLaCadena;
             // Lo que pone al elegir es lo que manda en MON, o lo aprobado antes en $PANAL.
             return { tipo: 'tablon', funcion: 'choose', jobId, agente: getAddress(agente), importe: valor };
           }
@@ -288,14 +302,25 @@ export function describir(metodo: string, params: unknown, cuenta: Address, ahor
           return { tipo: 'tablon', funcion: l.functionName };
         }
 
-        if (isAddressEqual(a, PANAL_TOKEN_ADDRESS)) {
-          const l = llamada(panalTokenAbi as Abi, datos);
-          if (!l || l.functionName !== 'approve') return bloqueada(`$PANAL.${l?.functionName ?? '?'}: solo se firma approve`);
+        if (esTokenDePago(a)) {
+          const esPanal = isAddressEqual(a, PANAL_TOKEN_ADDRESS);
+          const nombre = esPanal ? '$PANAL' : 'USDC';
+          const l = llamada((esPanal ? panalTokenAbi : erc20Abi) as Abi, datos);
+          if (!l || l.functionName !== 'approve') return bloqueada(`${nombre}.${l?.functionName ?? '?'}: solo se firma approve`);
           const [para, importe] = l.args as readonly [Address, bigint];
-          if (valor !== 0n) return bloqueada('MON a $PANAL');
-          if (isAddressEqual(para, PANAL_ESCROW_V2_ADDRESS)) return { tipo: 'aprobar', importe, para: 'escrow' };
-          if (isAddressEqual(para, PANAL_TABLON_ADDRESS)) return { tipo: 'aprobar', importe, para: 'tablon' };
-          return bloqueada(`$PANAL.approve a ${para}: solo se aprueba al escrow o al tablón`);
+          if (valor !== 0n) return bloqueada(`MON a ${nombre}`);
+          const moneda = getAddress(a);
+          if (esTablon(para)) return { tipo: 'aprobar', importe, para: 'tablon', moneda };
+          // Al escrow lo deja pasar la política tal cual (USDC, solo al v2.5).
+          revisarTransaccion({ to: a, data: datos, value: valor }, ahora);
+          return { tipo: 'aprobar', importe, para: 'escrow', moneda };
+        }
+
+        if (V2_5_ENABLED && isAddressEqual(a, PANAL_PRICES_ADDRESS)) {
+          revisarTransaccion({ to: a, data: datos, value: valor }, ahora);
+          const l = llamada(panalPricesAbi as unknown as Abi, datos);
+          const [moneda, importes] = (l?.args ?? []) as readonly [Address, readonly bigint[]];
+          return { tipo: 'precios', moneda: getAddress(moneda), importes: importes ?? [] };
         }
 
         if (isAddressEqual(a, PANAL_REGISTRY_V2_ADDRESS)) {
@@ -337,7 +362,7 @@ export function armar(p: Peticion, ahora = Date.now()): void {
       // Al tablón: lo que se aprueba es para publicar (o elegir) por ese importe
       // en $PANAL, y es lo que la política mira. Detrás llega la llamada al
       // tablón, con su propia hoja.
-      if (p.para === 'tablon') permitirTablon({ funcion: 'post', amount: p.importe, currency: PANAL_TOKEN_ADDRESS }, ahora);
+      if (p.para === 'tablon') permitirTablon({ funcion: 'post', amount: p.importe, currency: p.moneda }, ahora);
       return;
     case 'tablon':
       if (p.funcion === 'post' && p.importe !== undefined && p.moneda) {

@@ -15,6 +15,7 @@ import { cuando as formatoCuando } from '~/lib/formato';
 import Menu from '~/componentes/Menu';
 import { useTextos } from '~/i18n/idiomas';
 import type { Textos } from '~/i18n/idiomas';
+import { numeroVisible } from '@/lib/escrow';
 
 /**
  * La bandeja. Es la pantalla de inicio de la app, como en cualquier
@@ -105,7 +106,7 @@ function Fila({
   const texto =
     adelanto.clase === 'mensaje'
       ? `${adelanto.mensaje.de === 'yo' ? T.chats.tu : ''}${adelanto.mensaje.texto}`
-      : (adelanto.encargo.brief ?? T.chats.encargoNumero(String(adelanto.encargo.id)));
+      : (adelanto.encargo.brief ?? T.chats.encargoNumero(numeroVisible(BigInt(adelanto.encargo.id))));
 
   // Un encargo entregado pide algo de ti; uno abierto solo espera.
   const chip =

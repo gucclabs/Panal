@@ -12,15 +12,18 @@
  * Esto es la lista de lo que SÍ firma. Todo lo demás se para aquí, antes de
  * tocar la clave:
  *
- *   - Transacciones al escrow (cualquiera de sus funciones), al registro (dar
- *     de alta y editar el agente propio) y a $PANAL solo `approve` con el
- *     escrow de beneficiario.
- *   - En el tablón con reglas (PanalTablon), lo que no pone dinero a favor de
- *     nadie: coger, ofertar, aprobar, disputar, cerrar, cobrar… Publicar
+ *   - Transacciones a los escrows v2 y v2.5 (cualquiera de sus funciones), al
+ *     registro (dar de alta y editar el agente propio), a PanalPrices (los
+ *     precios propios en otras monedas) y a $PANAL o USDC solo `approve` con
+ *     un escrow de beneficiario (USDC, solo al v2.5, que es el que lo cobra).
+ *     `createTaskWithPermit` del v2.5 no: la app contrata con approve.
+ *   - En los tablones con reglas (PanalTablon v2 y v2.5), lo que no pone
+ *     dinero a favor de nadie: coger, ofertar, aprobar, disputar, cerrar,
+ *     cobrar, pactar un reparto con quien ya lo tiene asignado… Publicar
  *     (`post`) y elegir una oferta (`choose`) solo los que la hoja acaba de
  *     enseñar, como un `createTask`: los dos dejan el dinero camino de un
- *     agente. Y el `approve` de $PANAL al tablón, solo por lo que esa hoja
- *     confirmó. Ni contratos nuevos, ni MON suelto, ni
+ *     agente. Y el `approve` de $PANAL o USDC a un tablón, solo por lo que esa
+ *     hoja confirmó y en esa moneda. Ni contratos nuevos, ni MON suelto, ni
  *     `transfer`: mandar a otra wallet va por `lib/enviar.ts`, con su propia
  *     pantalla de confirmar, y no pasa por el conector.
  *   - `createTask`, además, solo el que la persona acaba de confirmar en la
@@ -45,18 +48,31 @@
  * firma ella, con su pantalla, y lo armado aquí caduca sin usarse.
  */
 
-import { decodeFunctionData, hexToString, isAddressEqual, isHex } from 'viem';
+import { decodeFunctionData, erc20Abi, hexToString, isAddressEqual, isHex } from 'viem';
 import type { Abi, Address, Hex, TypedDataDefinition } from 'viem';
 import { panalEscrowV2Abi, panalRegistryV2Abi, panalTokenAbi } from '@/contracts/abis';
 import {
   NATIVE_CURRENCY,
+  PANAL_ESCROW_V2_5_ADDRESS,
   PANAL_ESCROW_V2_ADDRESS,
+  PANAL_PRICES_ADDRESS,
   PANAL_REGISTRY_V2_ADDRESS,
   PANAL_TABLON_ADDRESS,
+  PANAL_TABLON_V2_5_ADDRESS,
   PANAL_TOKEN_ADDRESS,
+  USDC_TOKEN_ADDRESS,
+  V2_5_ENABLED,
   activeChain,
 } from '@/contracts/config';
-import { X402_NATIVE, panalTablonAbi, x402Currency } from '@panal/sdk';
+import {
+  X402_NATIVE,
+  idDelV2_5,
+  panalEscrowV2_5Abi,
+  panalPricesAbi,
+  panalTablonAbi,
+  panalTablonV2_5Abi,
+  x402Currency,
+} from '@panal/sdk';
 import { esFirmaDelCifrado } from '~/lib/firmaCifrado';
 import { textos } from '~/i18n/idiomas';
 
@@ -104,7 +120,57 @@ const TABLON_SIN_HOJA = new Set([
   'expire',
   'autoAssign',
   'claim',
+  // Solo en el v2.5: ampliar el plazo y pactar un reparto con quien ya lo
+  // tiene asignado (el dinero ya iba para él si se aprobaba).
+  'extendDeadline',
+  'proposeSettlement',
+  'acceptSettlement',
 ]);
+
+/* ── los contratos de Panal, por versión ────────────────────────────────── */
+
+/** Los escrows: el v2 y, donde está desplegado, el v2.5 (24-nov-2026). */
+export function esEscrow(a: Address): 'v2' | 'v2_5' | null {
+  if (isAddressEqual(a, PANAL_ESCROW_V2_ADDRESS)) return 'v2';
+  if (V2_5_ENABLED && isAddressEqual(a, PANAL_ESCROW_V2_5_ADDRESS)) return 'v2_5';
+  return null;
+}
+
+/** Los tablones con reglas: el v2 y el v2.5. */
+export function esTablon(a: Address): 'v2' | 'v2_5' | null {
+  if (isAddressEqual(a, PANAL_TABLON_ADDRESS)) return 'v2';
+  if (V2_5_ENABLED && isAddressEqual(a, PANAL_TABLON_V2_5_ADDRESS)) return 'v2_5';
+  return null;
+}
+
+/** Los tokens que se aprueban a un escrow o a un tablón: $PANAL y, en el v2.5, USDC. */
+export function esTokenDePago(a: Address): boolean {
+  return isAddressEqual(a, PANAL_TOKEN_ADDRESS) || (V2_5_ENABLED && isAddressEqual(a, USDC_TOKEN_ADDRESS));
+}
+
+export function abiDelEscrow(v: 'v2' | 'v2_5'): Abi {
+  return (v === 'v2_5' ? panalEscrowV2_5Abi : panalEscrowV2Abi) as unknown as Abi;
+}
+
+export function abiDelTablon(v: 'v2' | 'v2_5'): Abi {
+  return (v === 'v2_5' ? panalTablonV2_5Abi : panalTablonAbi) as unknown as Abi;
+}
+
+/**
+ * Los datos de un `createTask`, sea del v2 (argumentos sueltos) o del v2.5
+ * (una tupla con las ventanas de aceptar y de revisión).
+ */
+export function datosDeCreateTask(
+  v: 'v2' | 'v2_5',
+  args: readonly unknown[],
+): { worker: Address; currency: Address; amount: bigint } {
+  if (v === 'v2_5') {
+    const [p] = args as readonly [{ worker: Address; currency: Address; amount: bigint }];
+    return { worker: p.worker, currency: p.currency, amount: p.amount };
+  }
+  const [worker, , , currency, amount] = args as readonly [Address, Hex, bigint, Address, bigint];
+  return { worker, currency, amount };
+}
 
 /** La forma de EIP-2612. Con otros campos, la misma firma significaría otra cosa. */
 const CAMPOS_PERMIT = [
@@ -214,13 +280,16 @@ export function revisarTransaccion(t: { to?: Address; data?: Hex; value?: bigint
     return;
   }
 
-  if (isAddressEqual(t.to, PANAL_ESCROW_V2_ADDRESS)) {
-    const llamada = decodificar(panalEscrowV2Abi, datos, 'el escrow');
+  const escrow = esEscrow(t.to);
+  if (escrow) {
+    const llamada = decodificar(abiDelEscrow(escrow), datos, 'el escrow');
+    // Con permit, el dinero sale sin un approve que la hoja enseñe: la app no lo usa.
+    if (llamada.functionName === 'createTaskWithPermit') bloquear('createTaskWithPermit: la app contrata con approve');
     if (llamada.functionName !== 'createTask') {
       if (valor !== 0n) bloquear(`MON a ${llamada.functionName}, que no lo cobra`);
       return;
     }
-    const [worker, , , currency, amount] = llamada.args as readonly [Address, Hex, bigint, Address, bigint];
+    const { worker, currency, amount } = datosDeCreateTask(escrow, llamada.args ?? []);
     const e = encargo;
     if (!e || e.vence < ahora) bloquear('un createTask que ninguna hoja ha confirmado');
     if (!isAddressEqual(worker, e.worker) || !isAddressEqual(currency, e.currency) || amount !== e.amount) {
@@ -233,8 +302,9 @@ export function revisarTransaccion(t: { to?: Address; data?: Hex; value?: bigint
     return;
   }
 
-  if (isAddressEqual(t.to, PANAL_TABLON_ADDRESS)) {
-    const llamada = decodificar(panalTablonAbi as unknown as Abi, datos, 'el tablón');
+  const tablonV = esTablon(t.to);
+  if (tablonV) {
+    const llamada = decodificar(abiDelTablon(tablonV), datos, 'el tablón');
     const fn = llamada.functionName;
     if (fn !== 'post' && fn !== 'choose') {
       if (!TABLON_SIN_HOJA.has(fn)) bloquear(`PanalTablon.${fn}, que no es de lo que firma esta app`);
@@ -250,7 +320,9 @@ export function revisarTransaccion(t: { to?: Address; data?: Hex; value?: bigint
         bloquear(`publicar por ${p.amount} en ${p.currency}, y la hoja confirmó ${a.amount} en ${a.currency}`);
       }
     } else {
-      const [jobId, agente] = llamada.args as readonly [bigint, Address];
+      const [enLaCadena, agente] = llamada.args as readonly [bigint, Address];
+      // Las hojas arman el número de fuera de la cadena: en el v2.5, mil millones más.
+      const jobId = tablonV === 'v2_5' ? idDelV2_5(enLaCadena) : enLaCadena;
       if (jobId !== a.jobId || !a.agente || !isAddressEqual(agente, a.agente)) {
         bloquear(`elegir a ${agente} en el #${jobId}, y la hoja confirmó a ${String(a.agente)} en el #${String(a.jobId)}`);
       }
@@ -266,21 +338,33 @@ export function revisarTransaccion(t: { to?: Address; data?: Hex; value?: bigint
     return;
   }
 
-  if (isAddressEqual(t.to, PANAL_TOKEN_ADDRESS)) {
-    const llamada = decodificar(panalTokenAbi, datos, '$PANAL');
+  // Los precios propios en otras monedas (v2.5): no mueven dinero de nadie.
+  if (V2_5_ENABLED && isAddressEqual(t.to, PANAL_PRICES_ADDRESS)) {
+    const llamada = decodificar(panalPricesAbi as unknown as Abi, datos, 'PanalPrices');
+    if (llamada.functionName !== 'setPrices') bloquear(`PanalPrices.${llamada.functionName}`);
+    if (valor !== 0n) bloquear('MON a PanalPrices');
+    return;
+  }
+
+  if (esTokenDePago(t.to)) {
+    const esUsdc = !isAddressEqual(t.to, PANAL_TOKEN_ADDRESS);
+    const nombre = esUsdc ? 'USDC' : '$PANAL';
+    const llamada = decodificar((esUsdc ? erc20Abi : panalTokenAbi) as Abi, datos, nombre);
     const [beneficiario, cuanto] = (llamada.args ?? []) as readonly [Address, bigint];
-    if (llamada.functionName !== 'approve') bloquear(`$PANAL.${llamada.functionName}: solo se firma approve`);
-    if (isAddressEqual(beneficiario, PANAL_TABLON_ADDRESS)) {
-      // Al tablón, solo lo que la hoja enseñó en $PANAL. No se gasta aquí:
-      // detrás viene el `post` o el `choose`, que es lo que lo consume.
+    if (llamada.functionName !== 'approve') bloquear(`${nombre}.${llamada.functionName}: solo se firma approve`);
+    const aEscrow = esEscrow(beneficiario);
+    if (esTablon(beneficiario)) {
+      // A un tablón, solo lo que la hoja enseñó en esa moneda. No se gasta
+      // aquí: detrás viene el `post` o el `choose`, que es lo que lo consume.
       const a = tablon;
-      if (!a || a.vence < ahora || !isAddressEqual(a.currency, PANAL_TOKEN_ADDRESS) || cuanto !== a.amount) {
-        bloquear(`aprobar ${cuanto} $PANAL al tablón, y ninguna hoja lo ha confirmado`);
+      if (!a || a.vence < ahora || !isAddressEqual(a.currency, t.to) || cuanto !== a.amount) {
+        bloquear(`aprobar ${cuanto} ${nombre} al tablón, y ninguna hoja lo ha confirmado`);
       }
-    } else if (!isAddressEqual(beneficiario, PANAL_ESCROW_V2_ADDRESS)) {
-      bloquear(`$PANAL.approve a ${beneficiario}: solo se aprueba al escrow o al tablón`);
+    } else if (!aEscrow || (esUsdc && aEscrow !== 'v2_5')) {
+      // USDC solo lo cobra el escrow v2.5: aprobárselo al v2 no sirve de nada.
+      bloquear(`${nombre}.approve a ${beneficiario}: solo se aprueba a un escrow o a un tablón que lo cobre`);
     }
-    if (valor !== 0n) bloquear('MON a $PANAL');
+    if (valor !== 0n) bloquear(`MON a ${nombre}`);
     return;
   }
 

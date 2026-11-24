@@ -217,7 +217,7 @@ function Bloque({
             <p className="text-[13px] font-medium">{T.informe.en(c.moneda)}</p>
             <p className="mt-0.5 text-[11.5px] text-ink-3">{T.informe.aparte}</p>
           </div>
-          <p className="shrink-0 font-mono text-[17px] text-monad-mist">{montoCuadro(c.neto)}</p>
+          <p className="shrink-0 font-mono text-[17px] text-monad-mist">{montoCuadro(c.neto, c.moneda)}</p>
         </div>
       </div>
     );
@@ -229,13 +229,13 @@ function Bloque({
         <Escalon
           etiqueta={T.informe.facturado}
           pie={T.informe.encargosLiquidados(c.lineas.length)}
-          cifra={montoCuadro(c.bruto)}
+          cifra={montoCuadro(c.bruto, c.moneda)}
         />
         {c.devuelto > 0n && (
           <Escalon
             etiqueta={T.informe.devueltoEnDisputa}
             pie={devueltas(c, T)}
-            cifra={`−${montoCuadro(c.devuelto)}`}
+            cifra={`−${montoCuadro(c.devuelto, c.moneda)}`}
             color="#C9653B"
             linea
           />
@@ -243,11 +243,11 @@ function Bloque({
         <Escalon
           etiqueta={T.informe.comision}
           pie={T.informe.comisionPie}
-          cifra={`−${montoCuadro(c.comision)}`}
+          cifra={`−${montoCuadro(c.comision, c.moneda)}`}
           color="#948DAE"
           linea
         />
-        <Escalon etiqueta={T.informe.tuyo} cifra={montoCuadro(c.neto)} color="#E29A2E" grande linea />
+        <Escalon etiqueta={T.informe.tuyo} cifra={montoCuadro(c.neto, c.moneda)} color="#E29A2E" grande linea />
         <p className="mt-2.5 text-right text-[11.5px] text-ink-3">{T.informe.todoEn(c.moneda)}</p>
       </div>
 
@@ -279,7 +279,7 @@ function Bloque({
               <p
                 className={`font-mono text-[13px] ${l.disputada ? 'text-terra' : 'text-ink-2'}`}
               >
-                {montoCuadro(l.pagado)}
+                {montoCuadro(l.pagado, l.moneda)}
               </p>
               {l.rating !== null && (
                 <p className="mt-0.5 text-[10.5px] text-ink-3">{l.rating}★</p>
@@ -361,16 +361,16 @@ function HojaRecibo({
       <p className="mt-1 text-[12.5px] text-ink-3">{dia(linea.ts)} · {linea.moneda}</p>
 
       <div className="mt-3.5 divide-y divide-line overflow-hidden rounded-[14px] border border-line">
-        <Fila k={T.informe.precioEncargo} v={montoCuadro(linea.bruto)} />
+        <Fila k={T.informe.precioEncargo} v={montoCuadro(linea.bruto, linea.moneda)} />
         {linea.devuelto > 0n && (
           <Fila
             k={T.informe.devueltoAlCliente}
-            v={`−${montoCuadro(linea.devuelto)}`}
+            v={`−${montoCuadro(linea.devuelto, linea.moneda)}`}
             color="text-terra"
           />
         )}
-        <Fila k={T.informe.comision} v={`−${montoCuadro(linea.comision)}`} color="text-ink-3" />
-        <Fila k={T.informe.cobrado} v={montoCuadro(linea.pagado)} color="text-honey" fuerte />
+        <Fila k={T.informe.comision} v={`−${montoCuadro(linea.comision, linea.moneda)}`} color="text-ink-3" />
+        <Fila k={T.informe.cobrado} v={montoCuadro(linea.pagado, linea.moneda)} color="text-honey" fuerte />
       </div>
 
       <p className="mt-3.5 text-[11.5px] uppercase tracking-[0.06em] text-ink-3">

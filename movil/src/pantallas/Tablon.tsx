@@ -26,7 +26,16 @@ import {
   useTablonReglas,
   type DatosDelTablon,
 } from '@/hooks/useTablonReglas';
-import { claveDeMotivo, credencialTablon, enTablon, firmarYEsperar, leerEntregaConFirma, MONEDAS_TABLON, simboloDe } from '@/lib/tablonReglas';
+import {
+  claveDeMotivo,
+  credencialTablon,
+  enTablon,
+  firmarYEsperar,
+  leerEntregaConFirma,
+  liberableDesde,
+  simboloDe,
+  versionDelEncargo,
+} from '@/lib/tablonReglas';
 import { hayEntrega } from '@/lib/expedientes';
 import { abrirTexto, clavePublicaDe, publicarMiClave } from '@/lib/cifrado';
 import { darAccesoAlElegido, darAccesoALosArbitrosDelTablon } from '@/lib/accesos';
@@ -41,6 +50,7 @@ import { explicarFallo, useFirmaTablon } from '~/lib/usarFirmaTablon';
 import { monto } from '~/lib/formato';
 import { useTextos } from '~/i18n/idiomas';
 import type { Textos } from '~/i18n/idiomas';
+import { etiquetaTarea } from '@/lib/escrow';
 
 /**
  * El tablón con reglas (PanalTablon) en la app.
@@ -100,7 +110,7 @@ export default function Tablon(): React.ReactElement {
     if (!reglas) return null;
     const partes = Object.entries(reglas.topes)
       .filter(([, t]) => t.porEncargo !== 0n)
-      .map(([m, t]) => `${monto(t.porEncargo)} ${simboloDe(m as Address)}`);
+      .map(([m, t]) => `${monto(t.porEncargo, simboloDe(m as Address))} ${simboloDe(m as Address)}`);
     return partes.length ? T.tablon.beta(partes.join(` ${T.tablon.o} `)) : null;
   }, [reglas, T]);
 
@@ -323,7 +333,7 @@ function Abiertos({
                 {esMio && <Etiqueta tono="miel">{T.tablon.esTuyo}</Etiqueta>}
               </div>
               <p className="mt-1.5 font-mono text-[11px] text-ink-3">
-                #{id} · {T.tablon.entregaEn(duracion(j.plazoEntregaS))} ·{' '}
+                {etiquetaTarea(j.id)} · {T.tablon.entregaEn(duracion(j.plazoEntregaS))} ·{' '}
                 {seleccion
                   ? T.tablon.ofertasQuedan(duracion(j.publicadoEn + j.ventanaOfertasS - ahora), ofertas.length)
                   : T.tablon.quedan(duracion(j.caducaEn - ahora))}
@@ -342,7 +352,7 @@ function Abiertos({
                 <div className="mt-2.5 flex flex-wrap items-center gap-2">
                   {mia && (
                     <span className="text-[12px] text-ink-2">
-                      {T.tablon.tuOferta(monto(mia.precio), simboloDe(j.moneda), duracion(mia.plazoEntregaS))}
+                      {T.tablon.tuOferta(monto(mia.precio, simboloDe(j.moneda)), simboloDe(j.moneda), duracion(mia.plazoEntregaS))}
                     </span>
                   )}
                   {seleccion ? (
@@ -391,7 +401,9 @@ function Mios({ datos, yo, firma, abrir, T }: { datos: DatosDelTablon; yo: Addre
   const mios = datos.encargos.filter((j) => j.cliente.toLowerCase() === yo.toLowerCase());
   const enMarcha = mios.filter((j) => j.estado === EstadoTablon.Publicado || j.estado === EstadoTablon.Asignado);
   const terminados = mios.filter((j) => j.estado !== EstadoTablon.Publicado && j.estado !== EstadoTablon.Asignado);
-  const porCobrar = MONEDAS_TABLON.filter((m) => (deuda?.[m.toLowerCase()] ?? 0n) > 0n);
+  // Por tablón y moneda: el v2 y el v2.5 guardan cada uno lo suyo (y el v2.5, también USDC).
+  const porCobrar = deuda ?? [];
+  const dosTablones = new Set(porCobrar.map((d) => d.version)).size > 1;
 
   return (
     <div className="flex flex-col gap-3">
@@ -399,16 +411,21 @@ function Mios({ datos, yo, firma, abrir, T }: { datos: DatosDelTablon; yo: Addre
         <div className="rounded-2xl border border-honey-line bg-honey-soft p-3.5">
           <p className="text-[12.5px] leading-[1.5] text-ink">{T.tablon.mios.porCobrar}</p>
           <div className="mt-2.5 flex flex-wrap gap-2">
-            {porCobrar.map((m) => {
-              const clave = `cobrar:${m}`;
+            {porCobrar.map((d) => {
+              const clave = `cobrar:${d.version}:${d.moneda}`;
+              const s = simboloDe(d.moneda);
               return (
                 <Accion
-                  key={m}
+                  key={clave}
                   tono="miel"
                   disabled={firma.ocupado !== null}
-                  onClick={() => void firma.ejecutar(clave, (e, c) => firmarYEsperar(e, c, enTablon('claim', [m])))}
+                  onClick={() =>
+                    void firma.ejecutar(clave, (e, c) => firmarYEsperar(e, c, enTablon('claim', [d.moneda], undefined, d.version)))
+                  }
                 >
-                  {firma.ocupado === clave ? '…' : T.tablon.mios.cobrar(monto(deuda![m.toLowerCase()]!), simboloDe(m))}
+                  {firma.ocupado === clave
+                    ? '…'
+                    : `${T.tablon.mios.cobrar(monto(d.cantidad, s), s)}${dosTablones ? ` · ${d.version === 'v2_5' ? 'v2.5' : 'v2'}` : ''}`}
                 </Accion>
               );
             })}
@@ -640,22 +657,29 @@ function EncargoMio({ job, datos, yo, firma, abrir, T }: { job: EncargoConReglas
         if (confidencial) acciones.push(botonAcceso('elegido'));
       }
     } else if (tarea.estado === ESCROW.entregada) {
-      const libre = reglas ? tarea.entregadaEn + reglas.liberacionS : null;
+      // La revisión del v2 son 72 h; la del v2.5, la que lleva la tarea.
+      const libre = liberableDesde(tarea, reglas);
+      // En el v2.5 solo se disputa dentro de la revisión.
+      const puedeDisputar = versionDelEncargo(job.id) === 'v2' || libre === null || ahora < libre;
       estado = libre !== null && ahora >= libre ? M.entregadaLibre : M.entregada(libre ? fecha(libre) : '…');
       if (botonEntrega) acciones.push(botonEntrega);
       acciones.push(
         <Accion key="aprobar" tono="miel" onClick={() => abrir({ tipo: 'aprobar', job })} disabled={firma.ocupado !== null}>
           {M.aprobar}
         </Accion>,
-        <Accion
-          key="disputar"
-          tono="peligro"
-          onClick={() => abrir({ tipo: 'disputar', job, confidencial, resultHash: tarea.resultHash })}
-          disabled={firma.ocupado !== null}
-        >
-          {M.disputar}
-        </Accion>,
       );
+      if (puedeDisputar) {
+        acciones.push(
+          <Accion
+            key="disputar"
+            tono="peligro"
+            onClick={() => abrir({ tipo: 'disputar', job, confidencial, resultHash: tarea.resultHash })}
+            disabled={firma.ocupado !== null}
+          >
+            {M.disputar}
+          </Accion>,
+        );
+      }
       if (libre !== null && ahora >= libre) acciones.push(directa('cerrar', 'settle'));
     } else if (tarea.estado === ESCROW.enDisputa) {
       estado = M.enDisputa;
@@ -696,7 +720,7 @@ function EncargoMio({ job, datos, yo, firma, abrir, T }: { job: EncargoConReglas
         <Etiqueta>{seleccion ? T.tablon.seleccion : T.tablon.inmediato}</Etiqueta>
         {audiencia !== 'todos' && <Etiqueta tono="oliva">{T.tablon.audiencia[audiencia]}</Etiqueta>}
         {confidencial && <Etiqueta tono="oliva">{C.etiqueta}</Etiqueta>}
-        <span className="font-mono text-[11px] text-ink-3">#{id}</span>
+        <span className="font-mono text-[11px] text-ink-3">{etiquetaTarea(job.id)}</span>
       </div>
       {job.estado >= EstadoTablon.Asignado && job.estado <= EstadoTablon.Cerrado && (
         <p className="mt-1.5 flex items-center gap-1.5 text-[12px] font-medium text-ink-2">
@@ -750,7 +774,7 @@ function EncargoMio({ job, datos, yo, firma, abrir, T }: { job: EncargoConReglas
                     {o === mejor && <Etiqueta tono="miel">{M.mejor}</Etiqueta>}
                   </p>
                   <p className="mt-0.5 font-mono text-[11px] text-ink-3">{T.tablon.entregaEn(duracion(o.plazoEntregaS))}</p>
-                  {diferencia > 0n && <p className="mt-0.5 text-[11.5px] text-honey">{M.diferencia(monto(diferencia), simboloDe(job.moneda))}</p>}
+                  {diferencia > 0n && <p className="mt-0.5 text-[11.5px] text-honey">{M.diferencia(monto(diferencia, simboloDe(job.moneda)), simboloDe(job.moneda))}</p>}
                   {sinClave && <p className="mt-0.5 text-[11.5px] text-terra">{C.ofertaSinClave}</p>}
                 </div>
                 <Importe wei={o.precio} moneda={job.moneda} />
@@ -835,7 +859,7 @@ function Trabajo({ datos, yo, esAgente, firma, abrir, T }: { datos: DatosDelTabl
             puedeEntregar = ahora <= tarea.plazo;
             estado = puedeEntregar ? W.entregaAntes(fecha(tarea.plazo)) : W.fueraDePlazo;
           } else if (tarea?.estado === ESCROW.entregada) {
-            const libre = reglas ? tarea.entregadaEn + reglas.liberacionS : null;
+            const libre = liberableDesde(tarea, reglas);
             puedeCerrar = libre !== null && ahora >= libre;
             estado = puedeCerrar ? W.liberable : W.entregado(libre ? fecha(libre) : '…');
           } else if (tarea?.estado === ESCROW.enDisputa) {
@@ -854,7 +878,7 @@ function Trabajo({ datos, yo, esAgente, firma, abrir, T }: { datos: DatosDelTabl
               <div className="mt-2 flex flex-wrap items-center gap-1.5">
                 <Categoria numero={j.categoria} />
                 {datos.confidenciales.has(id) && <Etiqueta tono="oliva">{T.tablon.cifrado.etiqueta}</Etiqueta>}
-                <span className="font-mono text-[11px] text-ink-3">#{id}</span>
+                <span className="font-mono text-[11px] text-ink-3">{etiquetaTarea(j.id)}</span>
               </div>
               <p className={`mt-1.5 text-[12.5px] leading-[1.45] ${tarea?.estado === ESCROW.abierta && !puedeEntregar ? 'text-terra' : 'text-ink-2'}`}>
                 {estado}
@@ -899,7 +923,7 @@ function Trabajo({ datos, yo, esAgente, firma, abrir, T }: { datos: DatosDelTabl
                 <li key={id} className="rounded-2xl bg-cream p-3.5">
                   <p className="truncate text-[13.5px] text-ink">{datos.anuncios.get(id) ?? `#${id}`}</p>
                   <p className="mt-1 text-[11.5px] leading-[1.45] text-ink-3">
-                    {T.tablon.tuOferta(monto(o.precio), simboloDe(j.moneda), duracion(o.plazoEntregaS))} ·{' '}
+                    {T.tablon.tuOferta(monto(o.precio, simboloDe(j.moneda)), simboloDe(j.moneda), duracion(o.plazoEntregaS))} ·{' '}
                     {ahora < fin ? T.tablon.ofertasQuedan(duracion(fin - ahora), lista.length) : W.clienteEligiendo}
                   </p>
                   {ahora < fin && (

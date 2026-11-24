@@ -19,8 +19,8 @@ import type { Address, Hex } from 'viem';
 import { useReadContract, useSignMessage } from 'wagmi';
 import { MAX_PIEZA_CHARS, anclaDeLaPieza, cuerpoDePieza, type Acceso, type Destinatario } from '@panal/sdk';
 import { useWallet } from '@/hooks/useWallet';
-import { panalEscrowV2Abi } from '@/contracts/abis';
-import { PANAL_ESCROW_V2_ADDRESS, activeChain } from '@/contracts/config';
+import { activeChain } from '@/contracts/config';
+import { escrowDe, idEnLaCadena, versionDeTarea } from '@/lib/escrow';
 import { abrirBytes, abrirTexto, clavePublicaDe, darAccesoA, leerArbitros, publicarMiClave } from '@/lib/cifrado';
 import {
   abrirPieza,
@@ -76,14 +76,16 @@ export default function HojaPruebas({
   const delTablon = encargo.jobId !== undefined;
 
   // Las huellas de la tarea: con ellas se comprueba el encargo y la entrega.
+  // En su escrow: `tasks` en el v2 y `getTask` en el v2.5, con el número de la
+  // cadena (el de fuera lleva mil millones más). Los dos traen las dos huellas.
+  const version = versionDeTarea(encargo.id);
   const { data: enCadena } = useReadContract({
-    address: PANAL_ESCROW_V2_ADDRESS,
-    abi: panalEscrowV2Abi,
-    functionName: 'tasks',
-    args: [encargo.id],
+    ...escrowDe(version),
+    functionName: version === 'v2_5' ? 'getTask' : 'tasks',
+    args: [idEnLaCadena(encargo.id)],
     chainId: activeChain.id,
     query: { retry: 1 },
-  });
+  } as never);
   const huellas = useMemo(() => {
     const r = enCadena as unknown as { taskHash?: Hex; resultHash?: Hex } | undefined;
     return r?.taskHash && r.resultHash ? { taskHash: r.taskHash, resultHash: r.resultHash } : undefined;
@@ -170,7 +172,7 @@ export default function HojaPruebas({
       const c = await credencialDePruebas(encargo.id, address, firmar, encargo.jobId);
       setCred(c);
       setEstado('cargando');
-      const lista = await leerArbitros();
+      const lista = await leerArbitros(encargo.id);
       setJueces(lista);
       await Promise.all([destinatarios(lista), cargar(c)]);
       setEstado('listo');
