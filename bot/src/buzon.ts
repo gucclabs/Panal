@@ -107,6 +107,7 @@ import { MAX_BRIEF_CHARS, parseMetadataURI, type AgentJson } from './http.js';
 import type { BotConfig } from './config.js';
 import { MAX_ARCHIVO_BYTES, type AccesoGuardado, type BuzonStore } from './buzon-store.js';
 import { antivirusDeClamd, comprobarClamd, esArchivoCifrado, type Antivirus } from './antivirus.js';
+import { esDelV2_5 } from './v2_5.js';
 
 /* ── lo que se firma ──────────────────────────────────────────────────────
  *
@@ -555,6 +556,12 @@ export interface BuzonDeps {
    * dirección y se comprueban con `fetchJob`. Sin él, sus rutas no existen.
    */
   tablon?: Address | null;
+  /**
+   * El tablón v2.5 (24-nov-2026). Sus encargos van bajo SU dirección y con el
+   * número de fuera de la cadena (más mil millones, ver v2_5.ts); `fetchJob`
+   * lee del tablón que toca según el número.
+   */
+  tablonV2_5?: Address | null;
   fetchJob?: (jobId: bigint) => Promise<TrabajoTablon>;
   /**
    * Quiénes deciden las disputas: los firmantes de la multisig que es el
@@ -1711,7 +1718,8 @@ export function createBuzonServer(deps: BuzonDeps): Server {
    * respondido.
    */
   const clienteDe = async (task: Task, taskId: bigint, url: URL, res: ServerResponse): Promise<string | null | undefined> => {
-    if (!deps.tablon || task.client.toLowerCase() !== deps.tablon.toLowerCase()) return task.client.toLowerCase();
+    const cliente = task.client.toLowerCase();
+    if (cliente !== deps.tablon?.toLowerCase() && cliente !== deps.tablonV2_5?.toLowerCase()) return cliente;
     const job = url.searchParams.get('job');
     if (!deps.fetchJob || !job || !/^\d{1,20}$/.test(job)) return null;
     let encargo: TrabajoTablon;
@@ -2622,7 +2630,16 @@ export function createBuzonServer(deps: BuzonDeps): Server {
     const { agente, resto } = p;
 
     // El tablón con reglas, antes que nada: su dirección no es un agente.
-    if (deps.tablon && deps.fetchJob && agente === getAddress(deps.tablon)) {
+    const esTablonV2 = !!deps.tablon && agente === getAddress(deps.tablon);
+    const esTablonV2_5 = !!deps.tablonV2_5 && agente === getAddress(deps.tablonV2_5);
+    if (deps.fetchJob && (esTablonV2 || esTablonV2_5)) {
+      // Cada tablón, con sus números: los del v2.5 desde mil millones. Un
+      // número del otro tablón por esta ruta no es un encargo de este.
+      const num = /^(?:[a-z-]+\/)?(\d{1,20})(?:\/|$)/.exec(resto);
+      if (num && esDelV2_5(BigInt(num[1]!)) !== esTablonV2_5) {
+        json(res, 404, { error: 'no such job' });
+        return;
+      }
       await tablonConReglas(agente, resto, url, req, res);
       return;
     }
@@ -2794,7 +2811,11 @@ export function startBuzonServer(cfg: BotConfig, clients: ChainClients, store: B
     indexer: cfg.indexerPublicUrl,
     allowLocalhostOrigin: process.env.NODE_ENV !== 'production',
     tablon: cfg.tablonAddress,
-    fetchJob: cfg.tablonAddress ? (jobId) => getTablonJob(clients, cfg.tablonAddress!, jobId) : undefined,
+    tablonV2_5: cfg.v2_5?.tablon ?? null,
+    fetchJob:
+      cfg.tablonAddress || cfg.v2_5
+        ? (jobId) => getTablonJob(clients, cfg.tablonAddress!, jobId, cfg.v2_5)
+        : undefined,
     fetchArbitros: arbitrosConCache(() => getArbitros(clients, cfg)),
     antivirus: cfg.clamd ? antivirusDeClamd(cfg.clamd) : undefined,
   });

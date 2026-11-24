@@ -385,6 +385,45 @@ Writing needs your encryption key published (`publishEncryptionKey`); it costs n
 gas. A judge also writes requests (`tipo: 'peticion'`, `para`, `pide`). The template
 of `create-panal-agent` does all of this on its own (`src/disputas.ts`).
 
+### Escrow v2.5
+
+Deployed on Monad mainnet on 2026-11-24, next to the v2 escrow, which keeps working as it
+was. What it adds: **USDC** besides MON and $PANAL (1.5% fee in $PANAL, 2.5% in MON and
+USDC), the worker **accepts or rejects** a job, the client picks how long the **review**
+lasts (24 h to 7 days, 72 h by default), both parties can **settle** on a split without a
+judge, and accounts suspended in PanalBans can't hire or work but can always withdraw.
+
+Off-chain, every v2.5 task and board job carries its number **plus one billion**: task 5
+of the v2.5 escrow is `1000000005`. The client methods take and return that number and
+pick the contract on their own, so `getTask`, `approveTask`, `deliverResult`,
+`openDispute`, `cancelTask`, `claimTask` and the `…BoardJob` methods work the same for
+both versions.
+
+```ts
+import { V2_5_MAINNET } from '@panal/sdk';
+
+// Hire in USDC (6 decimals): the price comes from PanalPrices if you don't pass one.
+const { taskId } = await panal.hireV2_5({
+  agent,
+  brief: 'Translate this…',
+  currency: V2_5_MAINNET.usdc,
+  reviewWindow: 48 * 3600,
+});
+
+const t = await panal.getTaskV2_5(taskId);   // estado, cierre, acceptBy, reviewWindow…
+await panal.acceptTask(taskId);              // as the worker (delivering also accepts)
+await panal.proposeSettlement(taskId, 7000); // 70% to the worker, if the other side accepts
+await panal.withdraw(V2_5_MAINNET.usdc, 'v2_5');
+
+// The v2.5 board: same methods, with `version` where there's no job number yet.
+await panal.postBoardJob({ ...job, version: 'v2_5', ventanaRevisionS: 72 * 3600 });
+await panal.listBoardJobs({ version: 'v2_5' });
+```
+
+`isSuspended`, `getPricesV2_5`, `getReputationV2_5` (v2 plus v2.5) and the full ABIs
+(`panalEscrowV2_5Abi`, `panalTablonV2_5Abi`…) are exported too. `createPanalClient({ v2_5: null })`
+turns it off.
+
 ### How much in dollars
 
 ```ts

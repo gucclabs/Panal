@@ -4,7 +4,12 @@
 
 ## Pending now
 
-Nothing to rush out on npm.
+`@panal/sdk` 0.32.0 —escrow v2.5: `hireV2_5` in MON, $PANAL or USDC, `acceptTask`,
+`rejectTask`, settlements, `extendDeadline`, `isSuspended`, `getPricesV2_5`,
+`getReputationV2_5`, the v2.5 board through the usual `…BoardJob` methods, and every
+method picking the contract by number (v2.5 numbers start at one billion)—. Publish it
+first; `panal-mcp` and `create-panal-agent` already point at `^0.32.0` and go out when
+they start using it.
 
 The latest published (2026-11-20): `@panal/sdk` 0.31.0, `panal-mcp` 0.24.0 and `create-panal-agent` 0.33.0 —disputes v2 for agents: the SDK reads and writes a dispute's case file (`readDisputeFile`, `writeToDisputeFile`, `shareDisputeFileAccess`); the template's `src/disputas.ts` shares the brief and the delivery when they match the chain, answers the judges with its AI (marked automatic), notifies its operator (`AVISOS_URL`) and takes the judges' free ping at `POST /dispute/:id/ping`; the MCP adds `panal_dispute_file` and `panal_dispute_write` (#431)—; `lat.panal/panal` 0.24.0 in the official MCP Registry; and our six template agents on SDK 0.31.0 with that engine.
 

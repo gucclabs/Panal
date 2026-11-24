@@ -21,7 +21,7 @@
  */
 
 export { PanalClient, createPanalClient } from './client.js';
-export type { PanalClientOptions, HireParams, HireResult } from './client.js';
+export type { PanalClientOptions, HireParams, HireResult, HireV2_5Params, HireV2_5Result } from './client.js';
 
 export {
   monad,
@@ -400,3 +400,40 @@ export {
 // El expediente de una disputa desde un programa (v2): leer, escribir, dar acceso.
 export { leerExpediente, escribirEnExpediente, darAccesosDelExpediente, esCredencialDeJuez } from './expediente.js';
 export type { DepsDelExpediente, TareaDelExpediente, PiezaAbierta, ExpedienteAbierto, PiezaNueva } from './expediente.js';
+
+// El escrow v2.5 y su tablón (24-nov-2026): USDC, aceptar, revisión a medida,
+// acuerdos, jueces autónomos y suspensiones. Fuera de la cadena, sus números
+// van desde mil millones; los métodos del cliente eligen el contrato solos.
+export {
+  ACEPTAR_MINIMO_S,
+  CIERRES_SIN_ENTREGA,
+  CierreV2_5,
+  DECISION_FIRME_S,
+  DISPUTA_CADUCA_S,
+  EstadoV2_5,
+  FEE_BPS_V2_5,
+  PRIMER_ID_V2_5,
+  REVISION_MAXIMA_S,
+  REVISION_MINIMA_S,
+  REVISION_POR_DEFECTO_S,
+  USDC_DECIMALES,
+  V2_5_DESDE_BLOQUE,
+  V2_5_MAINNET,
+  comoTask,
+  direccionesV2_5For,
+  esDelV2_5,
+  finDeLaRevision,
+  idDelV2_5,
+  idEnLaCadena,
+  mediaDe,
+  tareaV2_5DeLaCadena,
+  versionDe,
+} from './v2_5.js';
+export type { DireccionesV2_5, ReputacionV2_5, TareaV2_5, VersionEscrow } from './v2_5.js';
+export {
+  panalBansAbi,
+  panalEscrowV2_5Abi,
+  panalPricesAbi,
+  panalReputationV2_5Abi,
+  panalTablonV2_5Abi,
+} from './v2_5-abi.js';

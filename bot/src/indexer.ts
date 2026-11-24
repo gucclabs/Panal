@@ -40,11 +40,12 @@ import { fichaEnIdioma, IDIOMAS, type Idioma } from './idiomas.js';
 import type { BotConfig } from './config.js';
 import { escrowAbi, monad, politePause, withRetry, type ChainClients } from './chain.js';
 import type { StopSignal } from './notifier.js';
-import { IndexStore, type EstadoDominio, type IndexedEvent } from './indexer-store.js';
+import { IndexStore, type EstadoDominio, type IndexedEvent, type Version } from './indexer-store.js';
 import { leerMarca } from './marca.js';
 import { verificarDominio } from './verificar-dominio.js';
 import { normalizarUsuario, verificarCuenta } from './verificar-cuenta.js';
 import { Telegram } from './telegram.js';
+import { BANS_EVENTS, ESCROW_V2_5_EVENTS, PRICES_EVENTS, PRIMER_ID_V2_5 } from './v2_5.js';
 
 // ---------------------------------------------------------------------------
 // ABIs y eventos (firmas exactas de contracts/src/v2/).
@@ -161,6 +162,16 @@ export const TABLON_EVENTS = [
   parseAbiItem('event CapsChanged(address indexed currency, uint256 perJob, uint256 total)'),
 ];
 
+/** Los eventos que se le piden a un contrato. */
+type EventosDeUnContrato =
+  | typeof REGISTRY_EVENTS
+  | typeof ESCROW_EVENTS
+  | typeof NAMES_EVENTS
+  | typeof TABLON_EVENTS
+  | typeof ESCROW_V2_5_EVENTS
+  | typeof BANS_EVENTS
+  | typeof PRICES_EVENTS;
+
 /** Log decodificado por viem al pasar `events` al getLogs. */
 interface DecodedLog {
   eventName?: string;
@@ -221,7 +232,7 @@ function parseRangeLimit(err: unknown): bigint | null {
 async function fetchWindow(
   clients: ChainClients,
   address: Address,
-  events: typeof REGISTRY_EVENTS | typeof ESCROW_EVENTS | typeof NAMES_EVENTS | typeof TABLON_EVENTS,
+  events: EventosDeUnContrato,
   fromBlock: bigint,
   toBlock: bigint,
 ): Promise<DecodedLog[]> {
@@ -244,7 +255,7 @@ async function fetchWindow(
 async function getLogsChunked(
   clients: ChainClients,
   address: Address,
-  events: typeof REGISTRY_EVENTS | typeof ESCROW_EVENTS | typeof NAMES_EVENTS | typeof TABLON_EVENTS,
+  events: EventosDeUnContrato,
   fromBlock: bigint,
   toBlock: bigint,
 ): Promise<DecodedLog[]> {
@@ -274,13 +285,48 @@ async function getLogsChunked(
   return out;
 }
 
-/** getLogs de los contratos en un rango (registry + escrow + names si lo hay). */
+/** Los logs de una ventana, por contrato. */
+interface LogsDeVentana {
+  registry: DecodedLog[];
+  escrow: DecodedLog[];
+  names: DecodedLog[];
+  tablon: DecodedLog[];
+  escrow25: DecodedLog[];
+  tablon25: DecodedLog[];
+  bans: DecodedLog[];
+  prices: DecodedLog[];
+}
+
+/**
+ * Los logs del v2.5 (escrow, tablón, suspensiones y precios) en un rango, solo
+ * a partir de su despliegue: antes no existían, y pedírselos al barrido hacia
+ * atrás serían cuatro llamadas por ventana a contratos vacíos.
+ */
+async function getLogsV2_5(
+  clients: ChainClients,
+  cfg: BotConfig,
+  fromBlock: bigint,
+  toBlock: bigint,
+): Promise<Pick<LogsDeVentana, 'escrow25' | 'tablon25' | 'bans' | 'prices'>> {
+  const v = cfg.v2_5;
+  const vacio = { escrow25: [], tablon25: [], bans: [], prices: [] };
+  if (!v || toBlock < BigInt(v.desdeBloque)) return vacio;
+  const desde = fromBlock < BigInt(v.desdeBloque) ? BigInt(v.desdeBloque) : fromBlock;
+  return {
+    escrow25: await getLogsChunked(clients, v.escrow, ESCROW_V2_5_EVENTS, desde, toBlock),
+    tablon25: await getLogsChunked(clients, v.tablon, TABLON_EVENTS, desde, toBlock),
+    bans: await getLogsChunked(clients, v.bans, BANS_EVENTS, desde, toBlock),
+    prices: await getLogsChunked(clients, v.prices, PRICES_EVENTS, desde, toBlock),
+  };
+}
+
+/** getLogs de los contratos en un rango (registry + escrow + names si lo hay, y el v2.5). */
 async function getLogsBoth(
   clients: ChainClients,
   cfg: BotConfig,
   fromBlock: bigint,
   toBlock: bigint,
-): Promise<{ registry: DecodedLog[]; escrow: DecodedLog[]; names: DecodedLog[]; tablon: DecodedLog[] }> {
+): Promise<LogsDeVentana> {
   const registry = await getLogsChunked(clients, cfg.registryAddress, REGISTRY_EVENTS, fromBlock, toBlock);
   const escrow = await getLogsChunked(clients, cfg.escrowAddress, ESCROW_EVENTS, fromBlock, toBlock);
   // Sin PanalNames desplegado no se pide nada: seria una llamada RPC por
@@ -291,19 +337,20 @@ async function getLogsBoth(
   const tablon = cfg.tablonAddress
     ? await getLogsChunked(clients, cfg.tablonAddress, TABLON_EVENTS, fromBlock, toBlock)
     : [];
-  return { registry, escrow, names, tablon };
+  return { registry, escrow, names, tablon, ...(await getLogsV2_5(clients, cfg, fromBlock, toBlock)) };
 }
 
-/** Los cuatro contratos de una ventana, ya decodificados y con su fecha. */
-async function eventosDe(
-  clients: ChainClients,
-  logs: { registry: DecodedLog[]; escrow: DecodedLog[]; names: DecodedLog[]; tablon: DecodedLog[] },
-): Promise<IndexedEvent[]> {
+/** Los contratos de una ventana, ya decodificados y con su fecha. */
+async function eventosDe(clients: ChainClients, logs: LogsDeVentana): Promise<IndexedEvent[]> {
   return [
     ...(await toIndexedEvents(clients, 'registry', logs.registry)),
     ...(await toIndexedEvents(clients, 'escrow', logs.escrow)),
     ...(await toIndexedEvents(clients, 'names', logs.names)),
     ...(await toIndexedEvents(clients, 'tablon', logs.tablon)),
+    ...(await toIndexedEvents(clients, 'escrow25', logs.escrow25)),
+    ...(await toIndexedEvents(clients, 'tablon25', logs.tablon25)),
+    ...(await toIndexedEvents(clients, 'bans', logs.bans)),
+    ...(await toIndexedEvents(clients, 'prices', logs.prices)),
   ];
 }
 
@@ -451,9 +498,25 @@ function serializeArg(value: unknown): string | number | boolean {
   return String(value);
 }
 
+/**
+ * Los números del v2.5, con el desplazamiento de fuera de la cadena (más mil
+ * millones, ver v2_5.ts): así su encargo 5 no pisa al 5 del v2 en el índice.
+ */
+export function desplazarV2_5(contract: IndexedEvent['contract'], args: Record<string, string | number | boolean>): void {
+  const mas = (k: string): void => {
+    const v = args[k];
+    if (typeof v === 'string' && /^\d+$/.test(v)) args[k] = (BigInt(v) + PRIMER_ID_V2_5).toString();
+  };
+  if (contract === 'escrow25') mas('taskId');
+  if (contract === 'tablon25') {
+    mas('jobId');
+    mas('escrowTaskId');
+  }
+}
+
 async function toIndexedEvents(
   clients: ChainClients,
-  contract: 'registry' | 'escrow' | 'names' | 'tablon',
+  contract: IndexedEvent['contract'],
   logs: DecodedLog[],
 ): Promise<IndexedEvent[]> {
   if (logs.length === 0) return [];
@@ -464,6 +527,7 @@ async function toIndexedEvents(
     const ts = blockTsCache.get(log.blockNumber.toString()) ?? Math.floor(Date.now() / 1000);
     const args: Record<string, string | number | boolean> = {};
     for (const [k, v] of Object.entries(log.args ?? {})) args[k] = serializeArg(v);
+    desplazarV2_5(contract, args);
     out.push({
       id: `${log.transactionHash}-${log.logIndex}`,
       contract,
@@ -593,6 +657,31 @@ async function ponerseAlDiaConElTablon(cfg: BotConfig, clients: ChainClients, st
   }
 }
 
+/**
+ * Recorre una vez el v2.5 (escrow, tablón, suspensiones y precios) desde su
+ * despliegue, igual que el tablón: el índice ya existía el 24-nov-2026, y el
+ * barrido hacia atrás y el sondeo no cubren lo que pasó antes de poner sus
+ * direcciones. En cuanto alcanza `lastBlock` no vuelve a hacer nada.
+ */
+async function ponerseAlDiaConElV2_5(cfg: BotConfig, clients: ChainClients, store: IndexStore): Promise<void> {
+  const v = cfg.v2_5;
+  if (!v) return;
+  const desde = Math.max((store.v2_5Hasta ?? v.desdeBloque - 1) + 1, v.desdeBloque);
+  if (desde > store.lastBlock) return;
+  const hasta = Math.min(desde + Number(maxLogRange) * TABLON_VENTANAS_POR_VUELTA - 1, store.lastBlock);
+  const logs = await getLogsV2_5(clients, cfg, BigInt(desde), BigInt(hasta));
+  const added = store.append([
+    ...(await toIndexedEvents(clients, 'escrow25', logs.escrow25)),
+    ...(await toIndexedEvents(clients, 'tablon25', logs.tablon25)),
+    ...(await toIndexedEvents(clients, 'bans', logs.bans)),
+    ...(await toIndexedEvents(clients, 'prices', logs.prices)),
+  ]);
+  store.setV2_5Hasta(hasta);
+  if (added > 0 || hasta === store.lastBlock) {
+    console.log(`[index] v2.5 [${desde},${hasta}]: ${added} eventos${hasta === store.lastBlock ? ' — al día' : ''}`);
+  }
+}
+
 /** El tope por agente de una campaña, que el contrato no emite en ningún evento. */
 const campaignCapAbi = [
   {
@@ -606,18 +695,25 @@ const campaignCapAbi = [
 
 /** Lee del contrato el tope de las campañas nuevas, de pocas en pocas. */
 async function leerTopesDeCampana(cfg: BotConfig, clients: ChainClients, store: IndexStore): Promise<void> {
-  if (!cfg.tablonAddress) return;
-  for (const key of store.campanasSinTope().slice(0, 10)) {
-    try {
-      const cap = await clients.publicClient.readContract({
-        address: cfg.tablonAddress,
-        abi: campaignCapAbi,
-        functionName: 'campaignCap',
-        args: [key as `0x${string}`],
-      });
-      store.marcarTopeDeCampana(key, Number(cap));
-    } catch {
-      return; // se reintenta en la próxima vuelta
+  // Cada tablón, sus campañas: la misma clave en el otro contrato es otra campaña.
+  const tablones: [Version, Address | null][] = [
+    ['v2', cfg.tablonAddress],
+    ['v2_5', cfg.v2_5?.tablon ?? null],
+  ];
+  for (const [v, tablon] of tablones) {
+    if (!tablon) continue;
+    for (const key of store.campanasSinTope(v).slice(0, 10)) {
+      try {
+        const cap = await clients.publicClient.readContract({
+          address: tablon,
+          abi: campaignCapAbi,
+          functionName: 'campaignCap',
+          args: [key as `0x${string}`],
+        });
+        store.marcarTopeDeCampana(key, Number(cap), v);
+      } catch {
+        break; // se reintenta en la próxima vuelta
+      }
     }
   }
 }
@@ -1025,10 +1121,10 @@ export async function runIndexer(
       const newHead = await withRetry('getBlockNumber', () => clients.publicClient.getBlockNumber());
       await incremental(cfg, clients, store, newHead);
       await ponerseAlDiaConElTablon(cfg, clients, store);
-      if (cfg.tablonAddress) {
-        await leerTopesDeCampana(cfg, clients, store);
-        await vigilar(cfg, store);
-      }
+      await ponerseAlDiaConElV2_5(cfg, clients, store);
+      // Los topes de campaña, de los dos tablones: el del v2.5 aunque no haya v2.
+      if (cfg.tablonAddress || cfg.v2_5) await leerTopesDeCampana(cfg, clients, store);
+      if (cfg.tablonAddress) await vigilar(cfg, store);
       await refrescarFichas(cfg, clients, store);
       await verificarDominios(store);
       await verificarCuentas(store);

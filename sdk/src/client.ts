@@ -16,7 +16,7 @@
  * y en uso: el caso de "quiero probar esto ahora" no debería exigir un .env.
  */
 
-import { createPublicClient, createWalletClient, formatEther, getAddress, http, keccak256, parseAbi, parseEventLogs, toBytes, verifyMessage } from 'viem';
+import { createPublicClient, createWalletClient, formatEther, formatUnits, getAddress, http, keccak256, parseAbi, parseEventLogs, toBytes, verifyMessage } from 'viem';
 import type { Abi, Account, Address, Hex, PublicClient, TransactionReceipt, WalletClient } from 'viem';
 import { erc20Abi, escrowAbi, namesAbi, registryAbi } from './abis.js';
 import { leerX402 } from './agent-card.js';
@@ -63,6 +63,29 @@ import { descend, newEnvelope, remainingBudget, type CallEnvelope } from './enve
 import { NATIVE_CURRENCY, addressesFor, chainFor, type PanalAddresses, type PanalNetwork } from './chains.js';
 import { leerPrecios, valorDeVenta, type OpcionesPrecios, type Precios } from './precios.js';
 import { panalTablonAbi } from './tablon-abi.js';
+import {
+  panalBansAbi,
+  panalEscrowV2_5Abi,
+  panalPricesAbi,
+  panalReputationV2_5Abi,
+  panalTablonV2_5Abi,
+} from './v2_5-abi.js';
+import {
+  EstadoV2_5,
+  REVISION_POR_DEFECTO_S,
+  USDC_DECIMALES,
+  comoTask,
+  direccionesV2_5For,
+  esDelV2_5,
+  idDelV2_5,
+  idEnLaCadena,
+  tareaV2_5DeLaCadena,
+  versionDe,
+  type DireccionesV2_5,
+  type ReputacionV2_5,
+  type TareaV2_5,
+  type VersionEscrow,
+} from './v2_5.js';
 import {
   darAccesosDelExpediente,
   escribirEnExpediente,
@@ -154,7 +177,21 @@ export interface PanalClientOptions {
    * tablón, porque el texto de un encargo sin dueño no está en la cadena.
    */
   buzonUrl?: string;
+  /**
+   * Los contratos del escrow v2.5 (ver v2_5.ts). En mainnet, los desplegados
+   * el 24-nov-2026; se pueden sobrescribir uno a uno. `null` lo apaga: los
+   * números del v2.5 (desde mil millones) fallan con un error que lo dice.
+   */
+  v2_5?: Partial<DireccionesV2_5> | null;
 }
+
+/**
+ * El tope de gas de lo que se firma en el escrow v2.5. Contratar gasta unos
+ * 110.000 y aprobar unos 35.000 (medido en las pruebas del contrato); el tope
+ * deja margen para lo que escribe por primera vez y corta el gas inflado de
+ * Monad (ver `gasFijo`), que llegó a pedir millones.
+ */
+const TOPE_GAS_ESCROW_V2_5 = 600_000n;
 
 /**
  * Por encima de esto una retirada no se firma: retirar MON son 55.157 de gas y
@@ -210,6 +247,34 @@ export interface HireResult {
   currency: Address;
   /** El hash del brief que quedó registrado, para poder probarlo después. */
   taskHash: Hex;
+}
+
+/** Lo que se pasa para contratar en el escrow v2.5 (`hireV2_5`). */
+export interface HireV2_5Params {
+  agent: Address;
+  brief: string;
+  /** MON (`NATIVE_CURRENCY`, por defecto), $PANAL o USDC. */
+  currency?: Address;
+  /**
+   * Lo que se bloquea, en unidades mínimas (USDC: 6 decimales). Sin esto, el
+   * primer precio del agente en PanalPrices para esa moneda o, si no tiene, su
+   * precio del registro si cobra en esa moneda.
+   */
+  amount?: bigint;
+  /** Hasta cuándo puede entregar (unix, segundos). Por defecto, 24 h desde ahora. */
+  deadline?: bigint;
+  /**
+   * Segundos para aceptar o entregar sin haber aceptado (mínimo 5 min). Por
+   * defecto, hasta 10 min antes del plazo: un agente que entrega sin aceptar,
+   * como en el v2, tiene casi todo el plazo.
+   */
+  acceptWindow?: number;
+  /** Segundos de revisión tras la entrega: de 24 h a 7 días, 72 h por defecto. */
+  reviewWindow?: number;
+}
+
+export interface HireV2_5Result extends HireResult {
+  reviewWindow: number;
 }
 
 /**
@@ -292,6 +357,13 @@ function clientesDeLasStats(stats: unknown): ClientesDelAgente | undefined {
   return { completados: s.completed, distintos: s.clients, cuotaDelMayor: typeof cuota === 'number' ? cuota : null };
 }
 
+/** Un reparto en puntos básicos: entero de 0 a 10.000. */
+function comprobarReparto(workerShareBps: number): void {
+  if (!Number.isInteger(workerShareBps) || workerShareBps < 0 || workerShareBps > 10_000) {
+    throw new Error('El reparto es un entero de 0 a 10.000 (la parte de quien trabaja, en puntos básicos).');
+  }
+}
+
 export class PanalClient {
   readonly network: PanalNetwork;
   readonly addresses: PanalAddresses;
@@ -306,6 +378,8 @@ export class PanalClient {
   /** Indexador para buscar agentes, o null si se lee siempre de la cadena. */
   readonly indexerUrl: string | null;
   readonly buzonUrl: string;
+  /** Los contratos del v2.5, o null donde no están desplegados. Ver v2_5.ts. */
+  readonly v2_5: DireccionesV2_5 | null;
 
   constructor(options: PanalClientOptions = {}) {
     this.network = options.network ?? 'mainnet';
@@ -321,6 +395,11 @@ export class PanalClient {
 
     this.indexerUrl = options.indexerUrl === undefined ? 'https://api.panal.lat' : options.indexerUrl;
     this.buzonUrl = sinBarraFinal(options.buzonUrl ?? BUZON_URL);
+    // Los de la red, con lo que se sobrescriba; en una red sin v2.5, solo si
+    // se pasan todos: medio v2.5 firmaría contra la dirección cero.
+    const v25 = options.v2_5 === null ? null : { ...direccionesV2_5For(this.network), ...options.v2_5 };
+    const claves: (keyof DireccionesV2_5)[] = ['escrow', 'tablon', 'reputation', 'bans', 'prices', 'usdc'];
+    this.v2_5 = v25 && claves.every((k) => typeof v25[k] === 'string') ? (v25 as DireccionesV2_5) : null;
 
     // Con un fetch que espera cuando el RPC dice 429: ver `fetchQueEsperaAlRpc`.
     const transport = http(options.rpcUrl ?? chain.rpcUrls.default.http[0], { fetchFn: fetchQueEsperaAlRpc() });
@@ -406,6 +485,62 @@ export class PanalClient {
       );
     }
     return gas;
+  }
+
+  /** Los contratos del v2.5, o un error que dice que aquí no los hay. */
+  private contratosV2_5(): DireccionesV2_5 {
+    if (!this.v2_5) {
+      throw new Error(
+        `El escrow v2.5 no está desplegado en ${this.network}. Para probarlo, pasa sus direcciones en \`v2_5\`.`,
+      );
+    }
+    return this.v2_5;
+  }
+
+  /**
+   * Firma una llamada con el gas fijado, comprobando antes la reserva de
+   * Monad, y espera a que salga bien. Si el contrato la rechazaría, la
+   * estimación ya falla con su motivo y no se envía nada.
+   */
+  private async firmarLlamada(
+    que: string,
+    llamada: { address: Address; abi: Abi; functionName: string; args: readonly unknown[]; value?: bigint },
+    tope: bigint = TOPE_GAS_RETIRADA,
+  ): Promise<{ hash: Hex; recibo: TransactionReceipt }> {
+    const wallet = this.wallet();
+    await this.comprobarReserva(que, llamada);
+    const hash = await wallet.writeContract({
+      ...llamada,
+      gas: await this.gasFijo(que, llamada, tope),
+      chain: chainFor(this.network),
+      account: this.account!,
+    } as never);
+    const recibo = await this.publicClient.waitForTransactionReceipt({ hash });
+    if (recibo.status !== 'success') throw new Error(`${que} revirtió (tx ${hash}): se cobró el gas y no cambió nada.`);
+    return { hash, recibo };
+  }
+
+  /** Firma en el escrow v2.5. `args` lleva ya el número de la cadena. */
+  private firmarEnEscrowV2_5(
+    que: string,
+    functionName: string,
+    args: readonly unknown[],
+    value = 0n,
+  ): Promise<{ hash: Hex; recibo: TransactionReceipt }> {
+    return this.firmarLlamada(
+      que,
+      { address: this.contratosV2_5().escrow, abi: panalEscrowV2_5Abi as unknown as Abi, functionName, args, value },
+      TOPE_GAS_ESCROW_V2_5,
+    );
+  }
+
+  private leerEscrowV2_5<T>(functionName: string, args: readonly unknown[] = []): Promise<T> {
+    return this.publicClient.readContract({
+      address: this.contratosV2_5().escrow,
+      abi: panalEscrowV2_5Abi,
+      functionName,
+      args,
+    } as never) as Promise<T>;
   }
 
   /**
@@ -553,12 +688,30 @@ export class PanalClient {
    * `arbitrator` del escrow. Si el árbitro fuera una cuenta y no una
    * multisig, es él.
    */
-  async getArbitrators(): Promise<Address[]> {
+  async getArbitrators(version: VersionEscrow = 'v2'): Promise<Address[]> {
+    const escrow = version === 'v2_5' ? this.contratosV2_5().escrow : this.addresses.escrow;
     const arbitrator = (await this.publicClient.readContract({
-      address: this.addresses.escrow,
+      address: escrow,
       abi: parseAbi(['function arbitrator() view returns (address)']),
       functionName: 'arbitrator',
     })) as Address;
+    const humanos = await this.firmantesDe(arbitrator);
+    if (version !== 'v2_5') return humanos;
+    // En el v2.5 deciden también los jueces autónomos, si los hay: proponen, y
+    // su decisión queda firme a las 48 h si los humanos no la anulan.
+    const autonomo = (await this.publicClient.readContract({
+      address: escrow,
+      abi: parseAbi(['function autoArbitrator() view returns (address)']),
+      functionName: 'autoArbitrator',
+    })) as Address;
+    if (autonomo === NATIVE_CURRENCY) return humanos;
+    const todos = [...humanos, ...(await this.firmantesDe(autonomo))];
+    return todos.filter((a, i) => todos.findIndex((b) => b.toLowerCase() === a.toLowerCase()) === i);
+  }
+
+  /** Los firmantes de una multisig (`owners(i)` hasta que revierta), o la propia cuenta si no lo es. */
+  private async firmantesDe(cuenta: Address): Promise<Address[]> {
+    const arbitrator = cuenta;
     const firmantes: Address[] = [];
     for (let i = 0; i < 10; i++) {
       try {
@@ -618,13 +771,15 @@ export class PanalClient {
     tablon?: boolean;
     objetos: (string | Uint8Array)[];
     accesos?: Acceso[];
+    /** De qué escrow son los jueces. Ausente: el de `id`, por su número. */
+    version?: VersionEscrow;
   }): Promise<{ arbitros: number; sinClave: Address[]; objetos: number }> {
     this.wallet();
     const cifrados = o.objetos.filter((x) => (typeof x === 'string' ? esTextoCifrado(x) : esArchivoCifrado(x)));
     if (cifrados.length === 0) return { arbitros: 0, sinClave: [], objetos: 0 };
     const conClave: Destinatario[] = [];
     const sinClave: Address[] = [];
-    for (const a of await this.getArbitrators()) {
+    for (const a of await this.getArbitrators(o.version ?? versionDe(o.id))) {
       const clave = await this.getPublicKey(a);
       if (clave) conClave.push({ cuenta: a, clave });
       else sinClave.push(a);
@@ -670,11 +825,15 @@ export class PanalClient {
    * de verdad es el de su encargo; se busca de los más nuevos a los más viejos.
    */
   private async jobDeLaTarea(taskId: bigint): Promise<{ job: bigint; cliente: Address } | null> {
-    if (!this.boardJobsAvailable) return null;
-    const n = await this.getBoardJobCount();
+    // Una tarea del escrow v2.5 viene del tablón v2.5, y su encargo también
+    // lleva el número de fuera de la cadena.
+    const version = versionDe(taskId);
+    if (version === 'v2' && !this.boardJobsAvailable) return null;
+    const base = version === 'v2_5' ? idDelV2_5(0n) : 0n;
+    const n = await this.getBoardJobCount(version);
     for (let j = n - 1n; j >= 0n && j >= n - 500n; j--) {
-      const e = await this.getBoardJob(j);
-      if (e.escrowTaskId === taskId && e.cliente !== NATIVE_CURRENCY) return { job: j, cliente: e.cliente };
+      const e = await this.getBoardJob(base + j);
+      if (e.escrowTaskId === taskId && e.cliente !== NATIVE_CURRENCY) return { job: base + j, cliente: e.cliente };
       if (j === 0n) break;
     }
     return null;
@@ -685,7 +844,12 @@ export class PanalClient {
     const t = await this.getTask(taskId);
     let cliente = t.client;
     let job = opciones.job;
-    if (this.boardJobsAvailable && t.client.toLowerCase() === this.addresses.tablon.toLowerCase()) {
+    const version = versionDe(taskId);
+    const deTablon =
+      version === 'v2_5'
+        ? t.client.toLowerCase() === this.contratosV2_5().tablon.toLowerCase()
+        : this.boardJobsAvailable && t.client.toLowerCase() === this.addresses.tablon.toLowerCase();
+    if (deTablon) {
       if (job !== undefined) {
         cliente = (await this.getBoardJob(job)).cliente;
       } else {
@@ -701,7 +865,7 @@ export class PanalClient {
       trabajador: t.worker,
       taskHash: t.taskHash,
       resultHash: t.resultHash,
-      jueces: await this.getArbitrators(),
+      jueces: await this.getArbitrators(version),
       ...(job !== undefined ? { job } : {}),
     };
   }
@@ -974,8 +1138,13 @@ export class PanalClient {
     });
   }
 
-  /** Una tarea por su id. */
+  /**
+   * Una tarea por su id. Los números desde mil millones son del escrow v2.5
+   * (ver v2_5.ts) y vuelven con la forma de las del v2; la tarea entera, con
+   * la aceptación, la revisión y el cierre, la da `getTaskV2_5`.
+   */
   async getTask(taskId: bigint): Promise<Task> {
+    if (esDelV2_5(taskId)) return comoTask(await this.getTaskV2_5(taskId));
     // El ABI declara los campos con nombre, así que viem devuelve un objeto y
     // no una tupla: desestructurar por posición aquí compilaría pero leería
     // basura si algún día cambia el orden.
@@ -999,6 +1168,20 @@ export class PanalClient {
     return { id: taskId, ...raw };
   }
 
+  /** Una tarea del escrow v2.5 entera, por su número de fuera de la cadena (desde mil millones). */
+  async getTaskV2_5(taskId: bigint): Promise<TareaV2_5> {
+    if (!esDelV2_5(taskId)) {
+      throw new Error(`La tarea #${taskId} es del escrow v2: las del v2.5 van desde el ${idDelV2_5(0n)}.`);
+    }
+    const raw = await this.leerEscrowV2_5<Record<string, unknown>>('getTask', [idEnLaCadena(taskId)]);
+    return tareaV2_5DeLaCadena(taskId, raw);
+  }
+
+  /** Cuántas tareas hay en el escrow v2.5 (en la cadena van de 0 a este número - 1). */
+  async getTaskCountV2_5(): Promise<bigint> {
+    return this.leerEscrowV2_5<bigint>('getTaskCount');
+  }
+
   /** Cuántas tareas se han creado en total (los ids van de 0 a este número - 1). */
   async getTaskCount(): Promise<bigint> {
     return (await this.publicClient.readContract({
@@ -1008,8 +1191,16 @@ export class PanalClient {
     })) as bigint;
   }
 
-  /** Saldo acreditado y pendiente de retirar, por moneda. */
-  async getPendingWithdrawal(account: Address, currency: Address = NATIVE_CURRENCY): Promise<bigint> {
+  /**
+   * Saldo acreditado y pendiente de retirar, por moneda. Cada escrow guarda el
+   * suyo: `version: 'v2_5'` lee el del v2.5.
+   */
+  async getPendingWithdrawal(
+    account: Address,
+    currency: Address = NATIVE_CURRENCY,
+    version: VersionEscrow = 'v2',
+  ): Promise<bigint> {
+    if (version === 'v2_5') return this.leerEscrowV2_5<bigint>('pendingWithdrawals', [currency, getAddress(account)]);
     return (await this.publicClient.readContract({
       address: this.addresses.escrow,
       abi: escrowAbi,
@@ -1106,6 +1297,13 @@ export class PanalClient {
     if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
       throw new Error('La valoración es un entero de 1 a 5.');
     }
+    if (esDelV2_5(taskId)) {
+      const t = await this.getTaskV2_5(taskId);
+      if (t.estado !== EstadoV2_5.Entregada) {
+        throw new Error(`La tarea #${taskId} está "${EstadoV2_5[t.estado]}": solo se aprueba lo entregado.`);
+      }
+      return (await this.firmarEnEscrowV2_5('La aprobación', 'approveAndRelease', [idEnLaCadena(taskId), rating])).hash;
+    }
     const wallet = this.wallet();
     const task = await this.getTask(taskId);
     if (task.status !== TaskStatus.Delivered) {
@@ -1139,6 +1337,15 @@ export class PanalClient {
    * Para tenerlo en la wallet hay que llamar después a `withdraw()`.
    */
   async cancelTask(taskId: bigint): Promise<Hex> {
+    if (esDelV2_5(taskId)) {
+      // En el v2.5: sin aceptar y pasado el tiempo para aceptar, o sin
+      // trabajador, o pasado el plazo sin entrega, o con quien trabaja suspendido.
+      const t = await this.getTaskV2_5(taskId);
+      if (t.estado !== EstadoV2_5.Abierta && t.estado !== EstadoV2_5.Aceptada) {
+        throw new Error(`La tarea #${taskId} está "${EstadoV2_5[t.estado]}": solo se cancela lo que no se ha entregado.`);
+      }
+      return (await this.firmarEnEscrowV2_5('La cancelación', 'cancelTask', [idEnLaCadena(taskId)])).hash;
+    }
     const wallet = this.wallet();
     const task = await this.getTask(taskId);
     if (task.status !== TaskStatus.Open) {
@@ -1166,7 +1373,17 @@ export class PanalClient {
    * La resuelve el arbitrator repartiendo el importe. Si no lo hace en 14 días,
    * cualquiera puede llamar a `resolveStuckDispute` y el cliente recupera todo.
    */
-  async openDispute(taskId: bigint): Promise<Hex> {
+  async openDispute(taskId: bigint, motivo?: string): Promise<Hex> {
+    if (esDelV2_5(taskId)) {
+      // En el v2.5 puede abrirla cualquiera de las dos partes, durante la
+      // revisión, y deja en la cadena la huella del motivo (cero si no hay).
+      const t = await this.getTaskV2_5(taskId);
+      if (t.estado !== EstadoV2_5.Entregada) {
+        throw new Error(`La tarea #${taskId} está "${EstadoV2_5[t.estado]}": solo se disputa lo entregado.`);
+      }
+      const reasonHash = motivo ? keccak256(toBytes(motivo)) : (`0x${'0'.repeat(64)}` as Hex);
+      return (await this.firmarEnEscrowV2_5('La disputa', 'openDispute', [idEnLaCadena(taskId), reasonHash])).hash;
+    }
     const wallet = this.wallet();
     const task = await this.getTask(taskId);
     if (task.status !== TaskStatus.Delivered) {
@@ -1181,6 +1398,192 @@ export class PanalClient {
     });
     await this.publicClient.waitForTransactionReceipt({ hash });
     return hash;
+  }
+
+  // -------------------------------------------------------------------------
+  // El escrow v2.5 (ver v2_5.ts): USDC, aceptar, revisión a medida, acuerdos
+  // y suspensiones. Los números de tarea son los de fuera de la cadena (desde
+  // mil millones); aprobar, cancelar, disputar, entregar y coger usan los
+  // métodos de siempre, que eligen el escrow por el número.
+  // -------------------------------------------------------------------------
+
+  /**
+   * Contrata a un agente en el escrow v2.5: bloquea el pago (MON, $PANAL o
+   * USDC) hasta que apruebes, y el agente tiene que aceptar o entregar dentro
+   * de su ventana. Devuelve el número de la tarea de fuera de la cadena.
+   *
+   * Como `hire`, no manda el encargo: eso va después al buzón del agente.
+   */
+  async hireV2_5(p: HireV2_5Params): Promise<HireV2_5Result> {
+    const v = this.contratosV2_5();
+    this.wallet();
+    const agent = await this.getAgent(p.agent);
+    if (!agent.active) throw new Error(`El agente ${p.agent} está dado de baja: no acepta encargos.`);
+    const currency = getAddress(p.currency ?? NATIVE_CURRENCY);
+    const nativa = currency === NATIVE_CURRENCY;
+    if (!nativa && currency !== getAddress(this.addresses.panalToken) && currency !== getAddress(v.usdc)) {
+      throw new Error('El escrow v2.5 cobra en MON, $PANAL o USDC.');
+    }
+    if (await this.isSuspended(agent.address)) {
+      throw new Error(`${agent.address} está suspendido: el escrow v2.5 no le deja trabajar.`);
+    }
+    let amount = p.amount;
+    if (amount === undefined) {
+      const precios = await this.getPricesV2_5(agent.address, currency);
+      amount = precios[0] ?? (getAddress(agent.currency) === currency ? agent.pricePerTask : undefined);
+      if (amount === undefined) throw new Error(`${agent.address} no tiene precio en esa moneda: pasa \`amount\`.`);
+    }
+    if (amount <= 0n) throw new Error('El importe tiene que ser mayor que cero.');
+
+    const ahora = BigInt(Math.floor(Date.now() / 1000));
+    const deadline = p.deadline ?? ahora + 24n * 60n * 60n;
+    if (deadline <= ahora + 600n) throw new Error('El plazo tiene que estar al menos 10 minutos en el futuro.');
+    // El contrato exige que `ahora + acceptWindow` no pase del plazo, con el
+    // reloj del bloque: 10 min de margen por si se mina un poco más tarde.
+    const acceptWindow = p.acceptWindow ?? Math.max(5 * 60, Number(deadline - ahora) - 600);
+    const reviewWindow = p.reviewWindow ?? REVISION_POR_DEFECTO_S;
+    const taskHash = keccak256(toBytes(p.brief));
+
+    await this.assertFunds(currency, amount, nativa);
+    if (!nativa) {
+      // approve por el importe exacto, nunca infinito, como en `hire`.
+      await this.firmarLlamada('El approve', {
+        address: currency,
+        abi: erc20Abi as unknown as Abi,
+        functionName: 'approve',
+        args: [v.escrow, amount],
+      });
+    }
+    const nueva = { worker: agent.address, taskHash, deadline, acceptWindow, reviewWindow, currency, amount };
+    const { hash, recibo } = await this.firmarEnEscrowV2_5('El encargo', 'createTask', [nueva], nativa ? amount : 0n);
+    // El número sale del evento del recibo, no del contador: otro encargo
+    // podría haberse creado en el mismo bloque.
+    const [creada] = parseEventLogs({ abi: panalEscrowV2_5Abi, eventName: 'TaskCreated', logs: recibo.logs });
+    if (!creada) throw new Error(`createTask no emitió TaskCreated (tx ${hash}).`);
+    return { taskId: idDelV2_5(creada.args.taskId), txHash: hash, amount, currency, taskHash, reviewWindow };
+  }
+
+  /** Quien trabaja acepta el encargo: desde ahí el cliente ya no puede cancelarlo hasta el plazo. */
+  async acceptTask(taskId: bigint): Promise<Hex> {
+    const t = await this.tareaPropiaV2_5(taskId, 'aceptar');
+    if (t.estado !== EstadoV2_5.Abierta) {
+      throw new Error(`La tarea #${taskId} está "${EstadoV2_5[t.estado]}": solo se acepta lo que está abierto.`);
+    }
+    return (await this.firmarEnEscrowV2_5('Aceptar', 'acceptTask', [idEnLaCadena(taskId)])).hash;
+  }
+
+  /** Quien trabaja lo rechaza, y el cliente recupera el dinero en el acto. */
+  async rejectTask(taskId: bigint): Promise<Hex> {
+    const t = await this.tareaPropiaV2_5(taskId, 'rechazar');
+    if (t.estado !== EstadoV2_5.Abierta && t.estado !== EstadoV2_5.Aceptada) {
+      throw new Error(`La tarea #${taskId} está "${EstadoV2_5[t.estado]}": ya no se puede rechazar.`);
+    }
+    return (await this.firmarEnEscrowV2_5('Rechazar', 'rejectTask', [idEnLaCadena(taskId)])).hash;
+  }
+
+  private async tareaPropiaV2_5(taskId: bigint, que: string): Promise<TareaV2_5> {
+    this.wallet();
+    const t = await this.getTaskV2_5(taskId);
+    if (t.worker.toLowerCase() !== this.account!.address.toLowerCase()) {
+      throw new Error(`Solo quien trabaja puede ${que} la tarea #${taskId}, y es de ${t.worker}.`);
+    }
+    return t;
+  }
+
+  /**
+   * Propone un reparto a la otra parte, sin juez: `workerShareBps` es la parte
+   * de quien trabaja (10.000 = todo, 0 = todo vuelve al cliente). Se cierra
+   * cuando la otra parte lo acepta con `acceptSettlement`.
+   */
+  async proposeSettlement(taskId: bigint, workerShareBps: number): Promise<Hex> {
+    comprobarReparto(workerShareBps);
+    return (await this.firmarEnEscrowV2_5('La propuesta', 'proposeSettlement', [idEnLaCadena(this.delV2_5(taskId)), workerShareBps])).hash;
+  }
+
+  /**
+   * Acepta el reparto que propuso la otra parte, y se reparte en el acto. Se
+   * repite el reparto para que nadie lo cambie entre que lo lees y lo firmas.
+   */
+  async acceptSettlement(taskId: bigint, workerShareBps: number): Promise<Hex> {
+    comprobarReparto(workerShareBps);
+    return (await this.firmarEnEscrowV2_5('El acuerdo', 'acceptSettlement', [idEnLaCadena(this.delV2_5(taskId)), workerShareBps])).hash;
+  }
+
+  /** La propuesta de reparto en pie, o null si no hay. */
+  async getSettlementProposal(taskId: bigint): Promise<{ by: Address; workerShareBps: number } | null> {
+    const [by, bps] = await this.leerEscrowV2_5<readonly [Address, number]>('proposals', [idEnLaCadena(this.delV2_5(taskId))]);
+    return by === NATIVE_CURRENCY ? null : { by, workerShareBps: Number(bps) };
+  }
+
+  /** El cliente amplía el plazo de entrega, solo hacia adelante. */
+  async extendDeadline(taskId: bigint, newDeadline: bigint): Promise<Hex> {
+    return (await this.firmarEnEscrowV2_5('Ampliar el plazo', 'extendDeadline', [idEnLaCadena(this.delV2_5(taskId)), newDeadline])).hash;
+  }
+
+  /**
+   * Libera el pago de las entregadas cuya revisión ya pasó (cualquiera puede
+   * llamarlo; se salta las que no tocan). Lo cobrado queda por retirar con
+   * `withdraw(moneda, 'v2_5')`.
+   */
+  async releaseV2_5(taskIds: bigint[]): Promise<Hex> {
+    const ids = taskIds.map((id) => idEnLaCadena(this.delV2_5(id)));
+    return (await this.firmarEnEscrowV2_5('Liberar', 'release', [ids])).hash;
+  }
+
+  /** Devuelve al cliente lo de las vencidas sin entrega (cualquiera puede llamarlo). */
+  async refundExpiredV2_5(taskIds: bigint[]): Promise<Hex> {
+    const ids = taskIds.map((id) => idEnLaCadena(this.delV2_5(id)));
+    return (await this.firmarEnEscrowV2_5('Devolver', 'refundExpired', [ids])).hash;
+  }
+
+  /** Un número que tiene que ser del v2.5, o un error que lo dice. */
+  private delV2_5(taskId: bigint): bigint {
+    if (!esDelV2_5(taskId)) throw new Error(`La tarea #${taskId} es del escrow v2, y esto solo existe en el v2.5.`);
+    return taskId;
+  }
+
+  /**
+   * Si una cuenta está suspendida en PanalBans: no puede contratar ni
+   * trabajar en el escrow v2.5, pero siempre puede retirar su saldo.
+   */
+  async isSuspended(account: Address): Promise<boolean> {
+    return (await this.publicClient.readContract({
+      address: this.contratosV2_5().bans,
+      abi: panalBansAbi,
+      functionName: 'isBanned',
+      args: [getAddress(account)],
+    })) as boolean;
+  }
+
+  /**
+   * Los precios de un agente en PanalPrices para una moneda, en unidades
+   * mínimas y de menor a mayor. Vacío si no cobra en ella. A diferencia del
+   * registro, admite USDC y varios tamaños de encargo.
+   */
+  async getPricesV2_5(agent: Address, currency: Address = NATIVE_CURRENCY): Promise<bigint[]> {
+    const lista = (await this.publicClient.readContract({
+      address: this.contratosV2_5().prices,
+      abi: panalPricesAbi,
+      functionName: 'getPrices',
+      args: [getAddress(agent), getAddress(currency)],
+    })) as readonly bigint[];
+    return [...lista];
+  }
+
+  /** La reputación de un agente: lo que trae del v2 más lo hecho en el v2.5. */
+  async getReputationV2_5(agent: Address): Promise<ReputacionV2_5> {
+    const r = (await this.publicClient.readContract({
+      address: this.contratosV2_5().reputation,
+      abi: panalReputationV2_5Abi,
+      functionName: 'getReputation',
+      args: [getAddress(agent)],
+    })) as ReputacionV2_5;
+    return {
+      tasksCompleted: r.tasksCompleted,
+      ratingSum: r.ratingSum,
+      ratingCount: r.ratingCount,
+      disputesLost: r.disputesLost,
+    };
   }
 
   // -------------------------------------------------------------------------
@@ -1272,6 +1675,20 @@ export class PanalClient {
    * sirves algo que no case con él, el cliente lo detectará y con razón.
    */
   async deliverResult(taskId: bigint, resultText: string): Promise<{ txHash: Hex; resultHash: Hex }> {
+    if (esDelV2_5(taskId)) {
+      this.wallet();
+      const t = await this.getTaskV2_5(taskId);
+      if (t.worker.toLowerCase() !== this.account!.address.toLowerCase()) {
+        throw new Error(`La tarea #${taskId} está asignada a ${t.worker}, no a ti.`);
+      }
+      if (t.estado !== EstadoV2_5.Abierta && t.estado !== EstadoV2_5.Aceptada) {
+        throw new Error(`La tarea #${taskId} está "${EstadoV2_5[t.estado]}": solo se entrega lo que sigue abierto.`);
+      }
+      const resultHash = keccak256(toBytes(resultText));
+      // Entregar sin haber aceptado cuenta como aceptar (hasta `acceptBy`).
+      const { hash } = await this.firmarEnEscrowV2_5(`La entrega de #${taskId}`, 'deliverResult', [idEnLaCadena(taskId), resultHash]);
+      return { txHash: hash, resultHash };
+    }
     const wallet = this.wallet();
     const task = await this.getTask(taskId);
     if (task.worker.toLowerCase() !== this.account!.address.toLowerCase()) {
@@ -1398,6 +1815,15 @@ export class PanalClient {
    * registrado y dado de alta.
    */
   async claimTask(taskId: bigint): Promise<{ txHash: Hex }> {
+    if (esDelV2_5(taskId)) {
+      const t = await this.getTaskV2_5(taskId);
+      if (t.estado !== EstadoV2_5.Abierta || t.worker !== NATIVE_CURRENCY) {
+        throw new Error(`La tarea #${taskId} no está abierta a cualquiera: ${t.worker === NATIVE_CURRENCY ? EstadoV2_5[t.estado] : `es de ${t.worker}`}.`);
+      }
+      // Cogerla es aceptarla: desde ahí corre el plazo de entrega.
+      const { hash } = await this.firmarEnEscrowV2_5(`Coger la tarea #${taskId}`, 'claimTask', [idEnLaCadena(taskId)]);
+      return { txHash: hash };
+    }
     const wallet = this.wallet();
     const yo = this.account!.address;
     const task = await this.getTask(taskId);
@@ -2069,7 +2495,12 @@ export class PanalClient {
    * un 10 % de margen; y si la estimación vuelve por encima de `TOPE_GAS_RETIRADA`
    * no se firma nada.
    */
-  async withdraw(currency: Address = NATIVE_CURRENCY): Promise<Hex> {
+  async withdraw(currency: Address = NATIVE_CURRENCY, version: VersionEscrow = 'v2'): Promise<Hex> {
+    if (version === 'v2_5') {
+      // Cada escrow guarda su saldo. Con el tope de siempre: retirar es igual de barato.
+      const llamada = { address: this.contratosV2_5().escrow, abi: panalEscrowV2_5Abi as unknown as Abi, functionName: 'withdraw', args: [currency] };
+      return (await this.firmarLlamada('La retirada', llamada)).hash;
+    }
     const wallet = this.wallet();
     const llamada = {
       address: this.addresses.escrow,
@@ -2099,7 +2530,8 @@ export class PanalClient {
   }
 
   /** La dirección de PanalTablon, o un error que dice que aún no existe. */
-  private tablon(): Address {
+  private tablon(version: VersionEscrow = 'v2'): Address {
+    if (version === 'v2_5') return this.contratosV2_5().tablon;
     if (!this.boardJobsAvailable) {
       throw new Error(
         `PanalTablon todavía no está desplegado en ${this.network}. Para probarlo, pasa su dirección en \`addresses.tablon\`.`,
@@ -2108,32 +2540,41 @@ export class PanalClient {
     return this.addresses.tablon;
   }
 
-  private leerTablon<T>(functionName: string, args: readonly unknown[] = []): Promise<T> {
+  /** Lee del tablón de esa versión; `args` lleva ya el número de la cadena. */
+  private leerTablon<T>(functionName: string, args: readonly unknown[] = [], version: VersionEscrow = 'v2'): Promise<T> {
     return this.publicClient.readContract({
-      address: this.tablon(),
-      abi: panalTablonAbi,
+      address: this.tablon(version),
+      abi: version === 'v2_5' ? panalTablonV2_5Abi : panalTablonAbi,
       functionName,
       args,
     } as never) as Promise<T>;
   }
 
   async getBoardJob(jobId: bigint): Promise<EncargoConReglas> {
-    return encargoDeLaCadena(jobId, await this.leerTablon('getJob', [jobId]));
+    // Desde mil millones, del tablón v2.5 (ver v2_5.ts).
+    const v = versionDe(jobId);
+    return encargoDeLaCadena(jobId, await this.leerTablon('getJob', [idEnLaCadena(jobId)], v), v);
   }
 
-  async getBoardJobCount(): Promise<bigint> {
-    return this.leerTablon<bigint>('jobCount');
+  /** Cuántos encargos tiene el tablón de esa versión (en la cadena, de 0 a este número - 1). */
+  async getBoardJobCount(version: VersionEscrow = 'v2'): Promise<bigint> {
+    return this.leerTablon<bigint>('jobCount', [], version);
   }
 
   /**
    * Los últimos encargos, del más nuevo al más viejo; por defecto solo los
    * publicados. Se leen de diez en diez: el RPC público limita.
    */
-  async listBoardJobs(opciones: { limit?: number; estado?: EstadoTablon | 'todos' } = {}): Promise<EncargoConReglas[]> {
-    const total = await this.getBoardJobCount();
+  async listBoardJobs(
+    opciones: { limit?: number; estado?: EstadoTablon | 'todos'; version?: VersionEscrow } = {},
+  ): Promise<EncargoConReglas[]> {
+    const version = opciones.version ?? 'v2';
+    const total = await this.getBoardJobCount(version);
     const cuantos = BigInt(Math.max(1, Math.min(opciones.limit ?? 50, 200)));
     const ids: bigint[] = [];
-    for (let i = total - 1n; i >= 0n && i >= total - cuantos; i--) ids.push(i);
+    // Con el número de fuera de la cadena: los del v2.5, desde mil millones.
+    const base = version === 'v2_5' ? idDelV2_5(0n) : 0n;
+    for (let i = total - 1n; i >= 0n && i >= total - cuantos; i--) ids.push(base + i);
     const out: EncargoConReglas[] = [];
     for (let k = 0; k < ids.length; k += 10) {
       out.push(...(await Promise.all(ids.slice(k, k + 10).map((id) => this.getBoardJob(id)))));
@@ -2143,24 +2584,29 @@ export class PanalClient {
   }
 
   async getBoardOffers(jobId: bigint): Promise<OfertaConReglas[]> {
-    const lista = await this.leerTablon<readonly Record<string, unknown>[]>('offers', [jobId]);
+    const lista = await this.leerTablon<readonly Record<string, unknown>[]>('offers', [idEnLaCadena(jobId)], versionDe(jobId));
     return lista.map(ofertaDeLaCadena);
   }
 
   /** Si un agente puede coger (inmediato) u ofertar (selección) ahora, y por qué no. */
   async canTakeBoardJob(agent: Address, jobId: bigint): Promise<{ ok: boolean; motivo: string }> {
-    const [ok, motivo] = await this.leerTablon<readonly [boolean, string]>('canTake', [getAddress(agent), jobId]);
+    const [ok, motivo] = await this.leerTablon<readonly [boolean, string]>(
+      'canTake',
+      [getAddress(agent), idEnLaCadena(jobId)],
+      versionDe(jobId),
+    );
     return { ok, motivo };
   }
 
   /** Su nivel, lo que le queda hoy, si está suspendido y sus categorías. */
-  async boardStanding(agent: Address): Promise<SituacionEnElTablon> {
+  async boardStanding(agent: Address, version: VersionEscrow = 'v2'): Promise<SituacionEnElTablon> {
     const a = getAddress(agent);
+    // Cada tablón lleva sus faltas, su cupo y sus categorías.
     const [[nivel, cupo], stats, novato, mascara] = await Promise.all([
-      this.leerTablon<readonly [number, number]>('levelOf', [a]),
-      this.leerTablon<readonly [number, number, number, number, bigint]>('agentStats', [a]),
-      this.leerTablon<number>('newcomerJobs'),
-      this.leerTablon<bigint>('categoryMask', [a]),
+      this.leerTablon<readonly [number, number]>('levelOf', [a], version),
+      this.leerTablon<readonly [number, number, number, number, bigint]>('agentStats', [a], version),
+      this.leerTablon<number>('newcomerJobs', [], version),
+      this.leerTablon<bigint>('categoryMask', [a], version),
     ]);
     return situacionDe(
       {
@@ -2181,8 +2627,8 @@ export class PanalClient {
   }
 
   /** Lo que PanalTablon le debe a un cliente en una moneda: se cobra con `claimBoardRefund`. */
-  async getBoardRefund(client: Address, currency: Address = NATIVE_CURRENCY): Promise<bigint> {
-    return this.leerTablon<bigint>('owed', [getAddress(client), currency]);
+  async getBoardRefund(client: Address, currency: Address = NATIVE_CURRENCY, version: VersionEscrow = 'v2'): Promise<bigint> {
+    return this.leerTablon<bigint>('owed', [getAddress(client), currency], version);
   }
 
   /**
@@ -2195,9 +2641,11 @@ export class PanalClient {
     functionName: string,
     args: readonly unknown[],
     value = 0n,
+    version: VersionEscrow = 'v2',
   ): Promise<{ hash: Hex; recibo: TransactionReceipt }> {
     const wallet = this.wallet();
-    const llamada = { address: this.tablon(), abi: panalTablonAbi as unknown as Abi, functionName, args, value };
+    const abi = (version === 'v2_5' ? panalTablonV2_5Abi : panalTablonAbi) as unknown as Abi;
+    const llamada = { address: this.tablon(version), abi, functionName, args, value };
     await this.comprobarReserva(que, llamada);
     const hash = await wallet.writeContract({
       ...llamada,
@@ -2211,8 +2659,8 @@ export class PanalClient {
   }
 
   /** `approve` exacto a PanalTablon para un pago en token. Nunca infinito. */
-  private async aprobarAlTablon(token: Address, importe: bigint): Promise<void> {
-    const aFirmar = { address: token, abi: erc20Abi, functionName: 'approve', args: [this.tablon(), importe] } as const;
+  private async aprobarAlTablon(token: Address, importe: bigint, version: VersionEscrow = 'v2'): Promise<void> {
+    const aFirmar = { address: token, abi: erc20Abi, functionName: 'approve', args: [this.tablon(version), importe] } as const;
     const hash = await this.wallet().writeContract({
       ...aFirmar,
       gas: await this.gasFijo('El approve', aFirmar as never),
@@ -2247,6 +2695,7 @@ export class PanalClient {
   }> {
     const problema = problemaAlPublicar(p);
     if (problema) throw new Error(problema);
+    const version = p.version ?? 'v2';
     const moneda = p.moneda ?? NATIVE_CURRENCY;
     const nativa = moneda.toLowerCase() === NATIVE_CURRENCY.toLowerCase();
     await this.assertFunds(moneda, p.importe, nativa);
@@ -2299,12 +2748,15 @@ export class PanalClient {
       relist: p.republicar ?? false,
       campaignId: p.campana?.id ?? `0x${'0'.repeat(64)}`,
       campaignCapPerAgent: p.campana?.topePorAgente ?? 0,
+      // Solo el v2.5 lo lleva; al v2 no se le pasa (su `post` no lo tiene).
+      ...(version === 'v2_5' ? { reviewWindow: p.ventanaRevisionS ?? REVISION_POR_DEFECTO_S } : {}),
     };
-    if (!nativa) await this.aprobarAlTablon(moneda, p.importe);
-    const { hash, recibo } = await this.firmarEnTablon('La publicación', 'post', [params], nativa ? p.importe : 0n);
+    if (!nativa) await this.aprobarAlTablon(moneda, p.importe, version);
+    const { hash, recibo } = await this.firmarEnTablon('La publicación', 'post', [params], nativa ? p.importe : 0n, version);
     const [ev] = parseEventLogs({ abi: panalTablonAbi, logs: recibo.logs, eventName: 'JobPosted' });
     if (!ev) throw new Error(`La publicación salió (tx ${hash}) pero no se encontró el evento JobPosted.`);
-    const jobId = ev.args.jobId;
+    // El de fuera de la cadena: los del v2.5, desde mil millones.
+    const jobId = version === 'v2_5' ? idDelV2_5(ev.args.jobId) : ev.args.jobId;
     // Los textos van DESPUÉS de la cadena: hasta que el encargo existe, el buzón
     // no tiene hash con qué comprobarlos. Si fallan, el encargo está pagado y
     // sin anunciar: se dice y se reintenta con `publishBoardJobTexts`.
@@ -2352,7 +2804,7 @@ export class PanalClient {
 
   private async subirArchivoAlTablon(jobId: bigint, a: ArchivoParaSubir, cabeceras: Record<string, string>): Promise<void> {
     const nombre = sanitizeFileName(a.name);
-    const { status, text } = await fetchLimited(`${this.buzonUrl}/${this.tablon()}/archivo/${jobId}`, {
+    const { status, text } = await fetchLimited(`${this.buzonUrl}/${this.tablon(versionDe(jobId))}/archivo/${jobId}`, {
       method: 'POST',
       headers: {
         ...cabeceras,
@@ -2434,7 +2886,7 @@ export class PanalClient {
     for (const f of archivos) {
       const nombre = cifrado ? nombreEnBuzon(f.hash) : sanitizeFileName(f.name);
       const { status, bytes } = await fetchBytesLimited(
-        `${this.buzonUrl}/${this.tablon()}/archivo/${jobId}/${encodeURIComponent(nombre)}?de=${de}`,
+        `${this.buzonUrl}/${this.tablon(versionDe(jobId))}/archivo/${jobId}/${encodeURIComponent(nombre)}?de=${de}`,
         { headers: cabeceras, timeoutMs: 180_000, maxBytes: Math.min(MAX_FILE_BYTES, f.size + 1024) },
       );
       if (status === 404) throw new Error(`«${f.name}» no está en el buzón del tablón.`);
@@ -2467,7 +2919,7 @@ export class PanalClient {
    * Repetirlo no molesta.
    */
   async publishBoardJobTexts(jobId: bigint, textos: { anuncio: string; encargo: string }): Promise<void> {
-    const base = `${this.buzonUrl}/${this.tablon()}`;
+    const base = `${this.buzonUrl}/${this.tablon(versionDe(jobId))}`;
     for (const [ruta, campo, texto] of [
       ['anuncio', 'anuncio', textos.anuncio],
       ['brief', 'brief', textos.encargo],
@@ -2497,9 +2949,12 @@ export class PanalClient {
    * Un anuncio que no cuadre no se devuelve: el buzón no puede inventarse uno.
    */
   async listBoardJobAdverts(
-    opciones: { limit?: number } = {},
+    opciones: { limit?: number; version?: VersionEscrow } = {},
   ): Promise<(EncargoConReglas & { anuncio: string; confidencial: boolean })[]> {
-    const [encargos, anuncios] = await Promise.all([this.listBoardJobs({ limit: opciones.limit }), this.anunciosDelBuzon()]);
+    const [encargos, anuncios] = await Promise.all([
+      this.listBoardJobs({ limit: opciones.limit, version: opciones.version }),
+      this.anunciosDelBuzon(opciones.version),
+    ]);
     return encargos.flatMap((j) => {
       const a = anuncios.get(j.id.toString());
       if (!a) return [];
@@ -2513,8 +2968,8 @@ export class PanalClient {
    * (confidencial). Eso lo dice el buzón y no la cadena: si mintiera, lo que
    * cambia es un aviso, y quien coja el encargo lo verá al abrirlo.
    */
-  private async anunciosDelBuzon(): Promise<Map<string, { anuncio: string; cifrado: boolean }>> {
-    const respuesta = await fetchLimited(`${this.buzonUrl}/${this.tablon()}/lista`, { timeoutMs: 15_000, maxBytes: 2_000_000 });
+  private async anunciosDelBuzon(version: VersionEscrow = 'v2'): Promise<Map<string, { anuncio: string; cifrado: boolean }>> {
+    const respuesta = await fetchLimited(`${this.buzonUrl}/${this.tablon(version)}/lista`, { timeoutMs: 15_000, maxBytes: 2_000_000 });
     if (respuesta.status !== 200) throw new Error(`El buzón respondió ${respuesta.status} al pedir los anuncios.`);
     const { anuncios = [] } = JSON.parse(respuesta.text) as { anuncios?: { jobId: string; anuncio: string; cifrado?: boolean }[] };
     return new Map(
@@ -2529,7 +2984,7 @@ export class PanalClient {
    * lee quien su cliente elija, que tiene que tener su clave publicada.
    */
   async isBoardJobConfidential(jobId: bigint): Promise<boolean> {
-    return (await this.anunciosDelBuzon()).get(jobId.toString())?.cifrado === true;
+    return (await this.anunciosDelBuzon(versionDe(jobId))).get(jobId.toString())?.cifrado === true;
   }
 
   /**
@@ -2561,7 +3016,7 @@ export class PanalClient {
     if (yo !== job.cliente.toLowerCase() && yo !== job.agente.toLowerCase()) {
       throw new Error(`El encargo #${jobId} solo lo leen su cliente y el agente que lo tenga.`);
     }
-    const { status, text } = await fetchLimited(`${this.buzonUrl}/${this.tablon()}/encargo/${jobId}`, {
+    const { status, text } = await fetchLimited(`${this.buzonUrl}/${this.tablon(versionDe(jobId))}/encargo/${jobId}`, {
       headers: await this.credencialesDeBuzon((e) => tablonEncargoSignMessage(jobId, e)),
       timeoutMs: 15_000,
       maxBytes: 1_000_000,
@@ -2628,7 +3083,7 @@ export class PanalClient {
     if (para) texto = cifrarTexto(texto, para);
     const hashEntrega = keccak256(toBytes(texto));
     const cabeceras = await this.credencialesDeBuzon((e) => tablonEntregaSignMessage(jobId, hashEntrega, e));
-    const { status, text } = await fetchLimited(`${this.buzonUrl}/${this.tablon()}/entrega/${jobId}`, {
+    const { status, text } = await fetchLimited(`${this.buzonUrl}/${this.tablon(versionDe(jobId))}/entrega/${jobId}`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
@@ -2664,7 +3119,7 @@ export class PanalClient {
     if (this.account?.address.toLowerCase() !== job.cliente.toLowerCase()) {
       throw new Error(`La entrega del #${jobId} solo la descarga su cliente.`);
     }
-    const { status, text } = await fetchLimited(`${this.buzonUrl}/${this.tablon()}/result/${jobId}`, {
+    const { status, text } = await fetchLimited(`${this.buzonUrl}/${this.tablon(versionDe(jobId))}/result/${jobId}`, {
       headers: await this.credencialesDeBuzon((e) => tablonResultadoSignMessage(jobId, e)),
       timeoutMs: 15_000,
       maxBytes: 1_000_000,
@@ -2684,7 +3139,7 @@ export class PanalClient {
     this.wallet();
     const { ok, motivo } = await this.canTakeBoardJob(this.account!.address, jobId);
     if (!ok) throw new Error(`No se puede coger el encargo #${jobId}: ${motivo}.`);
-    const { hash } = await this.firmarEnTablon('Coger el encargo', 'take', [jobId]);
+    const { hash } = await this.firmarEnTablon('Coger el encargo', 'take', [idEnLaCadena(jobId)], 0n, versionDe(jobId));
     return { txHash: hash, escrowTaskId: (await this.getBoardJob(jobId)).escrowTaskId };
   }
 
@@ -2700,11 +3155,11 @@ export class PanalClient {
     // Confidencial: sin clave publicada, el cliente no podría darle acceso al
     // elegirla y no podría leer lo que tiene que hacer. Se publica antes.
     if (await this.isBoardJobConfidential(jobId)) await this.publishEncryptionKey();
-    return (await this.firmarEnTablon('La oferta', 'applyFor', [jobId, precio, BigInt(plazoEntregaS)])).hash;
+    return (await this.firmarEnTablon('La oferta', 'applyFor', [idEnLaCadena(jobId), precio, BigInt(plazoEntregaS)], 0n, versionDe(jobId))).hash;
   }
 
   async withdrawBoardOffer(jobId: bigint): Promise<Hex> {
-    return (await this.firmarEnTablon('Retirar la oferta', 'withdrawOffer', [jobId])).hash;
+    return (await this.firmarEnTablon('Retirar la oferta', 'withdrawOffer', [idEnLaCadena(jobId)], 0n, versionDe(jobId))).hash;
   }
 
   /**
@@ -2732,9 +3187,15 @@ export class PanalClient {
     const nativa = job.moneda.toLowerCase() === NATIVE_CURRENCY.toLowerCase();
     if (diferencia > 0n) {
       await this.assertFunds(job.moneda, diferencia, nativa);
-      if (!nativa) await this.aprobarAlTablon(job.moneda, diferencia);
+      if (!nativa) await this.aprobarAlTablon(job.moneda, diferencia, versionDe(jobId));
     }
-    const { hash } = await this.firmarEnTablon('Elegir la oferta', 'choose', [jobId, getAddress(agent)], nativa ? diferencia : 0n);
+    const { hash } = await this.firmarEnTablon(
+      'Elegir la oferta',
+      'choose',
+      [idEnLaCadena(jobId), getAddress(agent)],
+      nativa ? diferencia : 0n,
+      versionDe(jobId),
+    );
     const escrowTaskId = (await this.getBoardJob(jobId)).escrowTaskId;
     if (!confidencial) return { txHash: hash, escrowTaskId };
     // Elegido en la cadena: ahora, que pueda leer lo que tiene que hacer. Si
@@ -2762,7 +3223,7 @@ export class PanalClient {
     if (objetos.length === 0) return 0;
     const mia = await this.encryptionKey();
     const nuevos = objetos.map((o) => concederAcceso(o, this.account!.address, mia.secreta, { cuenta: para, clave }, accesos));
-    await this.dejarAccesos(`${this.buzonUrl}/${this.tablon()}`, jobId, true, nuevos);
+    await this.dejarAccesos(`${this.buzonUrl}/${this.tablon(versionDe(jobId))}`, jobId, true, nuevos);
     return nuevos.length;
   }
 
@@ -2775,7 +3236,14 @@ export class PanalClient {
    */
   async grantBoardDisputeAccess(jobId: bigint): Promise<{ arbitros: number; sinClave: Address[]; objetos: number }> {
     const { objetos, accesos } = await this.reunirDelTablon(jobId, true);
-    return this.grantArbitratorsAccess({ base: `${this.buzonUrl}/${this.tablon()}`, id: jobId, tablon: true, objetos, accesos });
+    return this.grantArbitratorsAccess({
+      base: `${this.buzonUrl}/${this.tablon(versionDe(jobId))}`,
+      id: jobId,
+      tablon: true,
+      objetos,
+      accesos,
+      version: versionDe(jobId),
+    });
   }
 
   /**
@@ -2812,17 +3280,49 @@ export class PanalClient {
 
   /** Asignar un encargo de selección cuyo cliente no eligió. Lo puede llamar cualquiera. */
   async autoAssignBoardJob(jobId: bigint): Promise<Hex> {
-    return (await this.firmarEnTablon('La asignación', 'autoAssign', [jobId])).hash;
+    return (await this.firmarEnTablon('La asignación', 'autoAssign', [idEnLaCadena(jobId)], 0n, versionDe(jobId))).hash;
   }
 
   /** El cliente aprueba la entrega (1-5) y el encargo se cierra. */
   async approveBoardJob(jobId: bigint, rating: number): Promise<Hex> {
     if (!Number.isInteger(rating) || rating < 1 || rating > 5) throw new Error('La valoración es un entero de 1 a 5.');
-    return (await this.firmarEnTablon('La aprobación', 'approve', [jobId, rating])).hash;
+    return (await this.firmarEnTablon('La aprobación', 'approve', [idEnLaCadena(jobId), rating], 0n, versionDe(jobId))).hash;
   }
 
-  async disputeBoardJob(jobId: bigint): Promise<Hex> {
+  /**
+   * El cliente disputa la entrega. En el tablón v2.5 queda en la cadena la
+   * huella del motivo (cero si no se da); en el v2 no hay dónde.
+   */
+  async disputeBoardJob(jobId: bigint, motivo?: string): Promise<Hex> {
+    if (esDelV2_5(jobId)) {
+      const reasonHash = motivo ? keccak256(toBytes(motivo)) : (`0x${'0'.repeat(64)}` as Hex);
+      return (await this.firmarEnTablon('La disputa', 'dispute', [idEnLaCadena(jobId), reasonHash], 0n, 'v2_5')).hash;
+    }
     return (await this.firmarEnTablon('La disputa', 'dispute', [jobId])).hash;
+  }
+
+  /**
+   * Solo tablón v2.5: el cliente propone un reparto a quien trabaja, sin
+   * jueces. Se cierra cuando el agente lo acepta en el escrow
+   * (`acceptSettlement` con el número de la tarea).
+   */
+  async proposeBoardSettlement(jobId: bigint, workerShareBps: number): Promise<Hex> {
+    comprobarReparto(workerShareBps);
+    if (!esDelV2_5(jobId)) throw new Error(`El encargo #${jobId} es del tablón v2, que no tiene acuerdos.`);
+    return (await this.firmarEnTablon('La propuesta', 'proposeSettlement', [idEnLaCadena(jobId), workerShareBps], 0n, 'v2_5')).hash;
+  }
+
+  /** Solo tablón v2.5: el cliente acepta el reparto que propuso el agente. */
+  async acceptBoardSettlement(jobId: bigint, workerShareBps: number): Promise<Hex> {
+    comprobarReparto(workerShareBps);
+    if (!esDelV2_5(jobId)) throw new Error(`El encargo #${jobId} es del tablón v2, que no tiene acuerdos.`);
+    return (await this.firmarEnTablon('El acuerdo', 'acceptSettlement', [idEnLaCadena(jobId), workerShareBps], 0n, 'v2_5')).hash;
+  }
+
+  /** Solo tablón v2.5: el cliente amplía el plazo de entrega, solo hacia adelante. */
+  async extendBoardDeadline(jobId: bigint, newDeadline: bigint): Promise<Hex> {
+    if (!esDelV2_5(jobId)) throw new Error(`El encargo #${jobId} es del tablón v2, que no deja ampliar el plazo.`);
+    return (await this.firmarEnTablon('Ampliar el plazo', 'extendDeadline', [idEnLaCadena(jobId), newDeadline], 0n, 'v2_5')).hash;
   }
 
   /**
@@ -2831,33 +3331,38 @@ export class PanalClient {
    * disputa atascada— lo hace primero. Lo puede llamar cualquiera.
    */
   async settleBoardJob(jobId: bigint): Promise<Hex> {
-    return (await this.firmarEnTablon('El cierre', 'settle', [jobId])).hash;
+    return (await this.firmarEnTablon('El cierre', 'settle', [idEnLaCadena(jobId)], 0n, versionDe(jobId))).hash;
   }
 
   /** El cliente retira un encargo que nadie tiene todavía. */
   async withdrawBoardJob(jobId: bigint): Promise<Hex> {
-    return (await this.firmarEnTablon('Retirar el encargo', 'withdrawJob', [jobId])).hash;
+    return (await this.firmarEnTablon('Retirar el encargo', 'withdrawJob', [idEnLaCadena(jobId)], 0n, versionDe(jobId))).hash;
   }
 
   async expireBoardJob(jobId: bigint): Promise<Hex> {
-    return (await this.firmarEnTablon('La caducidad', 'expire', [jobId])).hash;
+    return (await this.firmarEnTablon('La caducidad', 'expire', [idEnLaCadena(jobId)], 0n, versionDe(jobId))).hash;
   }
 
   /** Cobrar lo que PanalTablon le debe a esta cuenta en una moneda. */
-  async claimBoardRefund(currency: Address = NATIVE_CURRENCY): Promise<{ txHash: Hex; importe: bigint }> {
+  async claimBoardRefund(
+    currency: Address = NATIVE_CURRENCY,
+    version: VersionEscrow = 'v2',
+  ): Promise<{ txHash: Hex; importe: bigint }> {
     this.wallet();
-    const importe = await this.getBoardRefund(this.account!.address, currency);
+    // Cada tablón guarda lo suyo: se cobra de uno y luego del otro.
+    const importe = await this.getBoardRefund(this.account!.address, currency, version);
     if (importe === 0n) throw new Error('No hay nada que cobrar en esa moneda.');
-    const { hash } = await this.firmarEnTablon('El cobro', 'claim', [currency]);
+    const { hash } = await this.firmarEnTablon('El cobro', 'claim', [currency], 0n, version);
     return { txHash: hash, importe };
   }
 
   /** Las categorías del agente en el tablón: hasta tres, sin repetir. */
-  async setBoardCategories(categorias: number[]): Promise<Hex> {
+  async setBoardCategories(categorias: number[], version: VersionEscrow = 'v2'): Promise<Hex> {
     if (categorias.length > MAX_CATEGORIAS) throw new Error(`Hasta ${MAX_CATEGORIAS} categorías.`);
     if (new Set(categorias).size !== categorias.length) throw new Error('Hay categorías repetidas.');
     if (categorias.some((c) => !Number.isInteger(c) || c < 0 || c > 255)) throw new Error('Las categorías van de 0 a 255.');
-    return (await this.firmarEnTablon('Las categorías', 'setCategories', [categorias])).hash;
+    // Cada tablón tiene las suyas: un agente las declara en los dos.
+    return (await this.firmarEnTablon('Las categorías', 'setCategories', [categorias], 0n, version)).hash;
   }
 
   private async assertFunds(currency: Address, amount: bigint, isNative: boolean): Promise<void> {
@@ -2872,9 +3377,13 @@ export class PanalClient {
         })) as bigint);
 
     if (balance < amount) {
-      const symbol = isNative ? 'MON' : '$PANAL';
+      // USDC lleva 6 decimales: contado como uno de 18, el aviso diría cifras
+      // un billón de veces más pequeñas que las de verdad.
+      const usdc = !isNative && !!this.v2_5 && currency.toLowerCase() === this.v2_5.usdc.toLowerCase();
+      const symbol = isNative ? 'MON' : usdc ? 'USDC' : '$PANAL';
+      const cifra = (x: bigint): string => (usdc ? formatUnits(x, USDC_DECIMALES) : formatEther(x));
       throw new Error(
-        `Saldo insuficiente: hacen falta ${formatEther(amount)} ${symbol} y ${owner} tiene ${formatEther(balance)}.` +
+        `Saldo insuficiente: hacen falta ${cifra(amount)} ${symbol} y ${owner} tiene ${cifra(balance)}.` +
           (isNative ? ' Además necesitas algo extra para el gas.' : ''),
       );
     }

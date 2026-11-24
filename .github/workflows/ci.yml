@@ -386,6 +386,14 @@ jobs:
         working-directory: bot
         run: pnpm exec tsx scripts/test-indexer-tasks.ts
 
+      # El escrow v2.5: sus numeros van desde mil millones fuera de la cadena.
+      # Que el indice los desplace, que la API no se los ensene a quien no los
+      # pide, que el buzon no mezcle los dos tablones, y que los eventos que se
+      # piden sean los del contrato desplegado (si no, llegan cero, en silencio).
+      - name: Escrow v2.5 (numeracion, indice, API y buzon)
+        working-directory: bot
+        run: pnpm exec tsx scripts/test-v2-5.ts
+
       - name: Endurecimiento (IP tras proxy, anti-SSRF, tope de respuesta, prompts)
         working-directory: bot
         run: pnpm exec tsx scripts/test-hardening.ts
