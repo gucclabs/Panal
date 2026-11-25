@@ -27,7 +27,7 @@ import {
   NATIVE_CURRENCY,
   PANAL_ESCROW_V2_5_ADDRESS,
   PANAL_ESCROW_V2_ADDRESS,
-  PANAL_REGISTRY_V2_ADDRESS,
+  PANAL_REGISTRY_V3_ADDRESS,
   PANAL_TOKEN_ADDRESS,
   USDC_TOKEN_ADDRESS,
   V2_5_ENABLED,
@@ -64,7 +64,7 @@ export function useFicha(direccion: string | undefined) {
     staleTime: 20_000,
     queryFn: async () => {
       const f = (await publicClient.readContract({
-        address: PANAL_REGISTRY_V2_ADDRESS,
+        address: PANAL_REGISTRY_V3_ADDRESS,
         abi: panalRegistryV2Abi,
         functionName: 'getAgent',
         args: [direccion as Address],
@@ -418,7 +418,7 @@ export function useCartera(direcciones: string[]) {
         claves.map(async (dir): Promise<FilaCartera> => {
           const [ficha, pendiente] = await Promise.all([
             publicClient.readContract({
-              address: PANAL_REGISTRY_V2_ADDRESS,
+              address: PANAL_REGISTRY_V3_ADDRESS,
               abi: panalRegistryV2Abi,
               functionName: 'getAgent',
               args: [dir as Address],

@@ -56,7 +56,7 @@ import {
   PANAL_ESCROW_V2_5_ADDRESS,
   PANAL_ESCROW_V2_ADDRESS,
   PANAL_PRICES_ADDRESS,
-  PANAL_REGISTRY_V2_ADDRESS,
+  PANAL_REGISTRY_V3_ADDRESS,
   PANAL_TABLON_ADDRESS,
   PANAL_TABLON_V2_5_ADDRESS,
   PANAL_TOKEN_ADDRESS,
@@ -332,7 +332,9 @@ export function revisarTransaccion(t: { to?: Address; data?: Hex; value?: bigint
     return;
   }
 
-  if (isAddressEqual(t.to, PANAL_REGISTRY_V2_ADDRESS)) {
+  // El registro V3 (interfaz del v2). El V2 ya no: lo que se escribiera ahí
+  // después de que el agente tocara el V3 no lo vería nadie.
+  if (isAddressEqual(t.to, PANAL_REGISTRY_V3_ADDRESS)) {
     decodificar(panalRegistryV2Abi, datos, 'el registro');
     if (valor !== 0n) bloquear('MON al registro');
     return;

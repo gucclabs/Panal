@@ -12,7 +12,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useOnchainEvents } from '@/hooks/useOnchainEvents';
 import {
   PANAL_REGISTRY_ADDRESS,
-  PANAL_REGISTRY_V2_ADDRESS,
+  PANAL_REGISTRY_V3_ADDRESS,
   V2_ENABLED,
   currencySymbol,
   publicClient,
@@ -36,7 +36,7 @@ export function useNetworkStats(): NetworkStats {
     queryKey: ['panal', 'agentCount'],
     queryFn: async () => {
       const n = await publicClient.readContract({
-        address: V2_ENABLED ? PANAL_REGISTRY_V2_ADDRESS : PANAL_REGISTRY_ADDRESS,
+        address: V2_ENABLED ? PANAL_REGISTRY_V3_ADDRESS : PANAL_REGISTRY_ADDRESS,
         abi: V2_ENABLED ? panalRegistryV2Abi : panalRegistryAbi,
         functionName: 'getAgentCount',
       });

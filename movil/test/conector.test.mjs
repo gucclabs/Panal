@@ -154,7 +154,7 @@ const parado = async (method, params) => {
   }
 };
 const hex = (texto) => `0x${Buffer.from(texto, 'utf8').toString('hex')}`;
-const { PANAL_ESCROW_V2_ADDRESS: ESCROW, PANAL_REGISTRY_V2_ADDRESS: REGISTRO, PANAL_TOKEN_ADDRESS: TOKEN } = await import(
+const { PANAL_ESCROW_V2_ADDRESS: ESCROW, PANAL_REGISTRY_V3_ADDRESS: REGISTRO, PANAL_REGISTRY_V2_ADDRESS: REGISTRO_V2, PANAL_TOKEN_ADDRESS: TOKEN } = await import(
   '@/contracts/config'
 );
 const AGENTE = '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266';
@@ -304,6 +304,12 @@ dice(
 dice(
   'mandar MON al registro, no',
   !pasa({ to: REGISTRO, data: encodeFunctionData({ abi: panalRegistryV2Abi, functionName: 'setActive', args: [true] }), value: 1n }),
+);
+// Desde el V3 nada de Panal escribe en el registro V2: lo que se escribiera
+// ahí después de tocar el V3 no lo vería nadie.
+dice(
+  'escribir en el registro V2, no',
+  !pasa({ to: REGISTRO_V2, data: encodeFunctionData({ abi: panalRegistryV2Abi, functionName: 'setActive', args: [true] }) }),
 );
 // MON por mensaje: no se firma, se manda. La única transferencia suelta que
 // sale, y solo la que armó la hoja.

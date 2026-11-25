@@ -26,7 +26,7 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { conTextoDeLaFicha, leerNivelesDeMetadata, type Nivel } from '@panal/sdk';
-import { PANAL_REGISTRY_V2_ADDRESS, publicClient } from '@/contracts/config';
+import { PANAL_REGISTRY_V3_ADDRESS, publicClient } from '@/contracts/config';
 import { panalRegistryV2Abi } from '@/contracts/abis';
 import { extractBotUrl, leerCapacidades } from '@/lib/botEndpoint';
 import { leerCobroPorLlamada, type CobroPorLlamada } from '@/lib/chat';
@@ -82,7 +82,7 @@ export function useNiveles(agent: Agent | null): ServiciosDelAgente {
         // El endpoint sale del REGISTRO, nunca de la propia tarjeta: si saliera
         // de ahí, una tarjeta manipulada podría anunciar los niveles de otro.
         const meta = (await publicClient.readContract({
-          address: PANAL_REGISTRY_V2_ADDRESS,
+          address: PANAL_REGISTRY_V3_ADDRESS,
           abi: panalRegistryV2Abi,
           functionName: 'getAgent',
           args: [de as `0x${string}`],

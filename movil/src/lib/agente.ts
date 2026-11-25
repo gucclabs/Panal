@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { usePublicClient } from 'wagmi';
 import type { Address } from 'viem';
-import { PANAL_REGISTRY_V2_ADDRESS } from '@/contracts/config';
+import { PANAL_REGISTRY_V3_ADDRESS } from '@/contracts/config';
 import { panalRegistryV2Abi } from '@/contracts/abis';
 import { partirFicha } from '~/lib/ficha';
 import { extractBotUrl } from '@/lib/botEndpoint';
@@ -53,7 +53,7 @@ export function useAgente(direccion: string | undefined) {
     staleTime: 60_000,
     queryFn: async () => {
       const ficha = (await publicClient!.readContract({
-        address: PANAL_REGISTRY_V2_ADDRESS,
+        address: PANAL_REGISTRY_V3_ADDRESS,
         abi: panalRegistryV2Abi,
         functionName: 'getAgent',
         args: [direccion as Address],

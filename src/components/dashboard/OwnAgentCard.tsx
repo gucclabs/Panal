@@ -36,7 +36,7 @@ import {
   NATIVE_CURRENCY,
   PANAL_REGISTRY_ADDRESS,
   PANAL_TOKEN_ADDRESS,
-  PANAL_REGISTRY_V2_ADDRESS,
+  PANAL_REGISTRY_V3_ADDRESS,
   V2_5_ENABLED,
   V2_ENABLED,
   currencySymbol,
@@ -133,7 +133,7 @@ export default function OwnAgentCard({ onRegister }: { onRegister: (tipo: 'perso
 
   const toggleActive = (next: boolean) => {
     void action.run({
-      address: V2_ENABLED ? PANAL_REGISTRY_V2_ADDRESS : PANAL_REGISTRY_ADDRESS,
+      address: V2_ENABLED ? PANAL_REGISTRY_V3_ADDRESS : PANAL_REGISTRY_ADDRESS,
       abi: V2_ENABLED ? panalRegistryV2Abi : panalRegistryAbi,
       functionName: 'setActive',
       args: [next],
@@ -146,7 +146,7 @@ export default function OwnAgentCard({ onRegister }: { onRegister: (tipo: 'perso
     void action.run(
       V2_ENABLED
         ? {
-            address: PANAL_REGISTRY_V2_ADDRESS,
+            address: PANAL_REGISTRY_V3_ADDRESS,
             abi: panalRegistryV2Abi,
             functionName: 'updatePrice',
             args: [parseEther(priceStr), editCurrency === '$PANAL' ? PANAL_TOKEN_ADDRESS : NATIVE_CURRENCY],

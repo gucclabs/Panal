@@ -20,7 +20,7 @@ import HireDialog from '@/components/HireDialog';
 import { extractBotUrl } from '@/lib/botEndpoint';
 import { useTopAgents } from '@/hooks/useTopAgents';
 import { isOnchainAgent, marcaDe } from '@/hooks/usePanalAgents';
-import { PANAL_REGISTRY_V2_ADDRESS, publicClient } from '@/contracts/config';
+import { PANAL_REGISTRY_V3_ADDRESS, publicClient } from '@/contracts/config';
 import { panalRegistryV2Abi } from '@/contracts/abis';
 
 export default function Chat() {
@@ -46,7 +46,7 @@ export default function Chat() {
     void (async () => {
       try {
         const meta = (await publicClient.readContract({
-          address: PANAL_REGISTRY_V2_ADDRESS,
+          address: PANAL_REGISTRY_V3_ADDRESS,
           abi: panalRegistryV2Abi,
           functionName: 'getAgent',
           args: [agent.workerAddress],

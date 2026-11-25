@@ -17,12 +17,13 @@
  */
 
 import { toFunctionSelector, type Abi, type Address, type Hex } from 'viem';
-import { panalEscrowV2_5Abi } from '@panal/sdk';
-import { panalEscrowV2Abi } from '../src/contracts/abis';
+import { MAINNET_ADDRESSES, panalEscrowV2_5Abi, panalRegistryV3Abi } from '@panal/sdk';
+import { panalEscrowV2Abi, panalRegistryV2Abi } from '../src/contracts/abis';
 import {
   NATIVE_CURRENCY,
   PANAL_ESCROW_V2_5_ADDRESS,
   PANAL_ESCROW_V2_ADDRESS,
+  PANAL_REGISTRY_V3_ADDRESS,
   PANAL_TOKEN_ADDRESS,
   USDC_TOKEN_ADDRESS,
 } from '../src/contracts/config';
@@ -293,6 +294,31 @@ console.log('\n─── mínimos y tiempos del v2.5 ───');
   }
   const corto = tiemposDeEncargo(AHORA, 0.25, 24);
   check('nunca menos de los 5 min del contrato para aceptar', corto.acceptWindow === 300 && A + 300n <= corto.deadline, json(corto));
+}
+
+console.log('\nel registro de la web y la app es PanalRegistryV3');
+{
+  // La web y la app leen y escriben con el ABI del v2: cada función tiene que
+  // existir igual en el V3 (mismo selector) y devolver lo mismo.
+  const firma = (x: { type: string; name?: string; inputs?: readonly unknown[] }) =>
+    x.type === 'function' ? toFunctionSelector(x as never) : '';
+  // Los tipos de lo que devuelve, con los de dentro de cada struct: los
+  // nombres y `internalType` no cambian cómo se decodifica.
+  type Param = { type: string; components?: readonly Param[] };
+  const tipo = (p: Param): string =>
+    p.type.startsWith('tuple') ? `(${(p.components ?? []).map(tipo).join(',')})${p.type.slice(5)}` : p.type;
+  const salidas = (abi: readonly unknown[], sel: string) =>
+    ((abi as { type: string; outputs?: readonly Param[] }[]).find((x) => x.type === 'function' && firma(x as never) === sel)
+      ?.outputs ?? []).map(tipo).join(',');
+  const delV3 = new Set((panalRegistryV3Abi as readonly { type: string }[]).map((x) => firma(x as never)).filter(Boolean));
+  const deLaWeb = (panalRegistryV2Abi as readonly { type: string; name?: string }[]).filter((x) => x.type === 'function');
+  const faltan = deLaWeb.filter((x) => !delV3.has(firma(x as never))).map((x) => x.name);
+  check('cada función del registro que usa la web existe en el V3', faltan.length === 0, faltan.join(','));
+  const distintas = deLaWeb
+    .filter((x) => salidas(panalRegistryV2Abi, firma(x as never)) !== salidas(panalRegistryV3Abi, firma(x as never)))
+    .map((x) => x.name);
+  check('y devuelve lo mismo', distintas.length === 0, distintas.join(','));
+  check('la dirección es la del SDK', PANAL_REGISTRY_V3_ADDRESS === MAINNET_ADDRESSES.registry, PANAL_REGISTRY_V3_ADDRESS);
 }
 
 console.log(fallos === 0 ? '\n✅ todo en orden\n' : `\n❌ ${fallos} fallo(s)\n`);

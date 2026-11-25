@@ -73,7 +73,7 @@ import {
   PANAL_ESCROW_ADDRESS,
   PANAL_ESCROW_V2_ADDRESS,
   PANAL_REGISTRY_ADDRESS,
-  PANAL_REGISTRY_V2_ADDRESS,
+  PANAL_REGISTRY_V3_ADDRESS,
   PANAL_TOKEN_ADDRESS,
   PANAL_ESCROW_V2_5_ADDRESS,
   PANAL_PRICES_ADDRESS,
@@ -363,7 +363,7 @@ function HireWizard({
     void (async () => {
       try {
         const meta = (await publicClient.readContract({
-          address: PANAL_REGISTRY_V2_ADDRESS,
+          address: PANAL_REGISTRY_V3_ADDRESS,
           abi: panalRegistryV2Abi,
           functionName: 'getAgent',
           args: [agent.workerAddress],
@@ -558,7 +558,7 @@ function HireWizard({
     // haberlo cambiado desde que se cargó la lista (protección económica).
     try {
       const fresh = (await publicClient.readContract({
-        address: V2_ENABLED ? PANAL_REGISTRY_V2_ADDRESS : PANAL_REGISTRY_ADDRESS,
+        address: V2_ENABLED ? PANAL_REGISTRY_V3_ADDRESS : PANAL_REGISTRY_ADDRESS,
         abi: V2_ENABLED ? panalRegistryV2Abi : panalRegistryAbi,
         functionName: 'getAgent',
         args: [agent.workerAddress],
@@ -828,7 +828,7 @@ function HireWizard({
         extractBotUrl(
           (
             (await publicClient.readContract({
-              address: PANAL_REGISTRY_V2_ADDRESS,
+              address: PANAL_REGISTRY_V3_ADDRESS,
               abi: panalRegistryV2Abi,
               functionName: 'getAgent',
               args: [agent.workerAddress],

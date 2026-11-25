@@ -24,7 +24,7 @@ import { abrirArchivo, miClave } from '@/lib/cifrado';
 import { useSignMessage } from 'wagmi';
 import {
   PANAL_REGISTRY_ADDRESS,
-  PANAL_REGISTRY_V2_ADDRESS,
+  PANAL_REGISTRY_V3_ADDRESS,
   V2_ENABLED,
   publicClient,
 } from '@/contracts/config';
@@ -119,7 +119,7 @@ export default function ResultDialog({ task }: { task: RealTask }) {
     (async () => {
       try {
         const agent = (await publicClient.readContract({
-          address: V2_ENABLED ? PANAL_REGISTRY_V2_ADDRESS : PANAL_REGISTRY_ADDRESS,
+          address: V2_ENABLED ? PANAL_REGISTRY_V3_ADDRESS : PANAL_REGISTRY_ADDRESS,
           abi: V2_ENABLED ? panalRegistryV2Abi : panalRegistryAbi,
           functionName: 'getAgent',
           args: [task.worker],
