@@ -19,13 +19,15 @@
  *      cuadra con la cadena.
  *   6. Que esté apagado salvo TABLON=on, y que lea bien las categorías.
  *   7. El mínimo en dólares.
+ *   8. Las otras monedas (PanalPrices): en el tablón v2.5 coge en USDC si
+ *      cobra en USDC, con al menos su precio más barato ahí, y nunca en el v2.
  */
 
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { keccak256, toBytes, type Address, type Hex } from 'viem';
-import { EstadoTablon, ModoTablon, TaskStatus, entregaConArchivos, type EncargoConReglas } from '@panal/sdk';
+import { EstadoTablon, ModoTablon, TaskStatus, V2_5_MAINNET, componerNivel, entregaConArchivos, type EncargoConReglas } from '@panal/sdk';
 import {
   buscarEncargoDeTarea,
   candidatos,
@@ -34,6 +36,8 @@ import {
   EncargosPropios,
   encaja,
   opcionesDelEntorno,
+  otrasMonedasDelTablon,
+  precioParaEncargo,
   repasarTablon,
   retomarDelTablon,
   TABLON_POR_DEFECTO,
@@ -123,6 +127,59 @@ console.log('\nsolo coge u oferta lo que encaja');
     'con TABLON_PALABRAS, el anuncio tiene que mencionar alguna',
     candidatos(lista, { ...base, opciones: { ...opciones, palabras: ['rust'] } }, ahora).length === 0,
   );
+}
+
+console.log('\nlas otras monedas (PanalPrices), solo en el tablón v2.5');
+{
+  const USDC = V2_5_MAINNET.usdc;
+  const CENT = 10_000n; // 0,01 USDC
+  const conUsdc = { ...base, otrasMonedas: [{ currency: USDC, amount: CENT }] };
+  const lista = [
+    encargo(1, { moneda: USDC, importe: 2n * CENT, version: 'v2_5' }),
+    encargo(2, { moneda: USDC, importe: CENT / 2n, version: 'v2_5' }),
+    encargo(3, { moneda: USDC, importe: 4n * CENT, version: 'v2' }),
+    encargo(4, { moneda: PANAL, importe: 1000n * UNO, version: 'v2_5' }),
+    encargo(5, { importe: 3n * UNO, version: 'v2_5' }),
+    encargo(6, { moneda: USDC, importe: 5n * CENT, version: 'v2_5' }),
+    encargo(7, { moneda: USDC, modo: ModoTablon.Seleccion, ventanaOfertasS: 2 * H, importe: 9n * CENT, version: 'v2_5' }),
+  ];
+  const c = candidatos(lista, conUsdc, ahora);
+  check(
+    'coge en USDC en el v2.5, del que más paga en veces su precio: 6 (5×), 5 (3×), 1 (2×); oferta el 7',
+    c.map((x) => `${x.accion} ${x.job.id}`).join(', ') === 'coger 6, coger 5, coger 1, ofertar 7',
+    c.map((x) => `${x.accion} ${x.job.id}`).join(', '),
+  );
+  check('  fuera: por debajo de su precio en USDC, USDC en el tablón v2, y una moneda en la que no cobra', true);
+  check('en selección oferta su precio en USDC, no el presupuesto', c.find((x) => x.job.id === 7n)?.cobra === CENT);
+  check(
+    'sin otras monedas, solo la del registro (como antes)',
+    candidatos(lista, base, ahora).map((x) => x.job.id).join(',') === '5',
+    candidatos(lista, base, ahora).map((x) => x.job.id).join(','),
+  );
+  check('la del registro vale en los dos tablones', precioParaEncargo({ moneda: MON, version: 'v2' }, conUsdc) === UNO);
+  check('USDC sin versión (v2) no', precioParaEncargo({ moneda: USDC }, conUsdc) === null);
+
+  const tres = ['Lint', ...[1, 2, 4].map((n) => componerNivel({ name: `N${n}`, precio: String(n) }))].join(' · ');
+  const panalDeMentira = (listas: Record<string, bigint[]>, conV2_5 = true) => ({
+    v2_5: conV2_5 ? ({ usdc: USDC } as never) : null,
+    addresses: { panalToken: PANAL } as never,
+    getPricesV2_5: async (_yo: Address, moneda: Address) => listas[moneda.toLowerCase()] ?? [],
+  });
+  const leidas = async (listas: Record<string, bigint[]>, uri = tres, conV2_5 = true) =>
+    (await otrasMonedasDelTablon(panalDeMentira(listas, conV2_5), YO, { currency: MON, metadataURI: uri }))
+      .map((o) => `${o.currency === USDC ? 'USDC' : o.currency === PANAL ? 'PANAL' : 'MON'}=${o.amount}`)
+      .join(',');
+  const usdc = USDC.toLowerCase();
+  check('lee su precio más barato en USDC', (await leidas({ [usdc]: [CENT, 2n * CENT, 4n * CENT] })) === 'USDC=10000');
+  check('una lista que no cuadra con sus niveles no vale', (await leidas({ [usdc]: [CENT, 2n * CENT] })) === '');
+  check('sin niveles vale un solo precio', (await leidas({ [usdc]: [5n * CENT] }, 'Lint')) === 'USDC=50000');
+  check('la moneda del registro no se cuenta como otra', (await leidas({ [MON]: [UNO, 2n * UNO, 4n * UNO] })) === '');
+  check(
+    'también $PANAL, si cobra en él',
+    (await leidas({ [PANAL]: [1n, 2n, 3n], [usdc]: [CENT, CENT, CENT] })) === 'PANAL=1,USDC=10000',
+    await leidas({ [PANAL]: [1n, 2n, 3n], [usdc]: [CENT, CENT, CENT] }),
+  );
+  check('en una red sin v2.5, ninguna', (await leidas({ [usdc]: [CENT, 2n * CENT, 4n * CENT] }, tres, false)) === '');
 }
 
 console.log('\npara quién es el encargo');

@@ -22,14 +22,18 @@
  *     al arrancar;
  *   - no lo publicó este mismo agente;
  *   - paga en la moneda de este agente y AL MENOS su precio del registro: el
- *     agente ya decidió su precio, y el tablón no lo rebaja;
+ *     agente ya decidió su precio, y el tablón no lo rebaja. En el tablón
+ *     v2.5 vale también otra moneda en la que cobre por PanalPrices (USDC,
+ *     por ejemplo; ver precios.ts), con al menos su precio más barato en ella;
  *   - da como mínimo `TABLON_MARGEN_MINUTOS` para entregar;
  *   - si hay `TABLON_PALABRAS`, su anuncio menciona alguna;
  *   - y `canTake` dice que sí: la misma comprobación que hace el contrato, así
  *     que nunca se gasta gas en algo que rechazaría.
- * En inmediato lo coge; en selección oferta su precio del registro, con el
- * plazo del encargo. Nunca oferta por encima del presupuesto. Uno por ronda:
- * primero lo que se puede coger, del que más paga al que menos.
+ * En inmediato lo coge; en selección oferta su precio (el del registro, o el
+ * más barato de la moneda del encargo), con el plazo del encargo. Nunca oferta
+ * por encima del presupuesto. Uno por ronda: primero lo que se puede coger, del
+ * que más paga al que menos — medido en veces su precio, que entre monedas
+ * distintas los importes en bruto no se comparan.
  *
  * UN MÍNIMO EN DÓLARES, SI SE QUIERE. Con `TABLON_MINIMO_USD`, el agente no
  * coge un encargo que le pague menos de eso: lo que cobraría de verdad, el
@@ -72,7 +76,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Address } from 'viem';
-import { formatEther, keccak256, toBytes } from 'viem';
+import { formatEther, formatUnits, keccak256, toBytes } from 'viem';
 import {
   CATEGORIAS_TABLON,
   EstadoTablon,
@@ -89,6 +93,7 @@ import {
   esFresco,
   formatearDolares,
   leerAnuncio,
+  leerNivelesDeMetadata,
   stripFilesManifest,
 } from '@panal/sdk';
 import type { ArchivoParaSubir, EncargoConReglas, PanalClient, VersionEscrow } from '@panal/sdk';
@@ -303,6 +308,12 @@ export interface DepsTablon {
   /** Lo que este agente cobra por un encargo en el registro, y en qué moneda. */
   precio: { amount: bigint; currency: Address };
   /**
+   * Las otras monedas en las que cobra por PanalPrices, con su precio más
+   * barato en cada una. Solo valen en el tablón v2.5: el v2 paga por el
+   * escrow v2, que no las conoce. Ver `otrasMonedasDelTablon`.
+   */
+  otrasMonedas?: PrecioDelTablon[];
+  /**
    * Los tablones en los que mirar: los que tienen sus categorías declaradas.
    * Por defecto, solo el v2.
    */
@@ -322,7 +333,64 @@ export interface DepsTablon {
   ahora?: () => number;
 }
 
-export type Accion = { job: EncargoConReglas & { anuncio: string }; accion: 'coger' | 'ofertar'; cobra: bigint };
+/** Un precio en una moneda: lo mínimo que este agente coge en ella. */
+export type PrecioDelTablon = { amount: bigint; currency: Address };
+
+export type Accion = {
+  job: EncargoConReglas & { anuncio: string };
+  accion: 'coger' | 'ofertar';
+  cobra: bigint;
+  /** Su precio en la moneda del encargo: la medida para ordenar entre monedas. */
+  minimo: bigint;
+};
+
+/**
+ * Lo mínimo que este agente coge en la moneda de un encargo, o `null` si no
+ * cobra en ella. La del registro vale en los dos tablones; las de PanalPrices,
+ * solo en el v2.5.
+ */
+export function precioParaEncargo(
+  job: Pick<EncargoConReglas, 'moneda' | 'version'>,
+  deps: Pick<DepsTablon, 'precio' | 'otrasMonedas'>,
+): bigint | null {
+  const m = job.moneda.toLowerCase();
+  if (m === deps.precio.currency.toLowerCase()) return deps.precio.amount;
+  if (job.version !== 'v2_5') return null;
+  return deps.otrasMonedas?.find((o) => o.currency.toLowerCase() === m)?.amount ?? null;
+}
+
+/**
+ * Las otras monedas en las que cobra este agente (PanalPrices, escrow v2.5),
+ * con el precio de su nivel más barato en cada una.
+ *
+ * Con la misma regla que `leerPago` en server.ts: una lista solo vale si tiene
+ * un precio por nivel de su ficha (o uno solo sin niveles). Si no cuadra, no se
+ * sabría qué nivel se pagó, y un encargo cogido así no se podría trabajar bien.
+ * Tres lecturas, sin gas.
+ */
+export async function otrasMonedasDelTablon(
+  panal: Pick<PanalClient, 'v2_5' | 'addresses' | 'getPricesV2_5'>,
+  yo: Address,
+  ficha: { currency: Address; metadataURI: string },
+): Promise<PrecioDelTablon[]> {
+  const v = panal.v2_5;
+  if (!v) return [];
+  const hacen = Math.max(1, leerNivelesDeMetadata(ficha.metadataURI).length);
+  const out: PrecioDelTablon[] = [];
+  for (const currency of [NATIVE_CURRENCY as Address, panal.addresses.panalToken, v.usdc]) {
+    if (currency.toLowerCase() === ficha.currency.toLowerCase()) continue;
+    const lista = await panal.getPricesV2_5(yo, currency);
+    if (lista.length === hacen && lista[0]! > 0n) out.push({ currency, amount: lista[0]! });
+  }
+  return out;
+}
+
+/** «0.02 USDC», «1 MON»: con los decimales de su moneda (USDC lleva 6). */
+function importeLegible(amount: bigint, currency: Address): string {
+  const c = currency.toLowerCase();
+  if (c === V2_5_MAINNET.usdc.toLowerCase()) return `${formatUnits(amount, 6)} USDC`;
+  return `${formatEther(amount)} ${c === NATIVE_CURRENCY ? 'MON' : '$PANAL'}`;
+}
 
 /**
  * Lo que este agente podría coger u ofertar de lo publicado: primero lo que se
@@ -331,10 +399,10 @@ export type Accion = { job: EncargoConReglas & { anuncio: string }; accion: 'cog
  */
 export function candidatos(
   lista: (EncargoConReglas & { anuncio: string })[],
-  deps: Pick<DepsTablon, 'yo' | 'precio' | 'opciones'>,
+  deps: Pick<DepsTablon, 'yo' | 'precio' | 'otrasMonedas' | 'opciones'>,
   ahoraS: number,
 ): Accion[] {
-  const { opciones, precio } = deps;
+  const { opciones } = deps;
   const out: Accion[] = [];
   for (const crudo of lista) {
     // Para quién es: va en el anuncio, el contrato no lo sabe. Este agente es
@@ -346,19 +414,28 @@ export function candidatos(
     if (job.estado !== EstadoTablon.Publicado) continue;
     if (job.cliente.toLowerCase() === deps.yo.toLowerCase()) continue;
     if (!opciones.categorias.includes(job.categoria)) continue;
-    if (job.moneda.toLowerCase() !== precio.currency.toLowerCase()) continue;
-    if (job.importe < precio.amount) continue;
+    const minimo = precioParaEncargo(job, deps);
+    if (minimo === null) continue;
+    if (job.importe < minimo) continue;
     if (job.plazoEntregaS < opciones.margenMinutos * 60) continue;
     if (opciones.palabras.length > 0 && !encaja(job.anuncio, opciones.palabras)) continue;
     if (job.modo === ModoTablon.Inmediato) {
       // Un minuto de margen: la transacción tiene que minarse antes de que caduque.
-      if (ahoraS < job.caducaEn - 60) out.push({ job, accion: 'coger', cobra: job.importe });
+      if (ahoraS < job.caducaEn - 60) out.push({ job, accion: 'coger', cobra: job.importe, minimo });
     } else if (ahoraS < job.publicadoEn + job.ventanaOfertasS - 60) {
-      out.push({ job, accion: 'ofertar', cobra: precio.amount });
+      out.push({ job, accion: 'ofertar', cobra: minimo, minimo });
     }
   }
   const peso = (a: Accion) => (a.accion === 'coger' ? 1 : 0);
-  return out.sort((a, b) => peso(b) - peso(a) || (b.job.importe > a.job.importe ? 1 : b.job.importe < a.job.importe ? -1 : 0));
+  // Del que más paga al que menos, en veces su precio: b.importe/b.minimo
+  // contra a.importe/a.minimo, multiplicado en cruz para no perder decimales.
+  // En una sola moneda es el mismo orden que por importe.
+  const veces = (a: Accion, b: Accion) => {
+    const x = b.job.importe * a.minimo;
+    const y = a.job.importe * b.minimo;
+    return x > y ? 1 : x < y ? -1 : 0;
+  };
+  return out.sort((a, b) => peso(b) - peso(a) || veces(a, b));
 }
 
 /** Última vez que se intentó cerrar cada encargo: una vez por hora basta. */
@@ -468,13 +545,13 @@ export async function repasarTablon(deps: DepsTablon): Promise<string[]> {
       try {
         if (c.accion === 'ofertar') {
           await deps.panal.offerOnBoardJob(id, c.cobra, c.job.plazoEntregaS);
-          anotar(`[tablon] #${id} ofertado · ${formatEther(c.cobra)} · «${c.job.anuncio.slice(0, 80)}»`);
+          anotar(`[tablon] #${id} ofertado · ${importeLegible(c.cobra, c.job.moneda)} · «${c.job.anuncio.slice(0, 80)}»`);
           return hecho;
         }
 
         const { escrowTaskId } = await deps.panal.takeBoardJob(id);
         deps.propios.anotar(id);
-        anotar(`[tablon] #${id} cogido · ${formatEther(c.job.importe)} · «${c.job.anuncio.slice(0, 80)}»`);
+        anotar(`[tablon] #${id} cogido · ${importeLegible(c.job.importe, c.job.moneda)} · «${c.job.anuncio.slice(0, 80)}»`);
         // Dos transacciones seguidas de la misma wallet chocan en Monad.
         await esperar(15_000);
 
@@ -579,13 +656,15 @@ export async function arrancarTablon(deps: Omit<DepsTablon, 'precio'>): Promise<
     return;
   }
   let precio: DepsTablon['precio'];
+  let ficha: { currency: Address; metadataURI: string };
   try {
-    const ficha = await deps.panal.getAgent(deps.yo);
-    if (!ficha.active) {
+    const leida = await deps.panal.getAgent(deps.yo);
+    if (!leida.active) {
       console.warn('[tablon] este agente no está activo en el registro: el contrato no le dejaría coger nada. Tablón apagado.');
       return;
     }
-    precio = { amount: ficha.pricePerTask, currency: ficha.currency };
+    precio = { amount: leida.pricePerTask, currency: leida.currency };
+    ficha = { currency: leida.currency, metadataURI: leida.metadataURI };
   } catch (err) {
     console.warn(`[tablon] no se pudo leer la ficha: ${err instanceof Error ? err.message : err}. Tablón apagado.`);
     return;
@@ -609,7 +688,7 @@ export async function arrancarTablon(deps: Omit<DepsTablon, 'precio'>): Promise<
       versiones.push(version);
       console.log(
         `Tablón ${cual}: nivel ${situacion.nivel} · cada ${deps.opciones.minutos} min · ${deps.opciones.categorias.map((c) => categoriaDelTablon(c)).join(', ')}` +
-          ` · desde ${formatEther(precio.amount)} en su moneda` +
+          ` · desde ${importeLegible(precio.amount, precio.currency)}` +
           `${deps.opciones.minimoUsd !== null ? ` y ${formatearDolares(deps.opciones.minimoUsd)} netos` : ''}` +
           ` · ${deps.opciones.margenMinutos} min de plazo como mínimo.`,
       );
@@ -622,12 +701,23 @@ export async function arrancarTablon(deps: Omit<DepsTablon, 'precio'>): Promise<
     return;
   }
 
-  const completas: DepsTablon = { ...deps, precio, versiones };
+  // Las otras monedas se releen en cada ronda: si el dueño cambia sus precios
+  // con `npm run precios`, el tablón lo sigue sin reiniciar. Si la lectura
+  // falla, se queda con lo último que leyó.
+  const otras = async (): Promise<PrecioDelTablon[] | null> =>
+    versiones.includes('v2_5') ? otrasMonedasDelTablon(deps.panal, deps.yo, ficha).catch(() => null) : [];
+  const completas: DepsTablon = { ...deps, precio, versiones, otrasMonedas: (await otras()) ?? [] };
+  if (completas.otrasMonedas!.length > 0) {
+    console.log(
+      `Tablón v2.5: también en ${completas.otrasMonedas!.map((o) => `${importeLegible(o.amount, o.currency)} o más`).join(', ')} (PanalPrices).`,
+    );
+  }
   let enMarcha = false;
   const ronda = async (): Promise<void> => {
     if (enMarcha) return;
     enMarcha = true;
     try {
+      completas.otrasMonedas = (await otras()) ?? completas.otrasMonedas;
       await repasarTablon(completas);
     } finally {
       enMarcha = false;

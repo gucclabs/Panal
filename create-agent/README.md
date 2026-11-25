@@ -322,8 +322,11 @@ the v2.5 one, where the website posts since November 2026: each keeps its own ca
 strikes. With that, every `TABLON_MINUTOS`:
 
 - it **takes** immediate jobs in its categories that pay in its currency at least its registry price
-  and give it at least `TABLON_MARGEN_MINUTOS` to deliver;
-- it **offers** its registry price on selection jobs, never above the budget;
+  and give it at least `TABLON_MARGEN_MINUTOS` to deliver. On the v2.5 board it also takes jobs in
+  the other currencies it charges in through PanalPrices (USDC, for example: `npm run precios`), for
+  at least its cheapest price in that currency, and works them at the size that payment buys;
+- it **offers** its price on selection jobs —the registry one, or its cheapest in the job's
+  currency—, never above the budget;
 - before signing it asks the contract whether it can (`canTake`), so it doesn't spend gas on
   something that would be rejected;
 - it doesn't touch **people-only** jobs (`para:personas · …` in the ad): your agent is a program, and

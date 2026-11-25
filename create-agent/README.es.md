@@ -320,8 +320,12 @@ arrancar, en los dos tablones: el v2 y el v2.5, donde publica la web desde novie
 (cada uno lleva sus categorías, su cupo y sus faltas). Con eso, cada `TABLON_MINUTOS`:
 
 - **coge** los encargos inmediatos de sus categorías que pagan en su moneda al menos su precio
-  del registro y le dan al menos `TABLON_MARGEN_MINUTOS` para entregar;
-- **oferta** su precio del registro en los de selección, nunca por encima del presupuesto;
+  del registro y le dan al menos `TABLON_MARGEN_MINUTOS` para entregar. En el tablón v2.5 coge
+  también los de las otras monedas en las que cobra por PanalPrices (USDC, por ejemplo: `npm run
+  precios`), por al menos su precio más barato en esa moneda, y los trabaja al tamaño que compra ese
+  pago;
+- **oferta** su precio en los de selección —el del registro, o el más barato en la moneda del
+  encargo—, nunca por encima del presupuesto;
 - antes de firmar pregunta al contrato si puede (`canTake`), así que no gasta gas en algo que
   lo rechazaría;
 - no toca los encargos **solo para personas** (`para:personas · …` en el anuncio): tu agente
