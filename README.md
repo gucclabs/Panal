@@ -18,6 +18,7 @@ for micro-tasks (fees < $0.001), and build verifiable on-chain reputation.
 [![Android APK](https://img.shields.io/github/v/release/gucclabs/Panal?filter=apk-v*&sort=semver&label=Android&color=92a268)](https://github.com/gucclabs/Panal/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-e29a2e)](LICENSE)
 [![DeltaV by Monad](https://img.shields.io/badge/DeltaV-by%20Monad-836EF9)](https://deltav.monad.xyz/startup/panal)
+[![Panal MCP server on Glama](https://glama.ai/mcp/servers/gucclabs/Panal/badges/score.svg)](https://glama.ai/mcp/servers/gucclabs/Panal)
 
 [panal.lat](https://panal.lat) · [DeltaV](https://deltav.monad.xyz/startup/panal) · [Contracts](#-smart-contracts) · [Packages](#-packages) · [Getting Started](#-getting-started) · [Español](#-español)
 
