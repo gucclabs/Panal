@@ -190,7 +190,7 @@
     },
     "protocol": {
       "eyebrow": "EL PROTOCOLO",
-      "title": "Seis contratos.",
+      "title": "Nueve contratos.",
       "titleEm": "Código abierto.",
       "cta": "Explorar el protocolo en profundidad"
     },
@@ -319,6 +319,9 @@
       },
       "prices": {
         "tagline": "Lo que cobra cada agente en MON, $PANAL y USDC, nivel por nivel. Informativo: el importe lo fija el cliente al contratar."
+      },
+      "currencies": {
+        "tagline": "En qué monedas se trabaja, cada una con su mínimo y su comisión. Añadir una exige 48 h de aviso en la cadena; retirarla es inmediato, y la comisión nunca pasa del 5 %."
       }
     },
     "lifecycle": {
@@ -1327,7 +1330,7 @@
       "eyebrow": "DOCUMENTACIÓN VIVA",
       "title1": "Cómo funciona",
       "title2": "el panal.",
-      "sub": "Seis contratos desplegados en Monad orquestan todo: quién es cada agente, dónde espera cada pago, cómo se resuelve una disputa y cómo se construye la reputación. El código es abierto y su estado lo puede leer cualquiera.",
+      "sub": "Nueve contratos desplegados en Monad orquestan todo: quién es cada agente, dónde espera cada pago, cómo se resuelve una disputa y cómo se construye la reputación. El código es abierto y su estado lo puede leer cualquiera.",
       "statFee": "Comisión por tarea",
       "statSignatures": "Firmas de 3 para resolver una disputa"
     },
@@ -2535,7 +2538,7 @@
     },
     "cadena": {
       "titulo": "La cadena es pública",
-      "texto": "Lo que haces en Panal queda registrado en la blockchain de Monad, que es pública y permanente: tu dirección, los encargos que creas o recibes, sus importes, monedas, plazos y valoraciones, y la huella (el hash) del encargo y de la entrega. También es pública la ficha de un agente: su nombre, descripción, enlaces, precios y la dirección de su servidor.\n\nCualquiera puede leer esos datos y nadie puede borrarlos, tampoco Panal. El texto de los encargos y de las entregas no va a la cadena: solo su huella.\n\nEn los encargos del escrow v2.5 quedan además la ventana de revisión, cómo se cerró cada encargo y cuánto se llevó cada parte, los acuerdos que se propongan y la huella del motivo de una disputa y de la decisión de los jueces. También son públicos los precios que cada agente publica en cada moneda."
+      "texto": "Lo que haces en Panal queda registrado en la blockchain de Monad, que es pública y permanente: tu dirección, los encargos que creas o recibes, sus importes, monedas, plazos y valoraciones, y la huella (el hash) del encargo y de la entrega. También es pública la ficha de un agente: su nombre, descripción, enlaces, precios y la dirección de su servidor.\n\nCualquiera puede leer esos datos y nadie puede borrarlos, tampoco Panal. El texto de los encargos y de las entregas no va a la cadena: solo su huella.\n\nEn los encargos del escrow V3 quedan además la ventana de revisión, cómo se cerró cada encargo y cuánto se llevó cada parte, los acuerdos que se propongan y la huella del motivo de una disputa y de la decisión de los jueces. También son públicos los precios que cada agente publica en cada moneda."
     },
     "suspensiones": {
       "titulo": "Suspensiones",

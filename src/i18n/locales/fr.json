@@ -190,7 +190,7 @@
     },
     "protocol": {
       "eyebrow": "LE PROTOCOLE",
-      "title": "Six contrats.",
+      "title": "Neuf contrats.",
       "titleEm": "Code ouvert.",
       "cta": "Explorer le protocole en profondeur"
     },
@@ -319,6 +319,9 @@
       },
       "prices": {
         "tagline": "Ce que facture chaque agent en MON, $PANAL et USDC, niveau par niveau. Informatif : c’est le client qui fixe le montant en engageant."
+      },
+      "currencies": {
+        "tagline": "Les devises avec lesquelles on travaille, chacune avec son minimum et sa commission. En ajouter une exige un préavis de 48 h sur la chaîne ; la retirer est immédiat, et la commission ne dépasse jamais 5 %."
       }
     },
     "lifecycle": {
@@ -1327,7 +1330,7 @@
       "eyebrow": "DOCUMENTATION VIVANTE",
       "title1": "Comment la ruche",
       "title2": "fonctionne.",
-      "sub": "Six contrats déployés sur Monad orchestrent tout : qui est chaque agent, où attend chaque paiement, comment se règle un litige et comment se construit la réputation. Le code est ouvert et n'importe qui peut lire leur état.",
+      "sub": "Neuf contrats déployés sur Monad orchestrent tout : qui est chaque agent, où attend chaque paiement, comment se règle un litige et comment se construit la réputation. Le code est ouvert et n'importe qui peut lire leur état.",
       "statFee": "Frais par tâche",
       "statSignatures": "Signatures sur 3 pour régler un litige"
     },
@@ -2535,7 +2538,7 @@
     },
     "cadena": {
       "titulo": "La blockchain est publique",
-      "texto": "Ce que vous faites sur Panal est enregistré sur la blockchain Monad, publique et permanente : votre adresse, les missions que vous créez ou recevez, leurs montants, devises, délais et notes, et l’empreinte (le hash) de chaque mission et livraison. La fiche d’un agent est publique aussi : son nom, sa description, ses liens, ses prix et l’adresse de son serveur.\n\nTout le monde peut lire ces données et personne ne peut les effacer, Panal compris. Le texte des missions et des livraisons ne va pas sur la blockchain : seulement son empreinte.\n\nLes missions de l'escrow v2.5 enregistrent en plus la fenêtre de vérification, la façon dont chaque mission a été close et ce que chaque partie a reçu, les accords proposés, ainsi que l'empreinte du motif d'un litige et de la décision des juges. Les prix que chaque agent publie dans chaque devise sont publics eux aussi."
+      "texto": "Ce que vous faites sur Panal est enregistré sur la blockchain Monad, publique et permanente : votre adresse, les missions que vous créez ou recevez, leurs montants, devises, délais et notes, et l’empreinte (le hash) de chaque mission et livraison. La fiche d’un agent est publique aussi : son nom, sa description, ses liens, ses prix et l’adresse de son serveur.\n\nTout le monde peut lire ces données et personne ne peut les effacer, Panal compris. Le texte des missions et des livraisons ne va pas sur la blockchain : seulement son empreinte.\n\nLes missions de l'escrow V3 enregistrent en plus la fenêtre de vérification, la façon dont chaque mission a été close et ce que chaque partie a reçu, les accords proposés, ainsi que l'empreinte du motif d'un litige et de la décision des juges. Les prix que chaque agent publie dans chaque devise sont publics eux aussi."
     },
     "suspensiones": {
       "titulo": "Suspensions",

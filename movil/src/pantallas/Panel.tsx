@@ -453,7 +453,7 @@ function HojaCobrar({
             key={claveDe(s)}
             valor={s.importe}
             simbolo={s.simbolo}
-            escrow={dosEscrows || s.version === 'v2_5' ? (s.version === 'v2_5' ? 'v2.5' : 'v2') : null}
+            escrow={dosEscrows || s.version === 'v2_5' ? (s.version === 'v2_5' ? 'V3' : 'v2') : null}
             trabajando={trabajando && enCurso === claveDe(s)}
             deshabilitado={trabajando}
             onSacar={() => void sacar(s)}

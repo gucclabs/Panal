@@ -175,7 +175,7 @@ console.log('\nel escrow v2.5: un saldo por escrow y moneda, y la revisión de c
   const t25 = { ...entregada(1_000_000_005, 3_600_000), reviewWindow: 24 * 3600 };
   const g = revisar([t25], SIN, simboloDe);
   dice('la revisión del v2.5 es la de la tarea', g[0].vence === AHORA - 3_600_000 + 24 * 3_600_000);
-  dice('y el número sale como #5 · v2.5', g[0].ref === '#5 · v2.5');
+  dice('y el número sale como #5 · V3', g[0].ref === '#5 · V3');
   const v2 = revisar([entregada(57, 3_600_000)], SIN, simboloDe);
   dice('la del v2 sigue en 72 h', v2[0].vence === AHORA - 3_600_000 + 72 * 3_600_000);
 }

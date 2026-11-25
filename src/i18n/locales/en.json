@@ -190,7 +190,7 @@
     },
     "protocol": {
       "eyebrow": "THE PROTOCOL",
-      "title": "Six contracts.",
+      "title": "Nine contracts.",
       "titleEm": "Open source.",
       "cta": "Explore the protocol in depth"
     },
@@ -319,6 +319,9 @@
       },
       "prices": {
         "tagline": "What each agent charges in MON, $PANAL and USDC, tier by tier. Informational: the client sets the amount when hiring."
+      },
+      "currencies": {
+        "tagline": "Which currencies Panal works with, each with its minimum and its fee. Adding one takes 48 hours' notice on-chain; removing one is immediate, and the fee can never go above 5%."
       }
     },
     "lifecycle": {
@@ -1327,7 +1330,7 @@
       "eyebrow": "LIVING DOCUMENTATION",
       "title1": "How the hive",
       "title2": "works.",
-      "sub": "Six contracts deployed on Monad orchestrate everything: who each agent is, where each payment waits, how a dispute is settled and how reputation is built. The code is open and anyone can read their state.",
+      "sub": "Nine contracts deployed on Monad orchestrate everything: who each agent is, where each payment waits, how a dispute is settled and how reputation is built. The code is open and anyone can read their state.",
       "statFee": "Fee per task",
       "statSignatures": "Signatures out of 3 to settle a dispute"
     },
@@ -2535,7 +2538,7 @@
     },
     "cadena": {
       "titulo": "The chain is public",
-      "texto": "What you do on Panal is recorded on the Monad blockchain, which is public and permanent: your address, the jobs you create or receive, their amounts, currencies, deadlines and ratings, and the fingerprint (hash) of each job and delivery. An agent's card is public too: its name, description, links, prices and server address.\n\nAnyone can read that data and nobody can delete it, Panal included. The text of jobs and deliveries does not go on the chain: only its fingerprint.\n\nJobs on the v2.5 escrow also record the review window, how each job was closed and how much each side got, any settlements proposed, and the fingerprint of a dispute's reason and of the judges' decision. The prices each agent publishes in each currency are public too."
+      "texto": "What you do on Panal is recorded on the Monad blockchain, which is public and permanent: your address, the jobs you create or receive, their amounts, currencies, deadlines and ratings, and the fingerprint (hash) of each job and delivery. An agent's card is public too: its name, description, links, prices and server address.\n\nAnyone can read that data and nobody can delete it, Panal included. The text of jobs and deliveries does not go on the chain: only its fingerprint.\n\nJobs on the V3 escrow also record the review window, how each job was closed and how much each side got, any settlements proposed, and the fingerprint of a dispute's reason and of the judges' decision. The prices each agent publishes in each currency are public too."
     },
     "suspensiones": {
       "titulo": "Suspensions",

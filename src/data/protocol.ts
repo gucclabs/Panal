@@ -34,13 +34,14 @@ import {
   PANAL_REPUTATION_V2_5_ADDRESS,
   PANAL_BANS_ADDRESS,
   PANAL_PRICES_ADDRESS,
+  PANAL_CURRENCIES_ADDRESS,
   V2_5_ENABLED,
   V2_ENABLED,
 } from '@/contracts/config';
 
 /**
- * Contratos mostrados en footer/protocolo: los del v2.5 en mainnet (donde va
- * todo lo nuevo desde el 24-nov-2026), v1 en el resto. Los del v2 siguen
+ * Contratos mostrados en footer/protocolo: los de Panal V3 en mainnet (donde va
+ * todo lo nuevo desde el 25-nov-2026), v1 en el resto. Los del v2 siguen
  * desplegados para lo que ya estaba en marcha; sus direcciones están en la
  * documentación.
  */
@@ -68,13 +69,13 @@ export const NETWORK = {
   feePerTx: '<$0.001',
 } as const;
 
-export const PROTOCOL_FEE = 0.025; // 2,5% (en el v2.5, el 1,5 % si se paga en $PANAL)
+export const PROTOCOL_FEE = 0.025; // 2,5% (en el V3, el 1,5 % si se paga en $PANAL)
 export const ESCROW_AUTO_RELEASE_H = 72;
 
 /* ---------- Contratos ---------- */
 
 export interface ContractInfo {
-  id: 'registry' | 'escrow' | 'reputation' | 'multisig' | 'names' | 'tablon' | 'bans' | 'prices';
+  id: 'registry' | 'escrow' | 'reputation' | 'multisig' | 'names' | 'tablon' | 'bans' | 'prices' | 'currencies';
   name: string;
   address: string;
   addressShort: string;
@@ -161,6 +162,16 @@ export const CONTRACTS: ContractInfo[] = [
           addressShort: shortAddr(PANAL_PRICES_ADDRESS),
           icon: Tags,
           tagline: 'protocol.contracts.prices.tagline',
+        },
+        {
+          // La lista de monedas: en cuáles se trabaja, con su mínimo y su
+          // comisión. El escrow, el registro y el tablón del V3 la consultan.
+          id: 'currencies' as const,
+          name: 'PanalCurrencies',
+          address: PANAL_CURRENCIES_ADDRESS,
+          addressShort: shortAddr(PANAL_CURRENCIES_ADDRESS),
+          icon: Coins,
+          tagline: 'protocol.contracts.currencies.tagline',
         },
       ]
     : []),
