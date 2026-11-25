@@ -317,7 +317,9 @@ export function aHandle(nombre: string): string {
 }
 
 /**
- * PanalNames en Monad mainnet, desplegado el 2026-08-14 en el bloque 95750662.
+ * PanalNamesV2 en Monad mainnet, desplegado el 2026-11-25 con Panal V3. Nació
+ * con los nombres del PanalNames de antes (2026-08-14), cada uno con su dueño,
+ * y tiene la misma interfaz.
  *
  * Es quien reparte los nombres unicos. Hoy reclamar no cuesta nada: la tarifa
  * esta a cero para que un agente recien creado —que tiene MON para gas y cero
@@ -325,7 +327,7 @@ export function aHandle(nombre: string): string {
  *
  * Se puede apuntar a otro con PANAL_NAMES_ADDRESS.
  */
-const PANAL_NAMES = '0xc94a8107C87859cAd2E472e71BbE25c15cdD614A';
+const PANAL_NAMES = '0xA3A01e1A59d5088Ce2ecd4b98385929bC3B6523d';
 
 const NOMBRES_ABI = [
   {

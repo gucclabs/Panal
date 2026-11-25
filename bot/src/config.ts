@@ -68,9 +68,10 @@ export interface BotConfig {
    */
   tablonDesdeBloque: number | null;
   /**
-   * El escrow v2.5 y lo suyo (desplegados el 24-nov-2026): tablón, reputación,
-   * suspensiones, precios y USDC. Por defecto, los de mainnet; con
-   * `ESCROW_V2_5_ADDRESS=off` el bot no los mira. Ver v2_5.ts.
+   * Panal V3 en el hueco del v2.5 (25-nov-2026): escrow, tablón, reputación,
+   * suspensiones, precios, USDC, el registro V3 y PanalNamesV2. Por defecto,
+   * los de mainnet; con `ESCROW_V2_5_ADDRESS=off` el bot no los mira. Ver
+   * v2_5.ts.
    */
   v2_5: ConfigV2_5 | null;
   /**
@@ -360,6 +361,14 @@ export function loadConfig(): BotConfig {
             bans: envAddress('PANAL_BANS_ADDRESS', false) ?? getAddress(V2_5_MAINNET.bans),
             prices: envAddress('PANAL_PRICES_ADDRESS', false) ?? getAddress(V2_5_MAINNET.prices),
             usdc: envAddress('USDC_ADDRESS', false) ?? getAddress(V2_5_MAINNET.usdc),
+            registry:
+              env('REGISTRY_V3_ADDRESS')?.toLowerCase() === 'off'
+                ? null
+                : (envAddress('REGISTRY_V3_ADDRESS', false) ?? getAddress(V2_5_MAINNET.registry)),
+            names:
+              env('PANAL_NAMES_V2_ADDRESS')?.toLowerCase() === 'off'
+                ? null
+                : (envAddress('PANAL_NAMES_V2_ADDRESS', false) ?? getAddress(V2_5_MAINNET.names)),
             desdeBloque: process.env.V2_5_BLOQUE?.trim() ? envInt('V2_5_BLOQUE', 0, 0) : V2_5_MAINNET.desdeBloque,
           },
     vigilanciaChatId: env('VIGILANCIA_TELEGRAM_CHAT_ID') ?? null,

@@ -65,6 +65,7 @@ import { leerPrecios, valorDeVenta, type OpcionesPrecios, type Precios } from '.
 import { panalTablonAbi } from './tablon-abi.js';
 import {
   panalBansAbi,
+  panalCurrenciesAbi,
   panalEscrowV2_5Abi,
   panalPricesAbi,
   panalReputationV2_5Abi,
@@ -74,6 +75,8 @@ import {
   EstadoV2_5,
   REVISION_POR_DEFECTO_S,
   USDC_DECIMALES,
+  V2_5_ANTERIOR,
+  V2_5_MAINNET,
   comoTask,
   direccionesV2_5For,
   esDelV2_5,
@@ -82,6 +85,7 @@ import {
   tareaV2_5DeLaCadena,
   versionDe,
   type DireccionesV2_5,
+  type MonedaDeLaLista,
   type ReputacionV2_5,
   type TareaV2_5,
   type VersionEscrow,
@@ -485,6 +489,33 @@ export class PanalClient {
       );
     }
     return gas;
+  }
+
+  /**
+   * El escrow v2 solo conoce el registro V2 y solo cobra en MON o $PANAL. Un
+   * agente que solo está en el V3, que se dio de baja allí o que cobra en otra
+   * moneda haría revertir `createTask` sin decir por qué: se dice antes.
+   */
+  private async comprobarEscrowV2(agent: Agent): Promise<void> {
+    const v2 = this.addresses.registryV2;
+    const moneda = getAddress(agent.currency);
+    if (moneda !== NATIVE_CURRENCY && moneda !== getAddress(this.addresses.panalToken)) {
+      throw new Error(
+        `${agent.address} cobra en ${moneda}, y el escrow v2 solo cobra en MON o $PANAL: contrata con \`hireV2_5\`.`,
+      );
+    }
+    if (!v2 || getAddress(v2) === getAddress(this.addresses.registry)) return;
+    const enV2 = (await this.publicClient.readContract({
+      address: v2,
+      abi: registryAbi,
+      functionName: 'getAgent',
+      args: [getAddress(agent.address)],
+    })) as { active: boolean; registeredAt: bigint };
+    if (enV2.registeredAt === 0n || !enV2.active) {
+      throw new Error(
+        `${agent.address} no está activo en el registro V2, que es el que usa el escrow v2: contrata con \`hireV2_5\`.`,
+      );
+    }
   }
 
   /** Los contratos del v2.5, o un error que dice que aquí no los hay. */
@@ -1247,6 +1278,7 @@ export class PanalClient {
     const wallet = this.wallet();
     const agent = await this.getAgent(params.agent);
     if (!agent.active) throw new Error(`El agente ${params.agent} está dado de baja: no acepta encargos.`);
+    await this.comprobarEscrowV2(agent);
 
     const amount = params.amount ?? agent.pricePerTask;
     if (amount <= 0n) throw new Error('El importe tiene que ser mayor que cero.');
@@ -1421,7 +1453,14 @@ export class PanalClient {
     if (!agent.active) throw new Error(`El agente ${p.agent} está dado de baja: no acepta encargos.`);
     const currency = getAddress(p.currency ?? NATIVE_CURRENCY);
     const nativa = currency === NATIVE_CURRENCY;
-    if (!nativa && currency !== getAddress(this.addresses.panalToken) && currency !== getAddress(v.usdc)) {
+    // La moneda y su mínimo, de la lista (PanalCurrencies). Sin lista (unas
+    // direcciones de prueba sin ella), las tres de siempre.
+    let minimo = 0n;
+    if (v.currencies) {
+      const m = await this.getCurrency(currency);
+      if (!m.activa) throw new Error(`${currency} no es una moneda activa de la lista de Panal: mira \`getCurrencies()\`.`);
+      minimo = m.minimo;
+    } else if (!nativa && currency !== getAddress(this.addresses.panalToken) && currency !== getAddress(v.usdc)) {
       throw new Error('El escrow v2.5 cobra en MON, $PANAL o USDC.');
     }
     if (await this.isSuspended(agent.address)) {
@@ -1434,6 +1473,7 @@ export class PanalClient {
       if (amount === undefined) throw new Error(`${agent.address} no tiene precio en esa moneda: pasa \`amount\`.`);
     }
     if (amount <= 0n) throw new Error('El importe tiene que ser mayor que cero.');
+    if (amount < minimo) throw new Error(`El mínimo de un encargo en esa moneda es ${minimo} (unidades mínimas).`);
 
     const ahora = BigInt(Math.floor(Date.now() / 1000));
     const deadline = p.deadline ?? ahora + 24n * 60n * 60n;
@@ -1561,13 +1601,65 @@ export class PanalClient {
    * registro, admite USDC y varios tamaños de encargo.
    */
   async getPricesV2_5(agent: Address, currency: Address = NATIVE_CURRENCY): Promise<bigint[]> {
+    const prices = this.contratosV2_5().prices;
+    const args = [getAddress(agent), getAddress(currency)] as const;
     const lista = (await this.publicClient.readContract({
-      address: this.contratosV2_5().prices,
+      address: prices,
       abi: panalPricesAbi,
       functionName: 'getPrices',
-      args: [getAddress(agent), getAddress(currency)],
+      args,
     })) as readonly bigint[];
-    return [...lista];
+    if (lista.length > 0 || getAddress(prices) !== getAddress(V2_5_MAINNET.prices)) return [...lista];
+    // Hasta que el agente publique en PanalPricesV3, lo que publicó en el
+    // PanalPrices del v2.5. Si ya publicó en el V3 (aunque sea para vaciar la
+    // lista), manda el V3.
+    const cuando = (await this.publicClient.readContract({
+      address: prices,
+      abi: panalPricesAbi,
+      functionName: 'updatedAt',
+      args,
+    })) as bigint;
+    if (cuando !== 0n) return [];
+    const anterior = (await this.publicClient.readContract({
+      address: V2_5_ANTERIOR.prices,
+      abi: panalPricesAbi,
+      functionName: 'getPrices',
+      args,
+    })) as readonly bigint[];
+    return [...anterior];
+  }
+
+  /**
+   * Las monedas de la lista de Panal (PanalCurrencies), en su orden: en cuáles
+   * se puede contratar, registrar un precio o publicar en el tablón, con su
+   * mínimo y la comisión que llevaría un encargo nuevo. Incluye las
+   * desactivadas (`activa: false`): lo ya bloqueado en ellas termina normal.
+   */
+  async getCurrencies(): Promise<MonedaDeLaLista[]> {
+    const lista = this.listaDeMonedas();
+    const tokens = (await this.publicClient.readContract({
+      address: lista,
+      abi: panalCurrenciesAbi,
+      functionName: 'currencies',
+    })) as readonly Address[];
+    return Promise.all(tokens.map((t) => this.getCurrency(t)));
+  }
+
+  /** Una moneda de la lista. Fuera de ella, `activa: false` y todo a cero. */
+  async getCurrency(token: Address): Promise<MonedaDeLaLista> {
+    const [activa, decimales, feeBps, minimo] = (await this.publicClient.readContract({
+      address: this.listaDeMonedas(),
+      abi: panalCurrenciesAbi,
+      functionName: 'info',
+      args: [getAddress(token)],
+    })) as readonly [boolean, number, number, bigint];
+    return { token: getAddress(token), activa, decimales: Number(decimales), feeBps: Number(feeBps), minimo };
+  }
+
+  private listaDeMonedas(): Address {
+    const lista = this.contratosV2_5().currencies;
+    if (!lista) throw new Error('Estas direcciones del v2.5 no traen la lista de monedas (`currencies`).');
+    return lista;
   }
 
   /** La reputación de un agente: lo que trae del v2 más lo hecho en el v2.5. */

@@ -34,6 +34,12 @@ export interface IndexedEvent {
    * de suspendidos y los precios por moneda del v2.5.
    */
   contract: 'registry' | 'escrow' | 'names' | 'tablon' | 'escrow25' | 'tablon25' | 'bans' | 'prices';
+  /**
+   * El contrato que lo emitió, en minúsculas. Solo en los de precios, que
+   * vienen de dos (el PanalPrices del V3 y el del v2.5 de antes); los
+   * guardados antes del V3 no lo llevan y son todos del de antes.
+   */
+  address?: string;
   event: string;
   blockNumber: number;
   logIndex: number;
@@ -64,6 +70,8 @@ export interface IndexerState {
   tablonHasta: number | null;
   /** Lo mismo para el v2.5 (escrow, tablón, suspensiones y precios), desde el 24-nov-2026. */
   v2_5Hasta: number | null;
+  /** Lo mismo para Panal V3 (en el hueco del v2.5, más registro y nombres), desde el 25-nov-2026. */
+  v3Hasta?: number | null;
   /** Las señales de vigilancia ya avisadas: no se repiten al reiniciar. */
   vigilanciaAvisada: string[];
 }
@@ -533,6 +541,9 @@ function dayKey(tsSec: number): string {
   return new Date(tsSec * 1000).toISOString().slice(0, 10);
 }
 
+/** El PanalPrices del v2.5 de antes (ver `V2_5_ANTERIOR` en v2_5.ts), en minúsculas. */
+const PRICES_V2_5_ANTERIOR = '0x90cba3be239fca150fc8fafc10d6bd7ccb547663';
+
 /** USDC de Circle en Monad mainnet: la tercera moneda del escrow v2.5. */
 const USDC_MAINNET = '0x754704bc059f8c67012fed69bc8a327a5aafb603';
 
@@ -646,6 +657,11 @@ class StatsBuilder {
   readonly suspendidos = new Map<string, { desdeTs: number; reasonHash: string }>();
   /** Precios de PanalPrices (v2.5): agente → moneda → importes, de menor a mayor. */
   readonly precios = new Map<string, Map<string, string[]>>();
+  /**
+   * `agente|moneda` que ya publicaron en el PanalPrices del V3. Desde ese
+   * momento lo del v2.5 de antes no cuenta para ellos, como en el SDK.
+   */
+  private readonly preciosDelV3 = new Set<string>();
   total = 0;
 
   constructor(
@@ -795,6 +811,12 @@ class StatsBuilder {
       if (ev.event !== 'PricesSet') return true;
       const agente = String(a['agent'] ?? '').toLowerCase();
       const moneda = String(a['currency'] ?? NATIVE).toLowerCase();
+      const clave = `${agente}|${moneda}`;
+      if (!ev.address || ev.address === PRICES_V2_5_ANTERIOR) {
+        if (this.preciosDelV3.has(clave)) return true;
+      } else {
+        this.preciosDelV3.add(clave);
+      }
       const crudo = a['amounts'];
       const lista = typeof crudo === 'string' ? (JSON.parse(crudo) as unknown[]).map(String) : [];
       let porMoneda = this.precios.get(agente);
@@ -1089,6 +1111,17 @@ class StatsBuilder {
       case 'Liberado': {
         const dueno = String(ev.args.dueno ?? '').toLowerCase();
         if (dueno) this.nombres.delete(dueno);
+        break;
+      }
+      case 'Asignado': {
+        // Los 15 migrados al nacer PanalNamesV2 llegan aquí con el mismo dueño
+        // que ya tenían en PanalNames: se queda lo de antes (cómo lo consiguió
+        // y desde cuándo). Uno reservado que se entrega es «recibido».
+        const a = String(ev.args.a ?? '').toLowerCase();
+        const nombre = String(ev.args.nombre ?? '');
+        if (a && nombre && this.nombres.get(a)?.nombre !== nombre) {
+          this.nombres.set(a, { nombre, desdeTs: ev.ts, origen: 'recibido' });
+        }
         break;
       }
 
@@ -1952,6 +1985,14 @@ export class IndexStore {
 
   setV2_5Hasta(n: number): void {
     this.state.v2_5Hasta = n;
+  }
+
+  get v3Hasta(): number | null {
+    return this.state.v3Hasta ?? null;
+  }
+
+  setV3Hasta(n: number): void {
+    this.state.v3Hasta = n;
   }
 
   setTablonHasta(n: number): void {

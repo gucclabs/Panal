@@ -38,7 +38,18 @@ export const monadTestnet: Chain = defineChain({
 export type PanalNetwork = 'mainnet' | 'testnet';
 
 export interface PanalAddresses {
+  /**
+   * El registro de agentes que se lee y donde se escribe. En mainnet, desde el
+   * 25-nov-2026, PanalRegistryV3: admite cualquier moneda de la lista (USDC
+   * incluida) y, para quien no lo ha tocado, devuelve lo del V2 en directo. Los
+   * agentes de antes siguen apareciendo igual sin firmar nada.
+   */
   registry: Address;
+  /**
+   * PanalRegistryV2: el que valida el escrow v2 (`hire`). Opcional: sin él,
+   * `registry` hace de los dos, como antes del V3.
+   */
+  registryV2?: Address;
   escrow: Address;
   /** El token $PANAL. Los agentes pueden cobrar en él o en MON nativo. */
   panalToken: Address;
@@ -53,6 +64,9 @@ export interface PanalAddresses {
    * diferencia de la verificación de dominio, que la hace el indexador contra
    * un servidor ajeno, esto se lee con una llamada `view`: no depende de que
    * nada esté levantado.
+   *
+   * En mainnet, desde el 25-nov-2026, PanalNamesV2: lee el registro V3 y nació
+   * con los 15 nombres de antes migrados, cada uno con su dueño y su fecha.
    */
   names: Address;
   /**
@@ -64,16 +78,23 @@ export interface PanalAddresses {
   tablon: Address;
 }
 
+/** PanalRegistryV2 (2026-07-29): solo MON y $PANAL. El V3 lo lee. */
+export const REGISTRY_V2_MAINNET: Address = '0x89a812BFb1c35fc814ef25a3E6Ca75068B16Ac51';
+/** El PanalNames de antes del V3: sus 15 nombres se migraron a PanalNamesV2. */
+export const NAMES_V1_MAINNET: Address = '0xc94a8107C87859cAd2E472e71BbE25c15cdD614A';
+
 /**
  * Desplegados en Monad mainnet el 2026-07-29 (escrow v2 auditado). PanalTablon,
- * el 2026-10-13 en el bloque 112930819, con los topes de la beta.
+ * el 2026-10-13 en el bloque 112930819, con los topes de la beta. El registro y
+ * los nombres, los de Panal V3 (2026-11-25).
  */
 export const MAINNET_ADDRESSES: PanalAddresses = {
-  registry: '0x89a812BFb1c35fc814ef25a3E6Ca75068B16Ac51',
+  registry: '0xfD8643AdCAfFC73B524203434dd9a5bCBC0753b2',
+  registryV2: REGISTRY_V2_MAINNET,
   escrow: '0xe138A9A492CFe27A13f8b7A6D312DA831791bCe9',
   panalToken: '0x2e2e44e7fa6178822d4397299f719e89d1a67777',
   arbitrator: '0xc384C1F5D6716571DA84329BeAaE6F064C6b1Fe0',
-  names: '0xc94a8107C87859cAd2E472e71BbE25c15cdD614A',
+  names: '0xA3A01e1A59d5088Ce2ecd4b98385929bC3B6523d',
   tablon: '0x2Cfc6803E269fa9BF728e202736a7bc0547ae149',
 };
 

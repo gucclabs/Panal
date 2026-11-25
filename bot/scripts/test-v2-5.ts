@@ -25,7 +25,7 @@ import { getAddress, keccak256, toBytes, toEventSelector, type AbiEvent, type Ad
 import { privateKeyToAccount } from 'viem/accounts';
 import { IndexStore, type IndexedEvent } from '../src/indexer-store.js';
 import { createIndexServer } from '../src/indexer-http.js';
-import { TABLON_EVENTS, desplazarV2_5 } from '../src/indexer.js';
+import { NAMES_EVENTS, REGISTRY_EVENTS, TABLON_EVENTS, desplazarV2_5 } from '../src/indexer.js';
 import { createBuzonServer, pruebasSignMessage } from '../src/buzon.js';
 import { BuzonStore } from '../src/buzon-store.js';
 import { NATIVE_CURRENCY, TaskStatus, type Task, type TrabajoTablon } from '../src/chain.js';
@@ -36,6 +36,7 @@ import {
   PRICES_EVENTS,
   PRIMER_ID_V2_5,
   StatusV2_5,
+  V2_5_ANTERIOR,
   V2_5_MAINNET,
   comoTareaV2,
   esDelV2_5,
@@ -46,7 +47,14 @@ import {
   type TareaV2_5,
 } from '../src/v2_5.js';
 // Los ABI generados de los contratos desplegados, los mismos que usa el SDK.
-import { panalBansAbi, panalEscrowV2_5Abi, panalPricesAbi, panalTablonV2_5Abi } from '../../sdk/src/v2_5-abi.js';
+import {
+  panalBansAbi,
+  panalEscrowV2_5Abi,
+  panalNamesV2Abi,
+  panalPricesAbi,
+  panalRegistryV3Abi,
+  panalTablonV2_5Abi,
+} from '../../sdk/src/v2_5-abi.js';
 
 let failures = 0;
 function check(label: string, condition: boolean, detail = ''): void {
@@ -86,6 +94,7 @@ const t25 = (status: StatusV2_5, closeReason = CierreV2_5.None): TareaV2_5 => ({
   reviewWindow: 72 * 3600,
   currency: getAddress(USDC),
   deliveredAt: 0n,
+  feeBps: 250,
   amount: 5_000_000n,
   createdAt: 1_990_000_000n,
   disputedAt: 0n,
@@ -112,6 +121,8 @@ const cubre = (pedidos: readonly AbiEvent[], abi: readonly { type: string }[]): 
 check('escrow v2.5', cubre(ESCROW_V2_5_EVENTS, panalEscrowV2_5Abi).length === 0, cubre(ESCROW_V2_5_EVENTS, panalEscrowV2_5Abi).join(','));
 check('PanalBans', cubre(BANS_EVENTS, panalBansAbi).length === 0);
 check('PanalPrices', cubre(PRICES_EVENTS, panalPricesAbi).length === 0);
+check('PanalRegistryV3', cubre(REGISTRY_EVENTS, panalRegistryV3Abi).length === 0, cubre(REGISTRY_EVENTS, panalRegistryV3Abi).join(','));
+check('PanalNamesV2, con Asignado', cubre(NAMES_EVENTS, panalNamesV2Abi).length === 0 && NAMES_EVENTS.some((e) => e.name === 'Asignado'), cubre(NAMES_EVENTS, panalNamesV2Abi).join(','));
 {
   // El tablón v2.5 se lee con los eventos del v2: los que emite tienen que estar.
   const delV25 = panalTablonV2_5Abi.filter((x): x is AbiEvent => x.type === 'event');
@@ -263,6 +274,38 @@ store.append([
 ]);
 check('readmitida', !store.estaSuspendido(OTRO));
 check('una lista vacía es «ya no cobro en esa moneda»', store.preciosDe(AGENTE)[NATIVE_CURRENCY] === undefined && !!store.preciosDe(AGENTE)[USDC]);
+
+console.log('\nlos precios del V3 mandan sobre los del v2.5 de antes');
+{
+  const V3 = V2_5_MAINNET.prices.toLowerCase();
+  const ANTES = V2_5_ANTERIOR.prices.toLowerCase();
+  const p = (agent: string, amounts: string[], address?: string): IndexedEvent => ({
+    ...ev('prices', 'PricesSet', { agent, currency: USDC, amounts: JSON.stringify(amounts) }),
+    ...(address ? { address } : {}),
+  });
+  store.append([p(OTRO, ['3000000'])]);
+  check('los guardados sin dirección (de antes) cuentan', store.preciosDe(OTRO)[USDC]?.[0] === '3000000');
+  store.append([p(OTRO, ['4000000'], ANTES)]);
+  check('mientras no publique en el V3, lo último del de antes', store.preciosDe(OTRO)[USDC]?.[0] === '4000000');
+  store.append([p(OTRO, ['6000000'], V3)]);
+  check('en cuanto publica en el V3, el V3', store.preciosDe(OTRO)[USDC]?.[0] === '6000000');
+  store.append([p(OTRO, ['1'], ANTES)]);
+  check('y lo que llegue después al de antes ya no cuenta', store.preciosDe(OTRO)[USDC]?.[0] === '6000000', JSON.stringify(store.preciosDe(OTRO)));
+  store.append([p(OTRO, [], V3)]);
+  check('vaciarlos en el V3 los vacía, aunque el de antes tenga', store.preciosDe(OTRO)[USDC] === undefined);
+}
+
+console.log('\nPanalNamesV2: los migrados conservan su historia');
+{
+  const MIGRADO = '0xdddd000000000000000000000000000000000004';
+  const RESERVA = '0xeeee000000000000000000000000000000000005';
+  store.append([ev('names', 'Reclamado', { hash: CERO32, nombre: 'lint', dueno: MIGRADO, pagado: '0' }, 1_700_000_000)]);
+  const antes = store.nombre(MIGRADO);
+  store.append([ev('names', 'Asignado', { hash: CERO32, nombre: 'lint', a: MIGRADO })]);
+  check('el migrado sigue «reclamado» y con su fecha', JSON.stringify(store.nombre(MIGRADO)) === JSON.stringify(antes) && antes?.origen === 'reclamado');
+  store.append([ev('names', 'Asignado', { hash: CERO32, nombre: 'panal', a: RESERVA })]);
+  check('uno reservado que se entrega es «recibido»', store.nombre(RESERVA)?.nombre === 'panal' && store.nombre(RESERVA)?.origen === 'recibido');
+}
 
 console.log('\ncada tablón, lo suyo');
 store.append([

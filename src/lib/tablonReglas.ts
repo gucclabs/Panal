@@ -31,6 +31,7 @@ import {
   BaseError,
   ContractFunctionRevertedError,
   keccak256,
+  maxUint256,
   toBytes,
   type Abi,
   type Address,
@@ -43,6 +44,7 @@ import {
   esDelV2_5,
   idDelV2_5,
   idEnLaCadena,
+  panalCurrenciesAbi,
   panalEscrowV2_5Abi,
   panalTablonV2_5Abi,
   tareaV2_5DeLaCadena,
@@ -67,6 +69,7 @@ import {
 import {
   MULTICALL3_ADDRESS,
   NATIVE_CURRENCY,
+  PANAL_CURRENCIES_ADDRESS,
   PANAL_ESCROW_V2_5_ADDRESS,
   PANAL_ESCROW_V2_ADDRESS,
   PANAL_TABLON_ADDRESS,
@@ -262,7 +265,11 @@ export async function leerTareas(taskIds: bigint[]): Promise<Map<string, TareaDe
 export interface ReglasDelTablon {
   /** Solo el tablón v2 se podía pausar; el v2.5 no tiene pausa. */
   pausado: boolean;
-  /** Por moneda (dirección en minúsculas). 0 = sin tope. */
+  /**
+   * Por moneda (dirección en minúsculas). 0 = sin tope. (En el tablón V3 el
+   * «sin tope» es el máximo de uint256, y aquí se traduce a 0; un 0 de verdad
+   * en el V3 es «moneda cerrada», y el contrato rechaza la publicación.)
+   */
   topes: Record<string, { porEncargo: bigint; total: bigint; ocupado: bigint }>;
   /** El mínimo por encargo, por moneda (dirección en minúsculas). */
   minimos: Record<string, bigint>;
@@ -280,13 +287,16 @@ export async function leerReglas(): Promise<ReglasDelTablon> {
   const tablon = tablonDe(VERSION_PARA_PUBLICAR);
   const es25 = VERSION_PARA_PUBLICAR === 'v2_5';
   const monedas = MONEDAS_TABLON;
-  // Los mínimos: MIN_NATIVE en los dos; MIN_TOKEN en el v2; MIN_PANAL y MIN_USDC en el v2.5.
-  const nombresMinimos = es25 ? ['MIN_NATIVE', 'MIN_PANAL', 'MIN_USDC'] : ['MIN_NATIVE', 'MIN_TOKEN'];
+  // Los mínimos: en el v2, MIN_NATIVE y MIN_TOKEN del tablón; en el V3 (hueco
+  // del v2.5), los de la lista de monedas, uno por moneda.
+  const lista = { address: PANAL_CURRENCIES_ADDRESS as Address, abi: panalCurrenciesAbi as unknown as Abi };
+  const minimos25 = monedas.map((m) => ({ ...lista, functionName: 'minAmount', args: [m] }));
+  const minimosV2 = ['MIN_NATIVE', 'MIN_TOKEN'].map((n) => ({ ...tablon, functionName: n }));
   const [liberacion, disputa, ...resto] = await enBloque<unknown>([
     { ...escrow, functionName: 'AUTO_RELEASE' },
     { ...escrow, functionName: 'DISPUTE_TIMEOUT' },
     ...(es25 ? [] : [{ ...tablon, functionName: 'paused' }]),
-    ...nombresMinimos.map((n) => ({ ...tablon, functionName: n })),
+    ...(es25 ? minimos25 : minimosV2),
     ...monedas.flatMap((m) => [
       { ...tablon, functionName: 'caps', args: [m] },
       { ...tablon, functionName: 'books', args: [m] },
@@ -299,10 +309,10 @@ export async function leerReglas(): Promise<ReglasDelTablon> {
   });
   const topes: ReglasDelTablon['topes'] = {};
   monedas.forEach((m, k) => {
-    const [porEncargo, total] = resto[k * 2] as readonly [bigint, bigint];
+    const [porEncargo, total] = (resto[k * 2] as readonly [bigint, bigint]).map((x) => (x === maxUint256 ? 0n : x));
     // `books`: (posted, inEscrow, owedTotal[, pulled, attributed] en el v2).
     const [posted, inEscrow] = resto[k * 2 + 1] as readonly bigint[];
-    topes[m.toLowerCase()] = { porEncargo, total, ocupado: posted! + inEscrow! };
+    topes[m.toLowerCase()] = { porEncargo: porEncargo!, total: total!, ocupado: posted! + inEscrow! };
   });
   return {
     pausado,

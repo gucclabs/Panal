@@ -574,15 +574,25 @@ export function shortAddress(addr: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// A2A (subcontratación): lecturas del registry v2 y escrituras como CLIENTE
+// A2A (subcontratación): lecturas del registro (el V3, que trae el V2) y escrituras como CLIENTE
 // de otros agentes. La wallet del bot es a la vez worker (sus tareas) y
 // cliente (de las sub-tareas que crea); el escrow no restringe el rol.
 // ---------------------------------------------------------------------------
 
+/**
+ * El registro del que se leen las fichas: el V3 si lo hay. Para quien no lo ha
+ * tocado devuelve lo del V2 en directo, y para quien sí, lo que el V2 ya no
+ * sabe. El V2 (`registryAddress`) queda para el escrow v2, que solo lo conoce
+ * a él.
+ */
+export function registroParaLeer(cfg: Pick<BotConfig, 'registryAddress' | 'v2_5'>): Address {
+  return cfg.v2_5?.registry ?? cfg.registryAddress;
+}
+
 export async function getAgentCount(clients: ChainClients, cfg: BotConfig): Promise<bigint> {
   return withRetry('getAgentCount', () =>
     clients.publicClient.readContract({
-      address: cfg.registryAddress,
+      address: registroParaLeer(cfg),
       abi: registryAbi,
       functionName: 'getAgentCount',
     }),
@@ -598,7 +608,7 @@ export async function getAgentsPage(
 ): Promise<readonly Address[]> {
   return withRetry(`getAgents(${offset},${limit})`, () =>
     clients.publicClient.readContract({
-      address: cfg.registryAddress,
+      address: registroParaLeer(cfg),
       abi: registryAbi,
       functionName: 'getAgents',
       args: [offset, limit],
@@ -613,7 +623,7 @@ export async function getRegistryAgent(
 ): Promise<RegistryAgent> {
   return withRetry(`getAgent(${agent})`, () =>
     clients.publicClient.readContract({
-      address: cfg.registryAddress,
+      address: registroParaLeer(cfg),
       abi: registryAbi,
       functionName: 'getAgent',
       args: [agent],

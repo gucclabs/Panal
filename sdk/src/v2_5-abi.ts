@@ -1,13 +1,16 @@
 /**
- * Panal SDK — los ABI enteros de los contratos del v2.5.
+ * Panal SDK — los ABI enteros de los contratos de Panal V3.
  *
  * GENERADO, NO SE EDITA A MANO. Son los de los contratos desplegados y
- * verificados en Monad mainnet el 24-nov-2026 (ver v2_5.ts). Se regenera con:
+ * verificados en Monad mainnet el 25-nov-2026 (ver v2_5.ts). El V3 ocupa el
+ * hueco del v2.5, así que los exports conservan sus nombres: el del escrow es
+ * PanalEscrowV3, el del tablón PanalBoardV3, el de la reputación
+ * PanalReputationV3 y el de los precios PanalPricesV3. Se regenera con:
  *
- *   node scripts/abi-v2-5.mjs <carpeta out/ de Foundry de los contratos v2.5>
+ *   node scripts/abi-v2-5.mjs <carpeta out/ de Foundry de los contratos V3>
  */
 
-/** PanalEscrowV2_5. */
+/** PanalEscrowV3. */
 export const panalEscrowV2_5Abi = [
   {
     "type": "function",
@@ -38,32 +41,6 @@ export const panalEscrowV2_5Abi = [
   {
     "type": "function",
     "name": "DISPUTE_TIMEOUT",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "FEE_BPS",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "FEE_BPS_PANAL",
     "inputs": [],
     "outputs": [
       {
@@ -115,45 +92,6 @@ export const panalEscrowV2_5Abi = [
   },
   {
     "type": "function",
-    "name": "MIN_AMOUNT_NATIVE",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "MIN_AMOUNT_PANAL",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "MIN_AMOUNT_USDC",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
     "name": "MIN_REVIEW_WINDOW",
     "inputs": [],
     "outputs": [
@@ -167,19 +105,6 @@ export const panalEscrowV2_5Abi = [
   },
   {
     "type": "function",
-    "name": "PANAL_TOKEN",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
     "name": "RULING_DELAY",
     "inputs": [],
     "outputs": [
@@ -187,19 +112,6 @@ export const panalEscrowV2_5Abi = [
         "name": "",
         "type": "uint256",
         "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "USDC_TOKEN",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "address"
       }
     ],
     "stateMutability": "view"
@@ -366,7 +278,7 @@ export const panalEscrowV2_5Abi = [
       {
         "name": "",
         "type": "address",
-        "internalType": "contract IBansV2_5"
+        "internalType": "contract IBansV3"
       }
     ],
     "stateMutability": "view"
@@ -418,7 +330,7 @@ export const panalEscrowV2_5Abi = [
       {
         "name": "p",
         "type": "tuple",
-        "internalType": "struct PanalEscrowV2_5.NewTask",
+        "internalType": "struct PanalEscrowV3.NewTask",
         "components": [
           {
             "name": "worker",
@@ -474,7 +386,7 @@ export const panalEscrowV2_5Abi = [
       {
         "name": "p",
         "type": "tuple",
-        "internalType": "struct PanalEscrowV2_5.NewTask",
+        "internalType": "struct PanalEscrowV3.NewTask",
         "components": [
           {
             "name": "worker",
@@ -516,7 +428,7 @@ export const panalEscrowV2_5Abi = [
       {
         "name": "s",
         "type": "tuple",
-        "internalType": "struct PanalEscrowV2_5.Permit",
+        "internalType": "struct PanalEscrowV3.Permit",
         "components": [
           {
             "name": "deadline",
@@ -549,6 +461,19 @@ export const panalEscrowV2_5Abi = [
       }
     ],
     "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "currencies",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "contract ICurrenciesV3"
+      }
+    ],
+    "stateMutability": "view"
   },
   {
     "type": "function",
@@ -632,7 +557,7 @@ export const panalEscrowV2_5Abi = [
       {
         "name": "",
         "type": "tuple",
-        "internalType": "struct PanalEscrowV2_5.Task",
+        "internalType": "struct PanalEscrowV3.Task",
         "components": [
           {
             "name": "client",
@@ -647,12 +572,12 @@ export const panalEscrowV2_5Abi = [
           {
             "name": "status",
             "type": "uint8",
-            "internalType": "enum PanalEscrowV2_5.Status"
+            "internalType": "enum PanalEscrowV3.Status"
           },
           {
             "name": "closeReason",
             "type": "uint8",
-            "internalType": "enum PanalEscrowV2_5.Close"
+            "internalType": "enum PanalEscrowV3.Close"
           },
           {
             "name": "workerShareBps",
@@ -683,6 +608,11 @@ export const panalEscrowV2_5Abi = [
             "name": "deliveredAt",
             "type": "uint64",
             "internalType": "uint64"
+          },
+          {
+            "name": "feeBps",
+            "type": "uint16",
+            "internalType": "uint16"
           },
           {
             "name": "amount",
@@ -1001,7 +931,7 @@ export const panalEscrowV2_5Abi = [
       {
         "name": "",
         "type": "address",
-        "internalType": "contract IRegistryV2_5"
+        "internalType": "contract IRegistryV3"
       }
     ],
     "stateMutability": "view"
@@ -1077,7 +1007,7 @@ export const panalEscrowV2_5Abi = [
       {
         "name": "",
         "type": "address",
-        "internalType": "contract IReputationV2_5"
+        "internalType": "contract IReputationV3"
       }
     ],
     "stateMutability": "view"
@@ -1543,7 +1473,7 @@ export const panalEscrowV2_5Abi = [
         "name": "reason",
         "type": "uint8",
         "indexed": true,
-        "internalType": "enum PanalEscrowV2_5.Close"
+        "internalType": "enum PanalEscrowV3.Close"
       },
       {
         "name": "workerPaid",
@@ -1723,7 +1653,7 @@ export const panalEscrowV2_5Abi = [
   }
 ] as const;
 
-/** PanalTablonV2_5. */
+/** PanalBoardV3. */
 export const panalTablonV2_5Abi = [
   {
     "type": "function",
@@ -1779,45 +1709,6 @@ export const panalTablonV2_5Abi = [
   },
   {
     "type": "function",
-    "name": "MIN_NATIVE",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "MIN_PANAL",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "MIN_USDC",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
     "name": "MIN_WORK_DURATION",
     "inputs": [],
     "outputs": [
@@ -1825,32 +1716,6 @@ export const panalTablonV2_5Abi = [
         "name": "",
         "type": "uint64",
         "internalType": "uint64"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "PANAL_TOKEN",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "USDC_TOKEN",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "address"
       }
     ],
     "stateMutability": "view"
@@ -1981,7 +1846,7 @@ export const panalTablonV2_5Abi = [
       {
         "name": "",
         "type": "address",
-        "internalType": "contract IBansV2_5"
+        "internalType": "contract IBansV3"
       }
     ],
     "stateMutability": "view"
@@ -2163,6 +2028,19 @@ export const panalTablonV2_5Abi = [
   },
   {
     "type": "function",
+    "name": "currencies",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "contract IBoardCurrenciesV3"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "dispute",
     "inputs": [
       {
@@ -2187,7 +2065,7 @@ export const panalTablonV2_5Abi = [
       {
         "name": "",
         "type": "address",
-        "internalType": "contract PanalEscrowV2_5"
+        "internalType": "contract PanalEscrowV3"
       }
     ],
     "stateMutability": "view"
@@ -2237,7 +2115,7 @@ export const panalTablonV2_5Abi = [
       {
         "name": "",
         "type": "tuple",
-        "internalType": "struct PanalTablonV2_5.Job",
+        "internalType": "struct PanalBoardV3.Job",
         "components": [
           {
             "name": "client",
@@ -2247,12 +2125,12 @@ export const panalTablonV2_5Abi = [
           {
             "name": "mode",
             "type": "uint8",
-            "internalType": "enum PanalTablonV2_5.Mode"
+            "internalType": "enum PanalBoardV3.Mode"
           },
           {
             "name": "state",
             "type": "uint8",
-            "internalType": "enum PanalTablonV2_5.State"
+            "internalType": "enum PanalBoardV3.State"
           },
           {
             "name": "category",
@@ -2432,7 +2310,7 @@ export const panalTablonV2_5Abi = [
       {
         "name": "",
         "type": "tuple[]",
-        "internalType": "struct PanalTablonV2_5.Offer[]",
+        "internalType": "struct PanalBoardV3.Offer[]",
         "components": [
           {
             "name": "agent",
@@ -2521,7 +2399,7 @@ export const panalTablonV2_5Abi = [
       {
         "name": "p",
         "type": "tuple",
-        "internalType": "struct PanalTablonV2_5.PostParams",
+        "internalType": "struct PanalBoardV3.PostParams",
         "components": [
           {
             "name": "taskHash",
@@ -2561,7 +2439,7 @@ export const panalTablonV2_5Abi = [
           {
             "name": "mode",
             "type": "uint8",
-            "internalType": "enum PanalTablonV2_5.Mode"
+            "internalType": "enum PanalBoardV3.Mode"
           },
           {
             "name": "applyWindow",
@@ -2636,7 +2514,7 @@ export const panalTablonV2_5Abi = [
       {
         "name": "",
         "type": "address",
-        "internalType": "contract IRegistryV2_5"
+        "internalType": "contract IRegistryV3"
       }
     ],
     "stateMutability": "view"
@@ -2649,7 +2527,7 @@ export const panalTablonV2_5Abi = [
       {
         "name": "",
         "type": "address",
-        "internalType": "contract PanalReputationV2_5"
+        "internalType": "contract PanalReputationV3"
       }
     ],
     "stateMutability": "view"
@@ -2697,7 +2575,7 @@ export const panalTablonV2_5Abi = [
       {
         "name": "levels_",
         "type": "tuple[5]",
-        "internalType": "struct PanalTablonV2_5.Level[5]",
+        "internalType": "struct PanalBoardV3.Level[5]",
         "components": [
           {
             "name": "minCompleted",
@@ -3017,7 +2895,7 @@ export const panalTablonV2_5Abi = [
         "name": "mode",
         "type": "uint8",
         "indexed": false,
-        "internalType": "enum PanalTablonV2_5.Mode"
+        "internalType": "enum PanalBoardV3.Mode"
       },
       {
         "name": "campaignId",
@@ -3087,7 +2965,7 @@ export const panalTablonV2_5Abi = [
         "name": "levels",
         "type": "tuple[5]",
         "indexed": false,
-        "internalType": "struct PanalTablonV2_5.Level[5]",
+        "internalType": "struct PanalBoardV3.Level[5]",
         "components": [
           {
             "name": "minCompleted",
@@ -3387,7 +3265,7 @@ export const panalTablonV2_5Abi = [
   }
 ] as const;
 
-/** PanalReputationV2_5. */
+/** PanalReputationV3. */
 export const panalReputationV2_5Abi = [
   {
     "type": "function",
@@ -3453,7 +3331,7 @@ export const panalReputationV2_5Abi = [
       {
         "name": "",
         "type": "tuple",
-        "internalType": "struct PanalReputationV2_5.Reputation",
+        "internalType": "struct PanalReputationV3.Reputation",
         "components": [
           {
             "name": "tasksCompleted",
@@ -3494,7 +3372,7 @@ export const panalReputationV2_5Abi = [
       {
         "name": "r",
         "type": "tuple",
-        "internalType": "struct PanalReputationV2_5.Reputation",
+        "internalType": "struct PanalReputationV3.Reputation",
         "components": [
           {
             "name": "tasksCompleted",
@@ -3919,7 +3797,7 @@ export const panalBansAbi = [
   }
 ] as const;
 
-/** PanalPrices. */
+/** PanalPricesV3. */
 export const panalPricesAbi = [
   {
     "type": "function",
@@ -3929,7 +3807,20 @@ export const panalPricesAbi = [
       {
         "name": "",
         "type": "address",
-        "internalType": "contract IPricesBans"
+        "internalType": "contract IPricesBansV3"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "CURRENCIES",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "contract IPricesCurrenciesV3"
       }
     ],
     "stateMutability": "view"
@@ -3968,7 +3859,7 @@ export const panalPricesAbi = [
       {
         "name": "",
         "type": "address",
-        "internalType": "contract IPricesRegistry"
+        "internalType": "contract IPricesRegistryV3"
       }
     ],
     "stateMutability": "view"
@@ -4126,6 +4017,1815 @@ export const panalPricesAbi = [
         "type": "uint128[]",
         "indexed": false,
         "internalType": "uint128[]"
+      }
+    ],
+    "anonymous": false
+  }
+] as const;
+
+/** PanalCurrencies. */
+export const panalCurrenciesAbi = [
+  {
+    "type": "function",
+    "name": "DELAY",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "MAX_CURRENCIES",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "MAX_FEE_BPS",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint16",
+        "internalType": "uint16"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "acceptOwnership",
+    "inputs": [],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "cancel",
+    "inputs": [
+      {
+        "name": "token",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "currencies",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address[]",
+        "internalType": "address[]"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "deactivate",
+    "inputs": [
+      {
+        "name": "token",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "decimalsOf",
+    "inputs": [
+      {
+        "name": "token",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint8",
+        "internalType": "uint8"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "execute",
+    "inputs": [
+      {
+        "name": "token",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "feeBps",
+    "inputs": [
+      {
+        "name": "token",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint16",
+        "internalType": "uint16"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "info",
+    "inputs": [
+      {
+        "name": "token",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "active",
+        "type": "bool",
+        "internalType": "bool"
+      },
+      {
+        "name": "tokenDecimals",
+        "type": "uint8",
+        "internalType": "uint8"
+      },
+      {
+        "name": "fee",
+        "type": "uint16",
+        "internalType": "uint16"
+      },
+      {
+        "name": "minimum",
+        "type": "uint128",
+        "internalType": "uint128"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "isActive",
+    "inputs": [
+      {
+        "name": "token",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "isListed",
+    "inputs": [
+      {
+        "name": "token",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "minAmount",
+    "inputs": [
+      {
+        "name": "token",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint128",
+        "internalType": "uint128"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "owner",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "pendingOwner",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "proposals",
+    "inputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "executableAt",
+        "type": "uint64",
+        "internalType": "uint64"
+      },
+      {
+        "name": "feeBps",
+        "type": "uint16",
+        "internalType": "uint16"
+      },
+      {
+        "name": "minAmount",
+        "type": "uint128",
+        "internalType": "uint128"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "propose",
+    "inputs": [
+      {
+        "name": "token",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "feeBps_",
+        "type": "uint16",
+        "internalType": "uint16"
+      },
+      {
+        "name": "minAmount_",
+        "type": "uint128",
+        "internalType": "uint128"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "transferOwnership",
+    "inputs": [
+      {
+        "name": "newOwner",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "event",
+    "name": "CurrencyDeactivated",
+    "inputs": [
+      {
+        "name": "token",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "CurrencyProposed",
+    "inputs": [
+      {
+        "name": "token",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "feeBps",
+        "type": "uint16",
+        "indexed": false,
+        "internalType": "uint16"
+      },
+      {
+        "name": "minAmount",
+        "type": "uint128",
+        "indexed": false,
+        "internalType": "uint128"
+      },
+      {
+        "name": "executableAt",
+        "type": "uint64",
+        "indexed": false,
+        "internalType": "uint64"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "CurrencySet",
+    "inputs": [
+      {
+        "name": "token",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "decimals",
+        "type": "uint8",
+        "indexed": false,
+        "internalType": "uint8"
+      },
+      {
+        "name": "feeBps",
+        "type": "uint16",
+        "indexed": false,
+        "internalType": "uint16"
+      },
+      {
+        "name": "minAmount",
+        "type": "uint128",
+        "indexed": false,
+        "internalType": "uint128"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "OwnershipTransferStarted",
+    "inputs": [
+      {
+        "name": "previousOwner",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "newOwner",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "OwnershipTransferred",
+    "inputs": [
+      {
+        "name": "previousOwner",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "newOwner",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "ProposalCancelled",
+    "inputs": [
+      {
+        "name": "token",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "error",
+    "name": "InvalidCurrency",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "InvalidFee",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "InvalidMinimum",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "InvalidSetup",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "NoProposal",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "NotListed",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "NotOwner",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "NotPendingOwner",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "TooEarly",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "TooManyCurrencies",
+    "inputs": []
+  }
+] as const;
+
+/** PanalRegistryV3. */
+export const panalRegistryV3Abi = [
+  {
+    "type": "function",
+    "name": "CURRENCIES",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "contract IRegistryCurrenciesV3"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "MAX_METADATA_LENGTH",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "PANAL_TOKEN",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "V2",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "contract IRegistryV2Reader"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getAgent",
+    "inputs": [
+      {
+        "name": "agent",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "internalType": "struct PanalRegistryV3.Agent",
+        "components": [
+          {
+            "name": "owner",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "metadataURI",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "pricePerTask",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "active",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "registeredAt",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "currency",
+            "type": "address",
+            "internalType": "address"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getAgentCount",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getAgents",
+    "inputs": [
+      {
+        "name": "offset",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "limit",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "result",
+        "type": "address[]",
+        "internalType": "address[]"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "isActiveAgent",
+    "inputs": [
+      {
+        "name": "agent",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "isAdopted",
+    "inputs": [
+      {
+        "name": "agent",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "registerAgent",
+    "inputs": [
+      {
+        "name": "metadataURI",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "pricePerTask",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "currency",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "setActive",
+    "inputs": [
+      {
+        "name": "active",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "updateMetadata",
+    "inputs": [
+      {
+        "name": "newMetadataURI",
+        "type": "string",
+        "internalType": "string"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "updatePrice",
+    "inputs": [
+      {
+        "name": "newPrice",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "currency",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "event",
+    "name": "ActiveUpdated",
+    "inputs": [
+      {
+        "name": "agent",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "active",
+        "type": "bool",
+        "indexed": false,
+        "internalType": "bool"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "AgentAdopted",
+    "inputs": [
+      {
+        "name": "agent",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "AgentRegistered",
+    "inputs": [
+      {
+        "name": "agent",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "owner",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "pricePerTask",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "currency",
+        "type": "address",
+        "indexed": false,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "MetadataUpdated",
+    "inputs": [
+      {
+        "name": "agent",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "newMetadataURI",
+        "type": "string",
+        "indexed": false,
+        "internalType": "string"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "PriceUpdated",
+    "inputs": [
+      {
+        "name": "agent",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "newPrice",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "currency",
+        "type": "address",
+        "indexed": false,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  }
+] as const;
+
+/** PanalNamesV2. */
+export const panalNamesV2Abi = [
+  {
+    "type": "function",
+    "name": "CANDADO",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "MAX_LARGO",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "MIN_LARGO",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "PANAL",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "contract IERC20"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "REGISTRY",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "contract IPanalRegistry"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "TOPE_COMISION_BPS",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "TOPE_CORTO",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "TOPE_LARGO",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "TOPE_MEDIO",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "TRAMO_CORTO",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "TRAMO_MEDIO",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "aceptarPropiedad",
+    "inputs": [],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "asignarReservado",
+    "inputs": [
+      {
+        "name": "nombre",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "a",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "comisionBps",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "comprar",
+    "inputs": [
+      {
+        "name": "nombre",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "maxPrecio",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "disponible",
+    "inputs": [
+      {
+        "name": "nombre",
+        "type": "string",
+        "internalType": "string"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "estaReservado",
+    "inputs": [
+      {
+        "name": "nombre",
+        "type": "string",
+        "internalType": "string"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "fichaDe",
+    "inputs": [
+      {
+        "name": "nombre",
+        "type": "string",
+        "internalType": "string"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "dueno",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "desde",
+        "type": "uint64",
+        "internalType": "uint64"
+      },
+      {
+        "name": "precio",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "transferible",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "fijarComision",
+    "inputs": [
+      {
+        "name": "bps",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "fijarTarifas",
+    "inputs": [
+      {
+        "name": "corto",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "medio",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "largo",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "fijarTesoreria",
+    "inputs": [
+      {
+        "name": "nueva",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "liberar",
+    "inputs": [],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "nombreDe",
+    "inputs": [
+      {
+        "name": "agente",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "string",
+        "internalType": "string"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "owner",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "pausado",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "pausar",
+    "inputs": [
+      {
+        "name": "valor",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "ponerEnVenta",
+    "inputs": [
+      {
+        "name": "precio",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "propuesto",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "quitarDeVenta",
+    "inputs": [],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "reclamar",
+    "inputs": [
+      {
+        "name": "nombre",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "maxTarifa",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "reclamarConPermiso",
+    "inputs": [
+      {
+        "name": "nombre",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "maxTarifa",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "valor",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "plazo",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "v",
+        "type": "uint8",
+        "internalType": "uint8"
+      },
+      {
+        "name": "r",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "s",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "reservar",
+    "inputs": [
+      {
+        "name": "nombres",
+        "type": "string[]",
+        "internalType": "string[]"
+      },
+      {
+        "name": "valor",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "resolver",
+    "inputs": [
+      {
+        "name": "nombre",
+        "type": "string",
+        "internalType": "string"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "tarifaCorto",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "tarifaDe",
+    "inputs": [
+      {
+        "name": "nombre",
+        "type": "string",
+        "internalType": "string"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "tarifaLargo",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "tarifaMedio",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "tesoreria",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "transferOwnership",
+    "inputs": [
+      {
+        "name": "nuevo",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "transferir",
+    "inputs": [
+      {
+        "name": "a",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "event",
+    "name": "Asignado",
+    "inputs": [
+      {
+        "name": "hash",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "nombre",
+        "type": "string",
+        "indexed": false,
+        "internalType": "string"
+      },
+      {
+        "name": "a",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "ComisionFijada",
+    "inputs": [
+      {
+        "name": "bps",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "EnVenta",
+    "inputs": [
+      {
+        "name": "hash",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "nombre",
+        "type": "string",
+        "indexed": false,
+        "internalType": "string"
+      },
+      {
+        "name": "dueno",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "precio",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "Liberado",
+    "inputs": [
+      {
+        "name": "hash",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "nombre",
+        "type": "string",
+        "indexed": false,
+        "internalType": "string"
+      },
+      {
+        "name": "dueno",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "OwnershipProposed",
+    "inputs": [
+      {
+        "name": "actual",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "propuesto",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "OwnershipTransferred",
+    "inputs": [
+      {
+        "name": "anterior",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "nuevo",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "Pausado",
+    "inputs": [
+      {
+        "name": "valor",
+        "type": "bool",
+        "indexed": false,
+        "internalType": "bool"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "Reclamado",
+    "inputs": [
+      {
+        "name": "hash",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "nombre",
+        "type": "string",
+        "indexed": false,
+        "internalType": "string"
+      },
+      {
+        "name": "dueno",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "pagado",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "Reservado",
+    "inputs": [
+      {
+        "name": "hash",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "nombre",
+        "type": "string",
+        "indexed": false,
+        "internalType": "string"
+      },
+      {
+        "name": "valor",
+        "type": "bool",
+        "indexed": false,
+        "internalType": "bool"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "RetiradoDeVenta",
+    "inputs": [
+      {
+        "name": "hash",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "nombre",
+        "type": "string",
+        "indexed": false,
+        "internalType": "string"
+      },
+      {
+        "name": "dueno",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "TarifasFijadas",
+    "inputs": [
+      {
+        "name": "corto",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "medio",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "largo",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "TesoreriaFijada",
+    "inputs": [
+      {
+        "name": "tesoreria",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "Transferido",
+    "inputs": [
+      {
+        "name": "hash",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "nombre",
+        "type": "string",
+        "indexed": false,
+        "internalType": "string"
+      },
+      {
+        "name": "de",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "a",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "Vendido",
+    "inputs": [
+      {
+        "name": "hash",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "nombre",
+        "type": "string",
+        "indexed": false,
+        "internalType": "string"
+      },
+      {
+        "name": "de",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "a",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "precio",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "comision",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
       }
     ],
     "anonymous": false
