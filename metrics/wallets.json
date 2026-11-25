@@ -68,6 +68,10 @@
     {
       "address": "0xf8dac14b1934314a8bdc4726ec33b1c09e44ec32",
       "label": "agent: cik"
+    },
+    {
+      "address": "0x993b0a796fBCdF736F5508fe897Bd4e1a3529fE1",
+      "label": "founder (dispute tests)"
     }
   ],
   "unconfirmed": [
