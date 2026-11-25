@@ -34,6 +34,7 @@ import {
   PANAL_REGISTRY_V3_ADDRESS,
   PANAL_REPUTATION_ADDRESS,
   PANAL_REPUTATION_V2_ADDRESS,
+  PANAL_REPUTATION_V2_5_ADDRESS,
   V2_ENABLED,
   V2_5_ENABLED,
   publicClient,
@@ -526,7 +527,13 @@ async function fetchOnchainAgents(idioma: string): Promise<OnchainAgent[]> {
   // Con V2_ENABLED se lee del registro V3 (formato del v2, con currency al
   // final), que trae a los del V2 en directo y después a los nuevos.
   const registryAddr = V2_ENABLED ? PANAL_REGISTRY_V3_ADDRESS : PANAL_REGISTRY_ADDRESS;
-  const reputationAddr = V2_ENABLED ? PANAL_REPUTATION_V2_ADDRESS : PANAL_REPUTATION_ADDRESS;
+  // La nota, de PanalReputationV3: su `getScore` suma la del v2, así que
+  // cuenta también lo valorado en el V3. La del v2 sola se quedaría sin eso.
+  const reputationAddr = V2_5_ENABLED
+    ? PANAL_REPUTATION_V2_5_ADDRESS
+    : V2_ENABLED
+      ? PANAL_REPUTATION_V2_ADDRESS
+      : PANAL_REPUTATION_ADDRESS;
   const registryAbi = V2_ENABLED ? panalRegistryV2Abi : panalRegistryAbi;
 
   const count = (await publicClient.readContract({

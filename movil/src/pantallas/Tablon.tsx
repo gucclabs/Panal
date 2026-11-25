@@ -425,7 +425,7 @@ function Mios({ datos, yo, firma, abrir, T }: { datos: DatosDelTablon; yo: Addre
                 >
                   {firma.ocupado === clave
                     ? '…'
-                    : `${T.tablon.mios.cobrar(monto(d.cantidad, s), s)}${dosTablones ? ` · ${d.version === 'v2_5' ? 'v2.5' : 'v2'}` : ''}`}
+                    : `${T.tablon.mios.cobrar(monto(d.cantidad, s), s)}${dosTablones ? ` · ${d.version === 'v2_5' ? 'V3' : 'v2'}` : ''}`}
                 </Accion>
               );
             })}

@@ -78,7 +78,7 @@ const DIA = 86_400n;
 
 console.log('\n─── números de tarea ───');
 check('el v2 se queda como está', versionDeTarea(V2) === 'v2' && etiquetaTarea(V2) === '#140' && numeroVisible(V2) === '140');
-check('el v2.5 se enseña con su número de la cadena', versionDeTarea(V25) === 'v2_5' && etiquetaTarea(V25) === '#5 · v2.5', etiquetaTarea(V25));
+check('el V3 (hueco del v2.5) se enseña con su número de la cadena', versionDeTarea(V25) === 'v2_5' && etiquetaTarea(V25) === '#5 · V3', etiquetaTarea(V25));
 
 console.log('\n─── cada acción va a su escrow, con el número de la cadena ───');
 {

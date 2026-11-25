@@ -42,9 +42,11 @@ export function versionDeTarea(id: bigint): VersionEscrow {
 }
 
 /**
- * Cómo se enseña el número de una tarea: «#140» en el v2 y «#5 · v2.5» en el
- * v2.5. El número de fuera (1000000005) es para las máquinas; una persona que
- * lo viera creería que hay mil millones de encargos.
+ * Cómo se enseña el número de una tarea: «#140» en el v2 y «#5 · V3» en Panal
+ * V3, que ocupa el hueco del v2.5 (el v2.5 del 24-nov se quedó sin ninguna
+ * tarea, así que todo número de ese hueco es del V3). El número de fuera
+ * (1000000005) es para las máquinas; una persona que lo viera creería que hay
+ * mil millones de encargos.
  */
 export function etiquetaTarea(id: bigint): string {
   return `#${numeroVisible(id)}`;
@@ -52,7 +54,7 @@ export function etiquetaTarea(id: bigint): string {
 
 /** Lo mismo sin la almohadilla, para textos que ya la ponen («Tarea #{{id}}»). */
 export function numeroVisible(id: bigint): string {
-  return esDelV2_5(id) ? `${idEnLaCadena(id).toString()} · v2.5` : id.toString();
+  return esDelV2_5(id) ? `${idEnLaCadena(id).toString()} · V3` : id.toString();
 }
 
 /** Dirección y ABI del escrow de una versión. */

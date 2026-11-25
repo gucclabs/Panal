@@ -70,9 +70,9 @@ export interface SaldoGuardia {
   importe: bigint;
 }
 
-/** El número que se enseña: «#5 · v2.5» en el v2.5 (su número de fuera lleva mil millones más). */
+/** El número que se enseña: «#5 · V3» en Panal V3, el hueco del v2.5 (su número de fuera lleva mil millones más). */
 export function refDeTarea(id: bigint): string {
-  return id >= 1_000_000_000n ? `#${(id - 1_000_000_000n).toString()} · v2.5` : `#${id.toString()}`;
+  return id >= 1_000_000_000n ? `#${(id - 1_000_000_000n).toString()} · V3` : `#${id.toString()}`;
 }
 
 /**
@@ -173,7 +173,7 @@ export function revisar(
       clave: x.version === 'v2' ? `sin-cobrar-${marca}` : `sin-cobrar-${marca}-v2_5`,
       motivo: 'sin-cobrar',
       urgente: true,
-      ref: dosEscrows || x.version === 'v2_5' ? `${x.simbolo} · ${x.version === 'v2_5' ? 'v2.5' : 'v2'}` : x.simbolo,
+      ref: dosEscrows || x.version === 'v2_5' ? `${x.simbolo} · ${x.version === 'v2_5' ? 'V3' : 'v2'}` : x.simbolo,
       vence: null,
       importe: x.importe,
       simbolo: x.simbolo,
