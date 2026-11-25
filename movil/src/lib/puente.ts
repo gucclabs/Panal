@@ -43,7 +43,7 @@ import { X402_NATIVE, idDelV2_5, panalPricesAbi } from '@panal/sdk';
 import { panalRegistryV2Abi, panalTokenAbi } from '@/contracts/abis';
 import {
   PANAL_PRICES_ADDRESS,
-  PANAL_REGISTRY_V2_ADDRESS,
+  PANAL_REGISTRY_V3_ADDRESS,
   PANAL_TOKEN_ADDRESS,
   V2_5_ENABLED,
   activeChain,
@@ -323,7 +323,7 @@ export function describir(metodo: string, params: unknown, cuenta: Address, ahor
           return { tipo: 'precios', moneda: getAddress(moneda), importes: importes ?? [] };
         }
 
-        if (isAddressEqual(a, PANAL_REGISTRY_V2_ADDRESS)) {
+        if (isAddressEqual(a, PANAL_REGISTRY_V3_ADDRESS)) {
           revisarTransaccion({ to: a, data: datos, value: valor }, ahora);
           const l = llamada(panalRegistryV2Abi as Abi, datos);
           return { tipo: 'registro', funcion: l?.functionName ?? '?' };

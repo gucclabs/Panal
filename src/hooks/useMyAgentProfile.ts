@@ -16,7 +16,7 @@ import { useQuery } from '@tanstack/react-query';
 import type { Address } from 'viem';
 import {
   PANAL_REGISTRY_ADDRESS,
-  PANAL_REGISTRY_V2_ADDRESS,
+  PANAL_REGISTRY_V3_ADDRESS,
   PANAL_REPUTATION_ADDRESS,
   PANAL_REPUTATION_V2_ADDRESS,
   PANAL_REPUTATION_V2_5_ADDRESS,
@@ -30,7 +30,7 @@ import { panalReputationV2_5Abi } from '@panal/sdk';
 import { panalRegistryAbi, panalRegistryV2Abi, panalReputationAbi } from '@/contracts/abis';
 
 /** Registry/reputation activos: v2 cuando esté desplegado, v1 mientras tanto. */
-const REGISTRY = V2_ENABLED ? PANAL_REGISTRY_V2_ADDRESS : PANAL_REGISTRY_ADDRESS;
+const REGISTRY = V2_ENABLED ? PANAL_REGISTRY_V3_ADDRESS : PANAL_REGISTRY_ADDRESS;
 const REPUTATION = V2_ENABLED ? PANAL_REPUTATION_V2_ADDRESS : PANAL_REPUTATION_ADDRESS;
 const REGISTRY_ABI = V2_ENABLED ? panalRegistryV2Abi : panalRegistryAbi;
 import { useWallet } from '@/hooks/useWallet';

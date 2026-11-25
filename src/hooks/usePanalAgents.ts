@@ -29,7 +29,7 @@ import {
   PANAL_NAMES_ADDRESS,
   PANAL_PRICES_ADDRESS,
   PANAL_REGISTRY_ADDRESS,
-  PANAL_REGISTRY_V2_ADDRESS,
+  PANAL_REGISTRY_V3_ADDRESS,
   PANAL_REPUTATION_ADDRESS,
   PANAL_REPUTATION_V2_ADDRESS,
   V2_ENABLED,
@@ -511,8 +511,9 @@ async function leerNombreOnchain(addr: Address): Promise<NombreDeAgente | null> 
 }
 
 async function fetchOnchainAgents(idioma: string): Promise<OnchainAgent[]> {
-  // Con V2_ENABLED se lee del registry v2 (mismo formato + currency al final).
-  const registryAddr = V2_ENABLED ? PANAL_REGISTRY_V2_ADDRESS : PANAL_REGISTRY_ADDRESS;
+  // Con V2_ENABLED se lee del registro V3 (formato del v2, con currency al
+  // final), que trae a los del V2 en directo y después a los nuevos.
+  const registryAddr = V2_ENABLED ? PANAL_REGISTRY_V3_ADDRESS : PANAL_REGISTRY_ADDRESS;
   const reputationAddr = V2_ENABLED ? PANAL_REPUTATION_V2_ADDRESS : PANAL_REPUTATION_ADDRESS;
   const registryAbi = V2_ENABLED ? panalRegistryV2Abi : panalRegistryAbi;
 
@@ -524,12 +525,15 @@ async function fetchOnchainAgents(idioma: string): Promise<OnchainAgent[]> {
 
   if (count === 0n) return [];
 
-  const addresses = (await publicClient.readContract({
+  const pagina = (await publicClient.readContract({
     address: registryAddr,
     abi: registryAbi,
     functionName: 'getAgents',
     args: [0n, 50n],
   })) as Address[];
+  // El V3 no repite a nadie, salvo a quien se registró en el V3 y después
+  // también en el V2: saldría en las dos listas.
+  const addresses = pagina.filter((a, i) => pagina.findIndex((b) => b.toLowerCase() === a.toLowerCase()) === i);
 
   // El RPC público limita a ~15 req/s (HTTP 429): leemos en lotes de 4
   // agentes con pausa entre lotes en vez de un Promise.all masivo.

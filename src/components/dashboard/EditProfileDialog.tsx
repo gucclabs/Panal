@@ -1,6 +1,6 @@
 /**
  * Panal — Edición del metadata del agente propio (updateMetadata on-chain,
- * solo registry v2). Mismo patrón que el registro guiado: campos separados
+ * en el registro V3, con la interfaz del v2). Mismo patrón que el registro guiado: campos separados
  * (nombre · descripción · skills · bot:<url>) con validaciones idénticas,
  * chips de skills (Enter/coma), preview en vivo del metadata compuesto y
  * estados de tx firmando → confirmando (EXPLORER_TX) → minado con TxHash.
@@ -20,7 +20,7 @@ import {
 import TxHash from '@/components/TxHash';
 import { cn } from '@/lib/utils';
 import { useContractAction } from '@/hooks/useContractAction';
-import { PANAL_REGISTRY_V2_ADDRESS, EXPLORER_TX } from '@/contracts/config';
+import { PANAL_REGISTRY_V3_ADDRESS, EXPLORER_TX } from '@/contracts/config';
 import { panalRegistryV2Abi } from '@/contracts/abis';
 import {
   aNivel,
@@ -255,10 +255,11 @@ function EditProfileForm({
 
   const submit = () => {
     if (!valid || action.busy) return;
-    // updateMetadata solo existe en el registry v2 (el botón solo se muestra
-    // con V2_ENABLED). La guarda de red (switchChainAsync) va dentro de run.
+    // updateMetadata existe desde el registry v2 (el botón solo se muestra
+    // con V2_ENABLED); se escribe en el V3, que es el que se lee. La guarda de
+    // red (switchChainAsync) va dentro de run.
     void action.run({
-      address: PANAL_REGISTRY_V2_ADDRESS,
+      address: PANAL_REGISTRY_V3_ADDRESS,
       abi: panalRegistryV2Abi,
       functionName: 'updateMetadata',
       args: [composed],

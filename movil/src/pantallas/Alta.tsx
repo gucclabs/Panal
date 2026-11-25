@@ -7,7 +7,7 @@ import { useWallet } from '@/hooks/useWallet';
 import { panalRegistryV2Abi } from '@/contracts/abis';
 import {
   NATIVE_CURRENCY,
-  PANAL_REGISTRY_V2_ADDRESS,
+  PANAL_REGISTRY_V3_ADDRESS,
   PANAL_TOKEN_ADDRESS,
   publicClient,
 } from '@/contracts/config';
@@ -294,7 +294,7 @@ export default function Alta(): React.ReactElement {
               setMirandoGas(true);
               const reserva = await reservaParaContrato(publicClient as never, {
                 account: address as `0x${string}`,
-                address: PANAL_REGISTRY_V2_ADDRESS,
+                address: PANAL_REGISTRY_V3_ADDRESS,
                 abi: panalRegistryV2Abi as never,
                 functionName: 'registerAgent',
                 args,
@@ -307,7 +307,7 @@ export default function Alta(): React.ReactElement {
             }
             setFaltaGas(null);
             writeContract({
-              address: PANAL_REGISTRY_V2_ADDRESS,
+              address: PANAL_REGISTRY_V3_ADDRESS,
               abi: panalRegistryV2Abi,
               functionName: 'registerAgent',
               args,

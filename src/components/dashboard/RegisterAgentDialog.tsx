@@ -28,7 +28,7 @@ import {
   EXPLORER_TX,
   NATIVE_CURRENCY,
   PANAL_REGISTRY_ADDRESS,
-  PANAL_REGISTRY_V2_ADDRESS,
+  PANAL_REGISTRY_V3_ADDRESS,
   PANAL_TOKEN_ADDRESS,
   V2_ENABLED,
   activeChain,
@@ -259,8 +259,9 @@ function RegisterAgentForm({ tipo, onOpenChange }: { tipo: TipoDeAgente; onOpenC
       });
       return;
     }
-    // v2: registerAgent(metadataURI, pricePerTask, currency) en registry v2;
-    // v1: registerAgent(metadataURI, pricePerTask) en el registry clásico.
+    // mainnet: registerAgent(metadataURI, pricePerTask, currency) en el
+    // registro V3 (la interfaz del v2); v1: registerAgent(metadataURI,
+    // pricePerTask) en el registry clásico.
     const onSent = {
       onSuccess: () =>
         toast(tx('txSent'), {
@@ -272,7 +273,7 @@ function RegisterAgentForm({ tipo, onOpenChange }: { tipo: TipoDeAgente; onOpenC
     const currencyAddr = currency === '$PANAL' ? PANAL_TOKEN_ADDRESS : NATIVE_CURRENCY;
     const llamada = V2_ENABLED
       ? {
-          address: PANAL_REGISTRY_V2_ADDRESS,
+          address: PANAL_REGISTRY_V3_ADDRESS,
           abi: panalRegistryV2Abi,
           functionName: 'registerAgent' as const,
           args: [metadataURI, parseEther(priceStr), currencyAddr] as const,

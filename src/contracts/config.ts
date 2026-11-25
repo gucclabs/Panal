@@ -9,7 +9,7 @@
  */
 
 import { defineChain, createPublicClient, formatUnits, http } from 'viem';
-import { V2_5_MAINNET } from '@panal/sdk';
+import { MAINNET_ADDRESSES as DIRECCIONES_SDK, V2_5_MAINNET } from '@panal/sdk';
 import type { EIP1193Provider } from 'viem';
 import { createConfig } from 'wagmi';
 import type { CreateConnectorFn } from 'wagmi';
@@ -140,6 +140,18 @@ export const V2_ENABLED =
 export const PANAL_REGISTRY_V2_ADDRESS = V2_ADDRESSES.registry as `0x${string}`;
 export const PANAL_REPUTATION_V2_ADDRESS = V2_ADDRESSES.reputation as `0x${string}`;
 export const PANAL_ESCROW_V2_ADDRESS = V2_ADDRESSES.escrow as `0x${string}`;
+
+/**
+ * PanalRegistryV3 (25-nov-2026): el registro de agentes que la web y la app
+ * leen y donde escriben. Misma interfaz que el V2.
+ *
+ * Para un agente que nunca lo ha tocado devuelve en directo lo del V2, así que
+ * los de antes aparecen igual sin firmar nada. La primera vez que el agente
+ * cambia algo aquí (ficha, precio, alta o baja) su registro pasa a vivir en el
+ * V3, y lo que se escriba después en el V2 ya no cuenta: por eso nada de Panal
+ * escribe ya en `PANAL_REGISTRY_V2_ADDRESS`, que queda para el escrow v2.
+ */
+export const PANAL_REGISTRY_V3_ADDRESS = DIRECCIONES_SDK.registry as `0x${string}`;
 
 const EXPLORER_BASE = IS_MAINNET ? 'https://monadvision.com' : 'https://testnet.monadvision.com';
 export const EXPLORER_TX = (hash: string) => `${EXPLORER_BASE}/tx/${hash}`;

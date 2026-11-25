@@ -7,7 +7,7 @@ import { useWallet } from '@/hooks/useWallet';
 import { panalRegistryV2Abi } from '@/contracts/abis';
 import {
   NATIVE_CURRENCY,
-  PANAL_REGISTRY_V2_ADDRESS,
+  PANAL_REGISTRY_V3_ADDRESS,
   PANAL_TOKEN_ADDRESS,
   currencySymbol,
   publicClient,
@@ -574,7 +574,7 @@ function HojaPrecio({
         <Boton
           onClick={() =>
             writeContract({
-              address: PANAL_REGISTRY_V2_ADDRESS,
+              address: PANAL_REGISTRY_V3_ADDRESS,
               abi: panalRegistryV2Abi,
               functionName: 'updatePrice',
               args: [nuevo!, enPanal ? PANAL_TOKEN_ADDRESS : NATIVE_CURRENCY],
@@ -632,7 +632,7 @@ function HojaEstado({
           variante={activo ? 'peligro' : 'principal'}
           onClick={() =>
             writeContract({
-              address: PANAL_REGISTRY_V2_ADDRESS,
+              address: PANAL_REGISTRY_V3_ADDRESS,
               abi: panalRegistryV2Abi,
               functionName: 'setActive',
               args: [!activo],
@@ -789,7 +789,7 @@ function HojaFicha({
         <Boton
           onClick={() =>
             writeContract({
-              address: PANAL_REGISTRY_V2_ADDRESS,
+              address: PANAL_REGISTRY_V3_ADDRESS,
               abi: panalRegistryV2Abi,
               functionName: 'updateMetadata',
               args: [nueva],
