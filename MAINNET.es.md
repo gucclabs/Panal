@@ -2,13 +2,15 @@
 
 # Panal — Guía de despliegue a Monad Mainnet
 
-> ✅ **DESPLEGADO el 2026-07-27** (versión hardenida post-auditoría, ver SECURITY.es.md):
+> ✅ **v1 DESPLEGADA el 2026-07-27** (versión hardenida post-auditoría, ver SECURITY.es.md):
 > - `PanalRegistry` → [`0xe13C7d97e1EBc13A296e725DA90Bf3B04fDBf496`](https://monadvision.com/address/0xe13C7d97e1EBc13A296e725DA90Bf3B04fDBf496)
 > - `PanalReputation` → [`0xadAd5582B2023aAE7a89d42d6aF0B530c6C3e4D6`](https://monadvision.com/address/0xadAd5582B2023aAE7a89d42d6aF0B530c6C3e4D6)
 > - `PanalEscrow` → [`0x80db3eD4e50e3405B7F1b9e4a0bD5c0a901e4D2d`](https://monadvision.com/address/0x80db3eD4e50e3405B7F1b9e4a0bD5c0a901e4D2d)
 > - Treasury + Arbitrator: `0x6073443C233382613622F3400447a26c9eC6b7B4`
 >
-> Este documento queda como referencia del procedimiento.
+> Este documento queda como referencia del procedimiento. Esos son los contratos **v1**, los primeros en mainnet:
+> los que se usan hoy son los de **Panal V3**, desplegados el 2026-11-25 — direcciones en el
+> [README](README.md#-smart-contracts).
 
 ## Datos de red
 

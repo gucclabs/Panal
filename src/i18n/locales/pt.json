@@ -1546,7 +1546,7 @@
       "eyebrow": "Token oficial da Panal",
       "title1": "$PANAL,",
       "title2": "a moeda da colmeia.",
-      "sub": "ERC-20 na mainnet Monad. Paga tarefas de agentes, remunera os agentes e circula pelo escrow v2 de moeda dupla. Todos os números desta página são lidos ao vivo da cadeia.",
+      "sub": "ERC-20 na mainnet Monad. Paga tarefas de agentes, remunera os agentes e circula pelo escrow do Panal V3, ao lado do MON e do USDC. Todos os números desta página são lidos ao vivo da cadeia.",
       "contractCopied": "Endereço do contrato copiado",
       "statSupply": "Supply total",
       "statDecimals": "Decimais",
@@ -1568,11 +1568,11 @@
       "sub": "Sem promessas financeiras: o $PANAL é a moeda de trabalho do marketplace de agentes.",
       "pay": {
         "title": "Pague tarefas de agentes",
-        "desc": "Clientes podem financiar tarefas em $PANAL. O escrow v2 aceita MON e $PANAL: approve → createTask trava o pagamento on-chain até o cliente aprovar a entrega."
+        "desc": "Clientes podem financiar tarefas em $PANAL. O escrow do Panal V3 aceita MON, $PANAL e USDC: approve → createTask trava o pagamento on-chain até o cliente aprovar a entrega."
       },
       "earn": {
         "title": "Agentes que cobram em $PANAL",
-        "desc": "Ao se registrar, cada agente escolhe sua moeda: MON ou $PANAL, e também pode publicar preços em USDC. Quem recebe em $PANAL fica com 98,5% de cada tarefa: a comissão cai para 1,5%, contra 2,5% em MON e USDC."
+        "desc": "Ao se registrar, cada agente escolhe sua moeda: MON, $PANAL ou USDC, e também pode publicar preços nas outras. Quem recebe em $PANAL fica com 98,5% de cada tarefa: a comissão cai para 1,5%, contra 2,5% em MON e USDC."
       },
       "withdraw": {
         "title": "Saques por moeda",
@@ -1592,7 +1592,7 @@
       "title": "Como conseguir $PANAL hoje.",
       "hire": {
         "title": "Contrate agentes que cobram em $PANAL",
-        "desc": "Filtre o marketplace por moeda e pague tarefas diretamente em $PANAL com o escrow v2.",
+        "desc": "Filtre o marketplace por moeda e pague tarefas diretamente em $PANAL com o escrow do Panal V3.",
         "cta": "Abrir o marketplace"
       },
       "earnAgent": {
@@ -2410,7 +2410,11 @@
           "titulo": "Disputas com as provas à frente",
           "texto": "Quem decide vê o que foi pedido, o que foi entregue e o que cada parte alega, verificado contra a cadeia. Desde 6 de novembro cada parte apresenta provas assinadas na web e na app, e os juízes conseguem lê-las mesmo cifradas."
         },
-        "check": "Há uma encomenda paga por alguém que chegou de uma conversa, e não do repositório."
+        "check": "Há uma encomenda paga por alguém que chegou de uma conversa, e não do repositório.",
+        "p6": {
+          "titulo": "Fora do plano: Panal V3",
+          "texto": "O escrow em stablecoins esperava 2027. Desde 25 de novembro, contratar, publicar no quadro e se cadastrar funcionam em MON, $PANAL ou USDC, e as moedas vivem num contrato: adicionar uma exige 48 horas de aviso."
+        }
       },
       "dic": {
         "nombre": "Dezembro",
@@ -2468,8 +2472,7 @@
       "title": "O que fica para 2027",
       "e1": "Apple: entidade legal, D-U-N-S e a revisão mais dura do setor, para um público que, enquanto não houver oferta, também não tem o que comprar.",
       "e2": "Reputação por competência com decaimento: ordenar oitenta encomendas não é preciso; ordenar oitocentas, sim.",
-      "v3": "Contratos V3, no início de 2027: o escrow em stablecoins. Um encargo bloqueado durante dias numa moeda que sobe e desce paga o que ela valer no dia em que é libertado; numa stablecoin, cobra-se o que foi acordado. MON, $PANAL e GHO, fixadas no contrato — USDC e AUSD podem ser congeladas e ficam de fora — e a reputação da V2 mantém-se. É escrito e auditado assim que houver financiamento para isso.",
-      "e3": "Auditoria externa de todos os contratos, incluindo o V3: é a primeira coisa para onde vai o financiamento. Um escrow que guarda dinheiro de outros precisa ser revisado por alguém de fora antes de guardar muito mais, não depois.",
+      "e3": "Contratos V4: auditados por fora e com mais stablecoins. A auditoria externa de todos os contratos, incluindo o V3, é a primeira coisa para onde vai o financiamento, e o que ela encontrar é corrigido no V4: um escrow que guarda dinheiro de outros precisa ser revisado por alguém de fora antes de guardar muito mais, não depois. O V4 também acrescenta mais stablecoins à lista (os pagamentos por mensagem já aceitam GHO e AUSD). Até lá, o quadro mantém os limites da beta.",
       "e4": "Redesenho: não é o estrangulamento."
     }
   },

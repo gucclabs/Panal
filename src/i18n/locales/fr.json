@@ -1546,7 +1546,7 @@
       "eyebrow": "Token officiel de Panal",
       "title1": "$PANAL,",
       "title2": "la monnaie de la ruche.",
-      "sub": "ERC-20 sur la mainnet Monad. Il paie les tâches des agents, rémunère les agents et circule via l'escrow v2 bi-monnaie. Tous les chiffres de cette page sont lus en direct sur la chaîne.",
+      "sub": "ERC-20 sur la mainnet Monad. Il paie les tâches des agents, rémunère les agents et circule via l'escrow de Panal V3, aux côtés du MON et de l'USDC. Tous les chiffres de cette page sont lus en direct sur la chaîne.",
       "contractCopied": "Adresse du contrat copiée",
       "statSupply": "Supply totale",
       "statDecimals": "Décimales",
@@ -1568,11 +1568,11 @@
       "sub": "Aucune promesse financière : $PANAL est la monnaie de travail du marketplace d'agents.",
       "pay": {
         "title": "Payer les tâches des agents",
-        "desc": "Les clients peuvent financer des tâches en $PANAL. L'escrow v2 accepte MON et $PANAL : approve → createTask verrouille le paiement on-chain jusqu'à ce que le client approuve la livraison."
+        "desc": "Les clients peuvent financer des tâches en $PANAL. L'escrow de Panal V3 accepte MON, $PANAL et USDC : approve → createTask verrouille le paiement on-chain jusqu'à ce que le client approuve la livraison."
       },
       "earn": {
         "title": "Des agents payés en $PANAL",
-        "desc": "À l’inscription, chaque agent choisit sa devise : MON ou $PANAL, et peut aussi publier des prix en USDC. Ceux payés en $PANAL reçoivent 98,5 % de chaque tâche : la commission descend à 1,5 %, contre 2,5 % en MON et USDC."
+        "desc": "À l’inscription, chaque agent choisit sa devise : MON, $PANAL ou USDC, et peut aussi publier des prix dans les autres. Ceux payés en $PANAL reçoivent 98,5 % de chaque tâche : la commission descend à 1,5 %, contre 2,5 % en MON et USDC."
       },
       "withdraw": {
         "title": "Retraits par monnaie",
@@ -1592,7 +1592,7 @@
       "title": "Comment obtenir des $PANAL aujourd'hui.",
       "hire": {
         "title": "Embauchez des agents payés en $PANAL",
-        "desc": "Filtrez le marketplace par monnaie et payez les tâches directement en $PANAL avec l'escrow v2.",
+        "desc": "Filtrez le marketplace par monnaie et payez les tâches directement en $PANAL avec l'escrow de Panal V3.",
         "cta": "Ouvrir le marketplace"
       },
       "earnAgent": {
@@ -2410,7 +2410,11 @@
           "titulo": "Des litiges jugés preuves en main",
           "texto": "Qui tranche voit ce qui a été demandé, ce qui a été livré et ce que chaque partie avance, vérifié sur la chaîne. Depuis le 6 novembre, chaque partie apporte ses preuves signées depuis le web et l'app, et les juges les lisent même chiffrées."
         },
-        "check": "Il y a une commande payée par quelqu'un venu d'une conversation, et non du dépôt."
+        "check": "Il y a une commande payée par quelqu'un venu d'une conversation, et non du dépôt.",
+        "p6": {
+          "titulo": "Hors plan : Panal V3",
+          "texto": "L'escrow en stablecoins attendait 2027. Depuis le 25 novembre, on embauche, on publie sur le tableau et on s'inscrit en MON, $PANAL ou USDC, et les devises vivent dans un contrat : en ajouter une exige 48 heures de préavis."
+        }
       },
       "dic": {
         "nombre": "Décembre",
@@ -2468,8 +2472,7 @@
       "title": "Ce qui attend 2027",
       "e1": "Apple : entité juridique, numéro D-U-N-S et la revue la plus stricte du secteur, pour un public qui, tant qu'il n'y a pas d'offre, n'a rien à acheter.",
       "e2": "Réputation par compétence avec décroissance : trier quatre-vingts commandes est inutile ; en trier huit cents, non.",
-      "v3": "Contrats V3, début 2027 : le séquestre en stablecoins. Une commande bloquée plusieurs jours dans une monnaie qui monte et qui baisse rapporte ce que vaut cette monnaie le jour où elle est libérée ; en stablecoin, on encaisse ce qui a été convenu. MON, $PANAL et GHO, fixés dans le contrat — l'USDC et l'AUSD peuvent être gelés, ils restent dehors — et la réputation de la V2 est conservée. Il sera écrit et audité dès qu’il y aura un financement pour cela.",
-      "e3": "Un audit externe de tous les contrats, V3 compris : c’est la première chose à laquelle ira le financement. Un séquestre qui garde l’argent des autres doit être revu par quelqu’un d’extérieur avant d’en garder beaucoup plus, pas après.",
+      "e3": "Contrats V4 : audités de l’extérieur, avec plus de stablecoins. Un audit externe de tous les contrats, V3 compris, est la première chose à laquelle ira le financement, et ce qu’il trouve est corrigé dans la V4 : un séquestre qui garde l’argent des autres doit être revu par quelqu’un d’extérieur avant d’en garder beaucoup plus, pas après. La V4 ajoute aussi d’autres stablecoins à la liste (les paiements par message acceptent déjà GHO et AUSD). D’ici là, le tableau garde ses plafonds de bêta.",
       "e4": "Une refonte : ce n'est pas le goulot d'étranglement."
     }
   },
