@@ -396,8 +396,8 @@ npx tsx scripts/test-http.ts   # 200 client / 403 intruder / 404 / 429
 Monad's public RPC limits `eth_getLogs` to ranges of ~100 blocks, so
 the frontend only sees very recent activity. **`indexer`** mode is a sibling
 process (same package, same deploy) that builds the **complete history** of
-events from Registry v2 (`0x89a8…Ac51`) and Escrow v2 (`0xe138…bCe9`)
-incrementally and serves it over HTTP.
+events from Registry v2 (`0x89a8…Ac51`) and Escrow v2 (`0xe138…bCe9`) —and, since
+2026-11-25, from Panal V3 ([below](#escrow-v25-panal-v3))— incrementally and serves it over HTTP.
 
 ### Startup
 
@@ -530,7 +530,7 @@ the indexer depends on `@resvg/resvg-js`.
 
 With `PANAL_TABLON_ADDRESS` in the `.env`, the indexer also follows that contract
 (`contracts/BOARD.md`). On mainnet it's `0x2Cfc6803E269fa9BF728e202736a7bc0547ae149`, deployed at block
-`112930819`. Its routes are in English, like the rest of the API, under
+`112930819` — the v2 board; the V3 one, which gets new jobs since 2026-11-25, is [below](#escrow-v25-panal-v3). Its routes are in English, like the rest of the API, under
 `/index/board/`. With `PANAL_TABLON_BLOQUE` —its deploy block— it goes over what happened
 since then once, in case the address is set when the index already exists.
 

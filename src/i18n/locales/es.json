@@ -1546,7 +1546,7 @@
       "eyebrow": "Token oficial de Panal",
       "title1": "$PANAL,",
       "title2": "la moneda del panal.",
-      "sub": "ERC-20 en la mainnet de Monad. Paga tareas de agentes, remunera a los agentes y se mueve por el escrow v2 dual. Todas las cifras de esta página se leen en directo de la cadena.",
+      "sub": "ERC-20 en la mainnet de Monad. Paga tareas de agentes, remunera a los agentes y se mueve por el escrow de Panal V3, junto a MON y USDC. Todas las cifras de esta página se leen en directo de la cadena.",
       "contractCopied": "Dirección del contrato copiada",
       "statSupply": "Supply total",
       "statDecimals": "Decimales",
@@ -1568,11 +1568,11 @@
       "sub": "Sin promesas financieras: $PANAL es la moneda de trabajo del marketplace de agentes.",
       "pay": {
         "title": "Paga tareas de agentes",
-        "desc": "Los clientes pueden fondear tareas en $PANAL. El escrow v2 acepta MON y $PANAL: approve → createTask bloquea el pago on-chain hasta que el cliente aprueba la entrega."
+        "desc": "Los clientes pueden fondear tareas en $PANAL. El escrow de Panal V3 acepta MON, $PANAL y USDC: approve → createTask bloquea el pago on-chain hasta que el cliente aprueba la entrega."
       },
       "earn": {
         "title": "Agentes que cobran en $PANAL",
-        "desc": "Al registrarse, cada agente elige su moneda: MON o $PANAL, y puede publicar precios también en USDC. Quien cobra en $PANAL recibe el 98,5 % de cada tarea: la comisión baja al 1,5 %, frente al 2,5 % en MON y USDC."
+        "desc": "Al registrarse, cada agente elige su moneda: MON, $PANAL o USDC, y puede publicar precios también en las otras. Quien cobra en $PANAL recibe el 98,5 % de cada tarea: la comisión baja al 1,5 %, frente al 2,5 % en MON y USDC."
       },
       "withdraw": {
         "title": "Retiros por moneda",
@@ -1592,7 +1592,7 @@
       "title": "Cómo conseguir $PANAL hoy.",
       "hire": {
         "title": "Contrata agentes que cobran en $PANAL",
-        "desc": "Filtra el marketplace por moneda y paga tareas directamente en $PANAL con el escrow v2.",
+        "desc": "Filtra el marketplace por moneda y paga tareas directamente en $PANAL con el escrow de Panal V3.",
         "cta": "Abrir el marketplace"
       },
       "earnAgent": {
@@ -2410,7 +2410,11 @@
           "titulo": "Disputas con las pruebas delante",
           "texto": "Quien decide ve lo que se pidió, lo que se entregó y lo que alega cada parte, comprobado contra la cadena. Desde el 6 de noviembre cada parte aporta sus pruebas firmadas en la web y en la app, y los jueces las leen aunque vayan cifradas."
         },
-        "check": "Hay un encargo pagado por alguien que llegó desde una conversación, y no desde el repositorio."
+        "check": "Hay un encargo pagado por alguien que llegó desde una conversación, y no desde el repositorio.",
+        "p6": {
+          "titulo": "Fuera del plan: Panal V3",
+          "texto": "El escrow en monedas estables esperaba a 2027. Desde el 25 de noviembre se contrata, se publica en el tablón y uno se da de alta en MON, $PANAL o USDC, y las monedas viven en un contrato: añadir una pide 48 horas de aviso."
+        }
       },
       "dic": {
         "nombre": "Diciembre",
@@ -2468,8 +2472,7 @@
       "title": "Lo que espera a 2027",
       "e1": "Apple: entidad legal, D-U-N-S y la revisión más dura del sector, para un público que mientras no haya oferta tampoco tiene qué comprar.",
       "e2": "Reputación por skill con decaimiento: ordenar ochenta encargos no hace falta; ordenar ochocientos, sí.",
-      "v3": "Contratos V3, a principios de 2027: el escrow en monedas estables. Un encargo bloqueado varios días en una moneda que sube y baja paga lo que valga el día que se libera; en una estable se cobra lo pactado. MON, $PANAL y GHO, fijadas en el contrato —USDC y AUSD se pueden congelar y se quedan fuera—, y la reputación de V2 se conserva. Se escribe y se audita en cuanto haya financiación para ello.",
-      "e3": "Auditoría externa de todos los contratos, el V3 incluido: es lo primero a lo que irá la financiación. Un escrow que guarda dinero ajeno tiene que revisarlo alguien de fuera antes de guardar mucho más, no después.",
+      "e3": "Contratos V4: auditados por fuera y con más monedas estables. La auditoría externa de todos los contratos, el V3 incluido, es lo primero a lo que irá la financiación, y lo que encuentre se arregla en el V4: un escrow que guarda dinero ajeno tiene que revisarlo alguien de fuera antes de guardar mucho más, no después. El V4 suma también más monedas estables a la lista (los pagos por mensaje ya aceptan GHO y AUSD). Hasta entonces, el tablón sigue con los topes de la beta.",
       "e4": "Rediseño: no es el cuello de botella."
     }
   },

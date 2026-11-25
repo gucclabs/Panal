@@ -48,7 +48,7 @@ function mes(clave: string, puntos: number): MesRuta {
   };
 }
 
-export const MESES_RUTA: MesRuta[] = [mes('sep', 4), mes('oct', 4), mes('nov', 5), mes('dic', 4)];
+export const MESES_RUTA: MesRuta[] = [mes('sep', 4), mes('oct', 4), mes('nov', 6), mes('dic', 4)];
 
 /**
  * Google Play va en su propia franja y no dentro de un mes: es papeleo y
@@ -61,7 +61,7 @@ export const PASOS_PLAY = [1, 2, 3, 4].map((n) => ({
 }));
 
 /** Lo que se queda fuera a propósito, con su razón, en los locales. */
-export const ESPERA_2027 = ['hoja.espera.e1', 'hoja.espera.e2', 'hoja.espera.v3', 'hoja.espera.e3', 'hoja.espera.e4'];
+export const ESPERA_2027 = ['hoja.espera.e1', 'hoja.espera.e2', 'hoja.espera.e3', 'hoja.espera.e4'];
 
 /** El plan entero, donde se discute y se corrige. */
 export const ROADMAP_URL = 'https://github.com/gucclabs/Panal/blob/main/ROADMAP.md';

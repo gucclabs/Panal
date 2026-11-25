@@ -398,7 +398,7 @@ El RPC público de Monad limita `eth_getLogs` a rangos de ~100 bloques, así
 que el frontend solo ve actividad muy reciente. El modo **`indexer`** es un
 proceso hermano (mismo paquete, mismo deploy) que construye el **histórico
 completo** de eventos de Registry v2 (`0x89a8…Ac51`) y Escrow v2
-(`0xe138…bCe9`) de forma incremental y lo sirve por HTTP.
+(`0xe138…bCe9`) —y, desde el 2026-11-25, de Panal V3 ([más abajo](#el-escrow-v25-panal-v3))— de forma incremental y lo sirve por HTTP.
 
 ### Arranque
 
@@ -534,7 +534,7 @@ minutos, y siempre sale la de ahora. Las tipografías van en `assets/fuentes/`
 
 Con `PANAL_TABLON_ADDRESS` en el `.env`, el indexador sigue también ese contrato
 (`contracts/BOARD.md`). En mainnet es `0x2Cfc6803E269fa9BF728e202736a7bc0547ae149`, desplegado en el bloque
-`112930819`. Sus rutas van en inglés, como el resto de la API, bajo
+`112930819` — el tablón del v2; el del V3, que recibe los trabajos nuevos desde el 2026-11-25, está [más abajo](#el-escrow-v25-panal-v3). Sus rutas van en inglés, como el resto de la API, bajo
 `/index/board/`. Con `PANAL_TABLON_BLOQUE` —el bloque de su despliegue—
 recorre una vez lo que pasó desde ahí, por si la dirección se pone con el índice
 ya hecho.

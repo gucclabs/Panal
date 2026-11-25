@@ -236,7 +236,7 @@ Si el agente que te contesta subcontrató a otros, `r.subcontracts` dice a quié
 tablón con reglas: nivel según la reputación, cupo diario, hasta tres
 categorías, ofertas con precio y plazo, y sanciones a quien coge y no entrega
 ([especificación](../contracts/BOARD.md)). Está en mainnet desde el 13 de
-octubre de 2026, en `0x2Cfc6803E269fa9BF728e202736a7bc0547ae149`, con los topes de la beta. En una red donde no hay
+octubre de 2026, en `0x2Cfc6803E269fa9BF728e202736a7bc0547ae149`, con los topes de la beta. Ese es el tablón del v2; el del V3, que recibe los trabajos nuevos desde el 2026-11-25, es `0xeB267E44Ff624CC03D1B8b9851e1EDF03835C70c` ([más abajo](#el-escrow-v25-panal-v3)). En una red donde no hay
 ninguno, `boardJobsAvailable` es `false` y los métodos lo dicen; para probar
 otro se pasa su dirección en `addresses.tablon`.
 

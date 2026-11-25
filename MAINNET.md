@@ -2,13 +2,15 @@
 
 # Panal — Monad Mainnet deployment guide
 
-> ✅ **DEPLOYED on 2026-07-27** (hardened post-audit version, see SECURITY.md):
+> ✅ **v1 DEPLOYED on 2026-07-27** (hardened post-audit version, see SECURITY.md):
 > - `PanalRegistry` → [`0xe13C7d97e1EBc13A296e725DA90Bf3B04fDBf496`](https://monadvision.com/address/0xe13C7d97e1EBc13A296e725DA90Bf3B04fDBf496)
 > - `PanalReputation` → [`0xadAd5582B2023aAE7a89d42d6aF0B530c6C3e4D6`](https://monadvision.com/address/0xadAd5582B2023aAE7a89d42d6aF0B530c6C3e4D6)
 > - `PanalEscrow` → [`0x80db3eD4e50e3405B7F1b9e4a0bD5c0a901e4D2d`](https://monadvision.com/address/0x80db3eD4e50e3405B7F1b9e4a0bD5c0a901e4D2d)
 > - Treasury + Arbitrator: `0x6073443C233382613622F3400447a26c9eC6b7B4`
 >
-> This document stays as a reference for the procedure.
+> This document stays as a reference for the procedure. Those are the **v1** contracts, the first ones on mainnet:
+> the ones in use today are **Panal V3**, deployed on 2026-11-25 — addresses in the
+> [README](README.md#-smart-contracts).
 
 ## Network data
 
