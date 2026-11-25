@@ -38,14 +38,14 @@ import { esTokenDeTipo } from './tipo.js';
 import { esTokenDePregunta } from './pregunta.js';
 import { fichaEnIdioma, IDIOMAS, type Idioma } from './idiomas.js';
 import type { BotConfig } from './config.js';
-import { escrowAbi, monad, politePause, withRetry, type ChainClients } from './chain.js';
+import { escrowAbi, monad, politePause, registroParaLeer, withRetry, type ChainClients } from './chain.js';
 import type { StopSignal } from './notifier.js';
 import { IndexStore, type EstadoDominio, type IndexedEvent, type Version } from './indexer-store.js';
 import { leerMarca } from './marca.js';
 import { verificarDominio } from './verificar-dominio.js';
 import { normalizarUsuario, verificarCuenta } from './verificar-cuenta.js';
 import { Telegram } from './telegram.js';
-import { BANS_EVENTS, ESCROW_V2_5_EVENTS, PRICES_EVENTS, PRIMER_ID_V2_5 } from './v2_5.js';
+import { BANS_EVENTS, ESCROW_V2_5_EVENTS, PRICES_EVENTS, PRIMER_ID_V2_5, V2_5_ANTERIOR } from './v2_5.js';
 
 // ---------------------------------------------------------------------------
 // ABIs y eventos (firmas exactas de contracts/src/v2/).
@@ -91,7 +91,7 @@ const registryAbi = [
   },
 ] as const;
 
-const REGISTRY_EVENTS = [
+export const REGISTRY_EVENTS = [
   parseAbiItem(
     'event AgentRegistered(address indexed agent, address indexed owner, uint256 pricePerTask, address currency)',
   ),
@@ -124,13 +124,16 @@ const ESCROW_EVENTS = [
  * y la verificacion del dominio se quedan en la direccion. Quien compra `lint`
  * hereda el nombre y ninguna de las tareas que lo hicieron valer.
  */
-const NAMES_EVENTS = [
+export const NAMES_EVENTS = [
   parseAbiItem('event Reclamado(bytes32 indexed hash, string nombre, address indexed dueno, uint256 pagado)'),
   parseAbiItem(
     'event Vendido(bytes32 indexed hash, string nombre, address indexed de, address indexed a, uint256 precio, uint256 comision)',
   ),
   parseAbiItem('event Transferido(bytes32 indexed hash, string nombre, address indexed de, address indexed a)'),
   parseAbiItem('event Liberado(bytes32 indexed hash, string nombre, address indexed dueno)'),
+  // Un nombre que se da sin reclamarlo: los 15 migrados al nacer PanalNamesV2,
+  // o uno reservado que el dueño del contrato entrega a quien le corresponde.
+  parseAbiItem('event Asignado(bytes32 indexed hash, string nombre, address indexed a)'),
 ];
 
 /**
@@ -174,6 +177,8 @@ type EventosDeUnContrato =
 
 /** Log decodificado por viem al pasar `events` al getLogs. */
 interface DecodedLog {
+  /** El contrato que lo emitió. */
+  address: string;
   eventName?: string;
   args?: Record<string, unknown>;
   blockNumber: bigint;
@@ -294,29 +299,42 @@ interface LogsDeVentana {
   escrow25: DecodedLog[];
   tablon25: DecodedLog[];
   bans: DecodedLog[];
+  /** Los del PanalPrices del V3 y los del v2.5 de antes. */
   prices: DecodedLog[];
+  /** PanalRegistryV3: van con los del registro. */
+  registry3: DecodedLog[];
+  /** PanalNamesV2: van con los de los nombres. */
+  names2: DecodedLog[];
 }
 
+type LogsDelV3 = Pick<LogsDeVentana, 'escrow25' | 'tablon25' | 'bans' | 'prices' | 'registry3' | 'names2'>;
+
 /**
- * Los logs del v2.5 (escrow, tablón, suspensiones y precios) en un rango, solo
- * a partir de su despliegue: antes no existían, y pedírselos al barrido hacia
- * atrás serían cuatro llamadas por ventana a contratos vacíos.
+ * Los logs de Panal V3 (escrow, tablón, precios, registro y nombres) en un
+ * rango, solo a partir de su despliegue: antes no existían, y pedírselos al
+ * barrido hacia atrás serían llamadas por ventana a contratos vacíos. Las
+ * suspensiones y los precios del v2.5 de antes, desde el bloque de aquel.
  */
-async function getLogsV2_5(
-  clients: ChainClients,
-  cfg: BotConfig,
-  fromBlock: bigint,
-  toBlock: bigint,
-): Promise<Pick<LogsDeVentana, 'escrow25' | 'tablon25' | 'bans' | 'prices'>> {
+async function getLogsV2_5(clients: ChainClients, cfg: BotConfig, fromBlock: bigint, toBlock: bigint): Promise<LogsDelV3> {
   const v = cfg.v2_5;
-  const vacio = { escrow25: [], tablon25: [], bans: [], prices: [] };
-  if (!v || toBlock < BigInt(v.desdeBloque)) return vacio;
-  const desde = fromBlock < BigInt(v.desdeBloque) ? BigInt(v.desdeBloque) : fromBlock;
+  const vacio: LogsDelV3 = { escrow25: [], tablon25: [], bans: [], prices: [], registry3: [], names2: [] };
+  if (!v) return vacio;
+  const desde = (bloque: number): bigint => (fromBlock < BigInt(bloque) ? BigInt(bloque) : fromBlock);
+  const delAnterior = toBlock >= BigInt(V2_5_ANTERIOR.desdeBloque);
+  const bans = delAnterior ? await getLogsChunked(clients, v.bans, BANS_EVENTS, desde(V2_5_ANTERIOR.desdeBloque), toBlock) : [];
+  const preciosDeAntes =
+    delAnterior && v.prices.toLowerCase() !== V2_5_ANTERIOR.prices.toLowerCase()
+      ? await getLogsChunked(clients, V2_5_ANTERIOR.prices, PRICES_EVENTS, desde(V2_5_ANTERIOR.desdeBloque), toBlock)
+      : [];
+  if (toBlock < BigInt(v.desdeBloque)) return { ...vacio, bans, prices: preciosDeAntes };
+  const d = desde(v.desdeBloque);
   return {
-    escrow25: await getLogsChunked(clients, v.escrow, ESCROW_V2_5_EVENTS, desde, toBlock),
-    tablon25: await getLogsChunked(clients, v.tablon, TABLON_EVENTS, desde, toBlock),
-    bans: await getLogsChunked(clients, v.bans, BANS_EVENTS, desde, toBlock),
-    prices: await getLogsChunked(clients, v.prices, PRICES_EVENTS, desde, toBlock),
+    escrow25: await getLogsChunked(clients, v.escrow, ESCROW_V2_5_EVENTS, d, toBlock),
+    tablon25: await getLogsChunked(clients, v.tablon, TABLON_EVENTS, d, toBlock),
+    bans,
+    prices: [...preciosDeAntes, ...(await getLogsChunked(clients, v.prices, PRICES_EVENTS, d, toBlock))],
+    registry3: v.registry ? await getLogsChunked(clients, v.registry, REGISTRY_EVENTS, d, toBlock) : [],
+    names2: v.names ? await getLogsChunked(clients, v.names, NAMES_EVENTS, d, toBlock) : [],
   };
 }
 
@@ -331,9 +349,14 @@ async function getLogsBoth(
   const escrow = await getLogsChunked(clients, cfg.escrowAddress, ESCROW_EVENTS, fromBlock, toBlock);
   // Sin PanalNames desplegado no se pide nada: seria una llamada RPC por
   // ventana, en cada vuelta, a un contrato que no existe. Lo mismo con el tablon.
-  const names = cfg.namesAddress
-    ? await getLogsChunked(clients, cfg.namesAddress, NAMES_EVENTS, fromBlock, toBlock)
-    : [];
+  // Con PanalNamesV2, el de antes solo hasta su despliegue: desde ahí manda el
+  // V2, que nació con sus nombres, y lo que se hiciera en el viejo no cuenta.
+  const corteNombres = cfg.v2_5?.names ? BigInt(cfg.v2_5.desdeBloque) - 1n : toBlock;
+  const hastaNombresV1 = toBlock < corteNombres ? toBlock : corteNombres;
+  const names =
+    cfg.namesAddress && fromBlock <= hastaNombresV1
+      ? await getLogsChunked(clients, cfg.namesAddress, NAMES_EVENTS, fromBlock, hastaNombresV1)
+      : [];
   const tablon = cfg.tablonAddress
     ? await getLogsChunked(clients, cfg.tablonAddress, TABLON_EVENTS, fromBlock, toBlock)
     : [];
@@ -351,6 +374,8 @@ async function eventosDe(clients: ChainClients, logs: LogsDeVentana): Promise<In
     ...(await toIndexedEvents(clients, 'tablon25', logs.tablon25)),
     ...(await toIndexedEvents(clients, 'bans', logs.bans)),
     ...(await toIndexedEvents(clients, 'prices', logs.prices)),
+    ...(await toIndexedEvents(clients, 'registry', logs.registry3)),
+    ...(await toIndexedEvents(clients, 'names', logs.names2)),
   ];
 }
 
@@ -382,7 +407,7 @@ async function blockAtTime(clients: ChainClients, tsSec: number, head: bigint): 
 async function agentTimestamps(clients: ChainClients, cfg: BotConfig): Promise<number[]> {
   const count = await withRetry('getAgentCount', () =>
     clients.publicClient.readContract({
-      address: cfg.registryAddress,
+      address: registroParaLeer(cfg),
       abi: registryAbi,
       functionName: 'getAgentCount',
     }),
@@ -391,13 +416,17 @@ async function agentTimestamps(clients: ChainClients, cfg: BotConfig): Promise<n
   for (let offset = 0n; offset < count; offset += 200n) {
     const page = await withRetry(`getAgents(${offset})`, () =>
       clients.publicClient.readContract({
-        address: cfg.registryAddress,
+        address: registroParaLeer(cfg),
         abi: registryAbi,
         functionName: 'getAgents',
         args: [offset, 200n],
       }),
     );
-    addresses.push(...page);
+    for (const a of page) {
+      // El V3 no repite a nadie, salvo a quien se registró en el V3 y después
+      // también en el V2: saldría en las dos listas.
+      if (!addresses.some((x) => x.toLowerCase() === a.toLowerCase())) addresses.push(a);
+    }
     await politePause();
   }
   const out: number[] = [];
@@ -406,7 +435,7 @@ async function agentTimestamps(clients: ChainClients, cfg: BotConfig): Promise<n
       addresses.slice(i, i + 5).map(async (a) => {
         try {
           const ag = await clients.publicClient.readContract({
-            address: cfg.registryAddress,
+            address: registroParaLeer(cfg),
             abi: registryAbi,
             functionName: 'getAgent',
             args: [a],
@@ -531,6 +560,9 @@ async function toIndexedEvents(
     out.push({
       id: `${log.transactionHash}-${log.logIndex}`,
       contract,
+      // Hay dos PanalPrices (el del V3 y el del v2.5 de antes) y el almacén
+      // tiene que saber de cuál viene cada lista.
+      ...(contract === 'prices' ? { address: log.address.toLowerCase() } : {}),
       event: log.eventName,
       blockNumber: Number(log.blockNumber),
       logIndex: log.logIndex,
@@ -658,15 +690,18 @@ async function ponerseAlDiaConElTablon(cfg: BotConfig, clients: ChainClients, st
 }
 
 /**
- * Recorre una vez el v2.5 (escrow, tablón, suspensiones y precios) desde su
- * despliegue, igual que el tablón: el índice ya existía el 24-nov-2026, y el
- * barrido hacia atrás y el sondeo no cubren lo que pasó antes de poner sus
- * direcciones. En cuanto alcanza `lastBlock` no vuelve a hacer nada.
+ * Recorre una vez Panal V3 (escrow, tablón, suspensiones, precios, registro y
+ * nombres) desde su despliegue, igual que el tablón: el índice ya existía el
+ * 25-nov-2026, y el barrido hacia atrás y el sondeo no cubren lo que pasó
+ * antes de poner sus direcciones —entre otras cosas, los 15 `Asignado` con que
+ * nació PanalNamesV2—. Lleva su propio marcador (`v3Hasta`): el del v2.5 de
+ * antes ya estaba en la cabeza. En cuanto alcanza `lastBlock` no vuelve a
+ * hacer nada; lo que lee dos veces, el almacén lo descarta por su id.
  */
 async function ponerseAlDiaConElV2_5(cfg: BotConfig, clients: ChainClients, store: IndexStore): Promise<void> {
   const v = cfg.v2_5;
   if (!v) return;
-  const desde = Math.max((store.v2_5Hasta ?? v.desdeBloque - 1) + 1, v.desdeBloque);
+  const desde = Math.max((store.v3Hasta ?? v.desdeBloque - 1) + 1, v.desdeBloque);
   if (desde > store.lastBlock) return;
   const hasta = Math.min(desde + Number(maxLogRange) * TABLON_VENTANAS_POR_VUELTA - 1, store.lastBlock);
   const logs = await getLogsV2_5(clients, cfg, BigInt(desde), BigInt(hasta));
@@ -675,10 +710,12 @@ async function ponerseAlDiaConElV2_5(cfg: BotConfig, clients: ChainClients, stor
     ...(await toIndexedEvents(clients, 'tablon25', logs.tablon25)),
     ...(await toIndexedEvents(clients, 'bans', logs.bans)),
     ...(await toIndexedEvents(clients, 'prices', logs.prices)),
+    ...(await toIndexedEvents(clients, 'registry', logs.registry3)),
+    ...(await toIndexedEvents(clients, 'names', logs.names2)),
   ]);
-  store.setV2_5Hasta(hasta);
+  store.setV3Hasta(hasta);
   if (added > 0 || hasta === store.lastBlock) {
-    console.log(`[index] v2.5 [${desde},${hasta}]: ${added} eventos${hasta === store.lastBlock ? ' — al día' : ''}`);
+    console.log(`[index] V3 [${desde},${hasta}]: ${added} eventos${hasta === store.lastBlock ? ' — al día' : ''}`);
   }
 }
 
@@ -854,7 +891,7 @@ async function refrescarFichas(cfg: BotConfig, clients: ChainClients, store: Ind
       trozo.map(async (address) => {
         try {
           const ag = (await clients.publicClient.readContract({
-            address: cfg.registryAddress,
+            address: registroParaLeer(cfg),
             abi: registryAbi,
             functionName: 'getAgent',
             args: [address as Address],

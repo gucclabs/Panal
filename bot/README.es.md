@@ -565,15 +565,29 @@ tablón tiene como cliente al CONTRATO, que no puede aprobar ni disputar desde l
 web. El índice le ata su cliente de verdad (`realClient`, con su `jobId`), y esa
 persona la encuentra al pedir sus tareas, también con `role=client`.
 
-### El escrow v2.5
+### El escrow v2.5 (Panal V3)
 
-Sin configurar nada, el buzón y el indexador siguen también los contratos del v2.5
-desplegados el 24-nov-2026: escrow `0x1800225eac5cEF7798e2A926AE243F2a4a42D440`, tablón
-`0x10aF8A30591Fcee56127692d7346476bc68CD656`, PanalBans y PanalPrices. El indexador los
-recorre una vez desde el bloque `124859551`. `ESCROW_V2_5_ADDRESS=off` los apaga; cada
-dirección se puede cambiar (`ESCROW_V2_5_ADDRESS`, `PANAL_TABLON_V2_5_ADDRESS`,
+Sin configurar nada, el buzón y el indexador siguen también Panal V3, desplegado el
+25-nov-2026 en el hueco del v2.5 (los contratos del v2.5 del 24-nov no llegaron a usarse):
+escrow `0xE9666cB1Ce29CC511ED9Fa28f11749d22D47264f`, tablón
+`0xeB267E44Ff624CC03D1B8b9851e1EDF03835C70c`, PanalBans, PanalPricesV3, el registro V3
+`0xfD8643AdCAfFC73B524203434dd9a5bCBC0753b2` y PanalNamesV2
+`0xA3A01e1A59d5088Ce2ecd4b98385929bC3B6523d`. El indexador los recorre una vez desde el
+bloque `125136390` (con su propio marcador, `v3Hasta`). `ESCROW_V2_5_ADDRESS=off` los
+apaga; cada dirección se puede cambiar (`ESCROW_V2_5_ADDRESS`, `PANAL_TABLON_V2_5_ADDRESS`,
 `PANAL_BANS_ADDRESS`, `PANAL_PRICES_ADDRESS`, `REPUTATION_V2_5_ADDRESS`, `USDC_ADDRESS`,
-`V2_5_BLOQUE`).
+`REGISTRY_V3_ADDRESS`, `PANAL_NAMES_V2_ADDRESS`, `V2_5_BLOQUE`).
+
+Lo que cambia el V3 para el indexador:
+
+- **Registro.** Las fichas se leen del registro V3, que devuelve en directo lo del V2 a los
+  agentes que nunca lo tocaron. Los eventos vienen de los dos registros.
+- **Nombres.** PanalNamesV2 nació con los 15 nombres de PanalNames (eventos `Asignado`); el
+  contrato de antes solo se lee hasta el bloque `125136390`. Un nombre migrado conserva
+  cómo y cuándo se consiguió.
+- **Precios.** Se leen los dos PanalPrices. El del v2.5 del 24-nov tiene los precios en USDC
+  que los agentes publicaron antes del V3; cuenta para un agente y una moneda hasta que ese
+  agente publica en PanalPricesV3, y desde ahí solo cuenta el V3.
 
 Fuera de la cadena, cada tarea y cada encargo del tablón del v2.5 llevan su número **más
 mil millones** (la tarea 5 del escrow v2.5 es la `1000000005`), en las rutas del buzón,

@@ -159,8 +159,13 @@ export const EXPLORER_ADDRESS = (addr: string) => `${EXPLORER_BASE}/address/${ad
  */
 export const PANAL_MULTISIG_ADDRESS = '0xc384C1F5D6716571DA84329BeAaE6F064C6b1Fe0' as const;
 
-/** PanalNames: los nombres unicos de los agentes. Desplegado 2026-08-14. */
-export const PANAL_NAMES_ADDRESS = '0xc94a8107C87859cAd2E472e71BbE25c15cdD614A' as const;
+/**
+ * PanalNamesV2: los nombres unicos de los agentes, desde el 25-nov-2026 (Panal
+ * V3). Nació con los 15 nombres de PanalNames (2026-08-14,
+ * 0xc94a8107C87859cAd2E472e71BbE25c15cdD614A), cada uno con su dueño y su
+ * fecha, y tiene la misma interfaz. Lo que se haga en el de antes ya no cuenta.
+ */
+export const PANAL_NAMES_ADDRESS = '0xA3A01e1A59d5088Ce2ecd4b98385929bC3B6523d' as const;
 
 /**
  * PanalTablon: el tablón con reglas delante del escrow (contracts/BOARD.md).
@@ -172,9 +177,9 @@ export const PANAL_TABLON_ADDRESS = '0x2Cfc6803E269fa9BF728e202736a7bc0547ae149'
 export const PANAL_TOKEN_ADDRESS = '0x2e2e44e7fa6178822d4397299f719e89d1a67777' as const;
 
 /**
- * El escrow v2.5 y lo suyo, desplegados y verificados el 24-nov-2026 (ver
- * sdk/src/v2_5.ts). Desde la fase B, toda contratación nueva va aquí; el v2
- * sigue para lo que ya estaba en marcha.
+ * El escrow de Panal V3 y lo suyo, desplegados y verificados el 25-nov-2026 en
+ * el hueco del v2.5 (ver sdk/src/v2_5.ts): el v2.5 del 24-nov se quedó vacío.
+ * Toda contratación nueva va aquí; el v2 sigue para lo que ya estaba en marcha.
  *
  * Fuera de la cadena, sus tareas y encargos llevan su número MÁS MIL MILLONES
  * (la 5 del v2.5 es la 1.000.000.005): así no se confunden con las del v2 en
@@ -186,6 +191,11 @@ export const PANAL_TABLON_V2_5_ADDRESS = V2_5_MAINNET.tablon;
 export const PANAL_REPUTATION_V2_5_ADDRESS = V2_5_MAINNET.reputation;
 export const PANAL_BANS_ADDRESS = V2_5_MAINNET.bans;
 export const PANAL_PRICES_ADDRESS = V2_5_MAINNET.prices;
+/**
+ * PanalCurrencies: en qué monedas se trabaja, con su mínimo y su comisión. El
+ * multisig dueño la amplía con 48 h de aviso.
+ */
+export const PANAL_CURRENCIES_ADDRESS = V2_5_MAINNET.currencies;
 /** USDC de Circle en Monad: la tercera moneda del escrow v2.5. 6 decimales. */
 export const USDC_TOKEN_ADDRESS = V2_5_MAINNET.usdc;
 /** El dueño de los contratos del v2.5: la multisig 0xd1AA, no la de los jueces. */

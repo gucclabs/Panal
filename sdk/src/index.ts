@@ -30,6 +30,8 @@ export {
   chainFor,
   MAINNET_ADDRESSES,
   TESTNET_ADDRESSES,
+  REGISTRY_V2_MAINNET,
+  NAMES_V1_MAINNET,
   NATIVE_CURRENCY,
   FEE_BPS,
   AUTO_RELEASE_SECONDS,
@@ -401,11 +403,14 @@ export {
 export { leerExpediente, escribirEnExpediente, darAccesosDelExpediente, esCredencialDeJuez } from './expediente.js';
 export type { DepsDelExpediente, TareaDelExpediente, PiezaAbierta, ExpedienteAbierto, PiezaNueva } from './expediente.js';
 
-// El escrow v2.5 y su tablón (24-nov-2026): USDC, aceptar, revisión a medida,
-// acuerdos, jueces autónomos y suspensiones. Fuera de la cadena, sus números
-// van desde mil millones; los métodos del cliente eligen el contrato solos.
+// El escrow de Panal V3 y su tablón (25-nov-2026), en el hueco del v2.5: la
+// lista de monedas, USDC, aceptar, revisión a medida, acuerdos, jueces
+// autónomos y suspensiones. Fuera de la cadena, sus números van desde mil
+// millones; los métodos del cliente eligen el contrato solos.
 export {
   ACEPTAR_MINIMO_S,
+  AVISO_MONEDAS_S,
+  FEE_BPS_MAXIMA,
   CIERRES_SIN_ENTREGA,
   CierreV2_5,
   DECISION_FIRME_S,
@@ -417,6 +422,7 @@ export {
   REVISION_MINIMA_S,
   REVISION_POR_DEFECTO_S,
   USDC_DECIMALES,
+  V2_5_ANTERIOR,
   V2_5_DESDE_BLOQUE,
   V2_5_MAINNET,
   comoTask,
@@ -429,11 +435,14 @@ export {
   tareaV2_5DeLaCadena,
   versionDe,
 } from './v2_5.js';
-export type { DireccionesV2_5, ReputacionV2_5, TareaV2_5, VersionEscrow } from './v2_5.js';
+export type { DireccionesV2_5, MonedaDeLaLista, ReputacionV2_5, TareaV2_5, VersionEscrow } from './v2_5.js';
 export {
   panalBansAbi,
+  panalCurrenciesAbi,
   panalEscrowV2_5Abi,
+  panalNamesV2Abi,
   panalPricesAbi,
+  panalRegistryV3Abi,
   panalReputationV2_5Abi,
   panalTablonV2_5Abi,
 } from './v2_5-abi.js';
