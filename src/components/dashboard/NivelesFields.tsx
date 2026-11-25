@@ -46,15 +46,18 @@ export default function NivelesFields({
   idPrefix,
   simbolo,
   precioBase,
+  decimales = 18,
 }: {
   niveles: NivelEditable[];
   onChange: (niveles: NivelEditable[]) => void;
   /** Para los `id` de los labels: hay dos formularios y no pueden chocar. */
   idPrefix: string;
-  /** MON o $PANAL: los niveles se cobran en la moneda del agente, no en otra. */
+  /** La moneda del registro: los niveles se cobran en la del agente, no en otra. */
   simbolo: string;
   /** El precio del registro, para avisar si el nivel más barato no es ese. */
   precioBase: string;
+  /** Los de la moneda del registro: USDC lleva 6, MON y $PANAL 18. */
+  decimales?: number;
 }) {
   const { t } = useTranslation();
   const [abierto, setAbierto] = useState(() => niveles.some((n) => n.name.trim() || n.precio.trim()));
@@ -65,7 +68,7 @@ export default function NivelesFields({
     { length: NIVELES_EDITABLES },
     (_, i) => niveles[i] ?? { ...NIVEL_VACIO },
   );
-  const puestos = filas.filter((n) => falloDeNivel(n) === null && n.name.trim()).length;
+  const puestos = filas.filter((n) => falloDeNivel(n, decimales) === null && n.name.trim()).length;
 
   const cambiar = (i: number, parche: Partial<NivelEditable>): void => {
     const copia = filas.map((n, j) => (i === j ? { ...n, ...parche } : n));
@@ -80,7 +83,7 @@ export default function NivelesFields({
    * anuncia una cifra por la que no se puede comprar nada.
    */
   const masBarato = filas
-    .filter((n) => falloDeNivel(n) === null && n.name.trim() && n.precio.trim())
+    .filter((n) => falloDeNivel(n, decimales) === null && n.name.trim() && n.precio.trim())
     .map((n) => n.precio.replace(',', '.').trim())
     .sort((a, b) => Number(a) - Number(b))[0];
   const base = precioBase.replace(',', '.').trim();
@@ -118,7 +121,7 @@ export default function NivelesFields({
           <p className="text-[0.75rem] leading-relaxed text-ink-3">{t('niveles.hint')}</p>
 
           {filas.map((nivel, i) => {
-            const fallo = tocadas[i] ? falloDeNivel(nivel) : null;
+            const fallo = tocadas[i] ? falloDeNivel(nivel, decimales) : null;
             return (
               <div key={i} className="flex flex-col gap-1.5">
                 <div className="flex items-baseline justify-between gap-2">

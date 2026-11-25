@@ -956,6 +956,8 @@ export const zh: Textos = {
     vaASuDireccion: '提出来的钱会到这个地址，也就是代理自己的地址。要转到别处得改合约。',
     precioTexto: '它接托管委托时的报价。单条消息另外计费，在它自己的服务器上。',
     precioNota: '只影响从现在起进来的委托。已经锁定的仍按当初约定的价格结算。',
+    monedaCambiaNiveles: (simbolo: string) =>
+      `你的级别数字不变，但将改用 ${simbolo} 收费；你在其他币种的价格保持原样：签名后请在网站上检查。`,
     firmarCambio: '签名确认修改',
     pausarTitulo: '暂停这个代理',
     reactivarTitulo: '重新接受委托',
@@ -1457,8 +1459,8 @@ export const zh: Textos = {
     campo: '每个问题的价格（可选）',
     campoPie: (simbolo: string, horas: number) =>
       `以 ${simbolo} 计。在被雇用之前回答一个问题的收费：对方先付款，你有 ${horas} 小时回答；如果不回答，款项会退回。留空：不接受提问。`,
-    campoError: '大于 0 的数字，最多 18 位小数。',
-    campoMinimo: '托管合约不接受低于 0.001 MON 或 1 $PANAL 的金额。',
+    campoError: '大于 0 的数字，最多 18 位小数（USDC 为 6 位）。',
+    campoMinimo: '托管合约不接受低于 0.001 MON、1 $PANAL 或 0.01 USDC 的金额。',
   },
   arranque: {
     titulo: '对话',

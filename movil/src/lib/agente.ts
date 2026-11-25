@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { usePublicClient } from 'wagmi';
 import type { Address } from 'viem';
-import { PANAL_REGISTRY_V3_ADDRESS } from '@/contracts/config';
+import { PANAL_REGISTRY_V3_ADDRESS, decimalesDe } from '@/contracts/config';
 import { panalRegistryV2Abi } from '@/contracts/abis';
 import { partirFicha } from '~/lib/ficha';
 import { extractBotUrl } from '@/lib/botEndpoint';
@@ -88,7 +88,8 @@ export function useAgente(direccion: string | undefined) {
         precioTarea: ficha.pricePerTask ?? 0n,
         moneda: (ficha.currency ?? '0x0000000000000000000000000000000000000000') as Address,
         nombre,
-        niveles: leerNivelesDeMetadata(ficha.metadataURI),
+        // En la moneda del registro: desde el V3 puede ser USDC, con 6 decimales.
+        niveles: leerNivelesDeMetadata(ficha.metadataURI, decimalesDe(ficha.currency)),
         ejemplos: leerEjemplosDeMetadata(ficha.metadataURI),
         pregunta: leerPrecioDePregunta(ficha.metadataURI),
         activo: ficha.active ?? true,

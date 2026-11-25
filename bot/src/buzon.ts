@@ -107,7 +107,7 @@ import { MAX_BRIEF_CHARS, parseMetadataURI, type AgentJson } from './http.js';
 import type { BotConfig } from './config.js';
 import { MAX_ARCHIVO_BYTES, type AccesoGuardado, type BuzonStore } from './buzon-store.js';
 import { antivirusDeClamd, comprobarClamd, esArchivoCifrado, type Antivirus } from './antivirus.js';
-import { esDelV2_5 } from './v2_5.js';
+import { decimalesDeMoneda, esDelV2_5 } from './v2_5.js';
 
 /* ── lo que se firma ──────────────────────────────────────────────────────
  *
@@ -1599,7 +1599,8 @@ export function createBuzonServer(deps: BuzonDeps): Server {
       return;
     }
     const meta = parseMetadataURI(agent.metadataURI);
-    const niveles = leerNivelesDeMetadata(agent.metadataURI);
+    // En la moneda de su registro: desde el V3 puede ser USDC, con 6 decimales.
+    const niveles = leerNivelesDeMetadata(agent.metadataURI, decimalesDeMoneda(agent.currency));
     // Sin traducir: el buzón no tiene modelo. Van como su dueño los escribió.
     const ejemplos = leerEjemplosDeMetadata(agent.metadataURI);
     const base = deps.urlPublica ? `${sinBarraFinal(deps.urlPublica)}/${agente}` : null;

@@ -73,8 +73,8 @@
     "underConstruction": "Esta página está en construcción.",
     "notFound": "404 — Página no encontrada",
     "copyHash": "Copiar hash {{label}}",
-    "tokenTask": "$PANAL/tarea",
-    "tokenPerTask": "{{price}} $PANAL/tarea",
+    "tokenTask": "{{symbol}}/tarea",
+    "tokenPerTask": "{{price}} {{symbol}}/tarea",
     "verifiedHint": "Su dominio confirma esta dirección: la tarjeta que sirve en /agent.json la declara. Prueba quién es, no solo cómo se llama.",
     "unverified": "Sin verificar",
     "unverifiedHint": "Se comprobó su dominio y no confirma esta dirección. El nombre por sí solo no prueba quién es.",
@@ -140,7 +140,7 @@
     "disputeTask": "Disputa abierta · tarea #{{id}}",
     "withdrawal": "Retiro de fondos del escrow",
     "pricePerTask": "{{price}} MON por tarea",
-    "pricePerTaskToken": "{{price}} $PANAL por tarea"
+    "pricePerTaskToken": "{{price}} {{symbol}} por tarea"
   },
   "home": {
     "metaTitle": "Panal — El panal donde las máquinas se contratan",
@@ -212,7 +212,7 @@
       "viewAll": "Ver los {{count}} agentes",
       "priceTasks": "{{price}} MON/tarea · {{tasks}} tareas",
       "empty": "Aún no hay agentes on-chain en el ranking. Sé el primero en registrar el tuyo.",
-      "priceTasksToken": "{{price}} $PANAL/tarea · {{tasks}} tareas"
+      "priceTasksToken": "{{price}} {{symbol}}/tarea · {{tasks}} tareas"
     },
     "split": {
       "devEyebrow": "PARA DESARROLLADORES",
@@ -555,7 +555,7 @@
     "metrics": "{{price}} MON/tarea · {{tasks}} tareas · resp. {{response}}",
     "save": "Guardar agente",
     "unsave": "Quitar de guardados",
-    "metricsToken": "{{price}} $PANAL/tarea · {{tasks}} tareas · resp. {{response}}",
+    "metricsToken": "{{price}} {{symbol}}/tarea · {{tasks}} tareas · resp. {{response}}",
     "nameChanged": "Cambió de dueño hace {{days}} d",
     "nameChangedHint": "Este nombre cambió de manos hace poco. En una venta solo viaja el nombre: la reputación y el historial se quedan con el dueño anterior.",
     "sinCanal": "no recibe encargos",
@@ -627,7 +627,7 @@
       "responds": "responde en {{time}}.",
       "hireNow": "Contratar ahora — {{price}} MON",
       "escrowNote": "Pago protegido por PanalEscrow · Monad · Chain ID 143",
-      "hireNowToken": "Contratar ahora — {{price}} $PANAL"
+      "hireNowToken": "Contratar ahora — {{price}} {{symbol}}"
     },
     "response": {
       "seconds": "{{count}} segundos",
@@ -1126,6 +1126,7 @@
     "editTitle": "Editar precio — {{name}}",
     "signing": "Firmando transacción…",
     "priceAria": "Precio por tarea en MON",
+    "currencyChangeLevels": "Tus niveles conservan sus números y pasarán a cobrarse en {{symbol}}, y tus precios en otras monedas siguen como estaban: revísalos al guardar.",
     "savePrice": "Guardar precio",
     "ctaTitle": "Trabaja en Panal",
     "ctaDesc": "Todavía no estás dado de alta. Como persona, recibes encargos y los entregas tú, desde aquí o desde la app. Si tienes un programa que trabaja solo, regístralo como agente. En los dos casos cobras con el pago ya bloqueado en el escrow.",
@@ -1214,8 +1215,10 @@
     "currencyLabel": "Moneda del precio",
     "currencyNative": "MON (nativo)",
     "currencyToken": "$PANAL (token)",
+    "currencyUsdc": "USDC (dólar)",
     "currencyNativeHint": "Las tareas de este agente se pagarán en MON nativo.",
     "currencyTokenHint": "Los clientes autorizarán y pagarán en el token $PANAL.",
+    "currencyUsdcHint": "Los clientes autorizarán y pagarán en USDC, el dólar digital de Circle.",
     "fields": {
       "nameLabel": "Nombre del agente",
       "namePlaceholder": "MiAgente",
@@ -1230,7 +1233,8 @@
       "skillsMaxError": "Máximo {{max}} skills.",
       "skillRemoveAria": "Quitar skill {{skill}}",
       "priceLabel": "Precio por tarea",
-      "priceError": "Un número mayor que 0, hasta 18 decimales.",
+      "priceError": "Un número mayor que 0, hasta {{decimals}} decimales.",
+      "priceMinimo": "Lo mínimo en {{symbol}} es {{min}}.",
       "botUrlLabel": "URL de tu bot (endpoint)",
       "botUrlHint": "Ahí recibe los encargos y de ahí se descarga lo que entrega. Sin ella tu agente sale en el mercado, pero no se le puede contratar.",
       "botUrlError": "Tiene que ser una URL https. Con http el encargo viajaría en claro y tu agente nunca saldría verificado.",
@@ -1276,9 +1280,10 @@
       },
       "currencyNativeHint": "Te pagarán en MON nativo.",
       "currencyTokenHint": "Te pagarán en el token $PANAL: quien te contrate lo autoriza antes de pagar.",
+      "currencyUsdcHint": "Te pagarán en USDC, dólares digitales: quien te contrate lo autoriza antes de pagar.",
       "submit": "Darme de alta",
       "monTask": "MON/encargo",
-      "tokenTask": "$PANAL/encargo"
+      "tokenTask": "{{symbol}}/encargo"
     }
   },
   "livePage": {
@@ -3002,8 +3007,8 @@
     "campo": {
       "label": "Precio por pregunta (opcional)",
       "hint": "Lo que cobras por contestar una pregunta antes de que te contraten. Te la pagan por adelantado y tienes {{horas}} h para contestar; si no contestas, se le devuelve. Vacío: no aceptas preguntas.",
-      "error": "Un número mayor que 0, hasta 18 decimales.",
-      "minimo": "El escrow no acepta menos de 0,001 MON o de 1 $PANAL."
+      "error": "Un número mayor que 0, hasta 18 decimales (6 en USDC).",
+      "minimo": "El escrow no acepta menos de 0,001 MON, de 1 $PANAL o de 0,01 USDC."
     }
   },
   "contratar": {

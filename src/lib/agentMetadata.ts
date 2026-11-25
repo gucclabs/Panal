@@ -44,6 +44,7 @@ import {
   type TipoDeAgente,
 } from '@panal/sdk';
 import { bytesDeLogo, esTokenDeMarca, leerMarca, tokensDeMarca, type Marca } from './marca';
+import { falloDePrecio } from '../contracts/config';
 
 export interface AgentMetadataFields {
   name: string;
@@ -80,8 +81,14 @@ export interface AgentMetadataFields {
   pregunta: string;
 }
 
-/** metadataURI → campos editables (nombre, descripción, skills, botUrl). */
-export function parseAgentMetadata(metadataURI: string): AgentMetadataFields {
+/**
+ * metadataURI → campos editables (nombre, descripción, skills, botUrl).
+ *
+ * `decimales` son los de la moneda del registro del agente (`decimalesDe`):
+ * los niveles se escriben en unidades enteras sin decir la moneda, y desde el
+ * registro V3 puede ser USDC. Sin pasarlos, 18 (MON y $PANAL).
+ */
+export function parseAgentMetadata(metadataURI: string, decimales = 18): AgentMetadataFields {
   const segments = metadataURI
     .split('·')
     .map((s) => s.trim())
@@ -118,14 +125,17 @@ export function parseAgentMetadata(metadataURI: string): AgentMetadataFields {
     skills,
     botUrl,
     marca: leerMarca(metadataURI),
-    niveles: leerNivelesDeMetadata(metadataURI),
+    niveles: leerNivelesDeMetadata(metadataURI, decimales),
     tipo: leerTipo(metadataURI),
     ejemplos: leerEjemplosDeMetadata(metadataURI),
     pregunta: leerPrecioDePregunta(metadataURI) ?? '',
   };
 }
 
-/** Campos → metadataURI (idéntico al compositor del registro guiado). */
+/**
+ * Campos → metadataURI (idéntico al compositor del registro guiado).
+ * `decimales`: los de la moneda del registro, como en `parseAgentMetadata`.
+ */
 export function composeAgentMetadata(
   fields: Omit<AgentMetadataFields, 'marca' | 'niveles' | 'tipo' | 'ejemplos' | 'pregunta'> & {
     marca?: Partial<Marca>;
@@ -134,6 +144,7 @@ export function composeAgentMetadata(
     ejemplos?: string[];
     pregunta?: string;
   },
+  decimales = 18,
 ): string {
   const parts = [
     fields.name.trim(),
@@ -159,14 +170,17 @@ export function composeAgentMetadata(
   // `componerNivel` devuelve null en lo que no se puede escribir sin mentir;
   // el formulario ya lo impide antes, esto es la última red.
   for (const nivel of fields.niveles ?? []) {
-    const token = componerNivel({
-      name: nivel.name ?? '',
-      description: nivel.description,
-      precio: weiAPrecio(nivel.wei),
-      maxBriefChars: nivel.maxBriefChars,
-      maxAttachChars: nivel.maxAttachChars,
-      maxAttachCharsTotal: nivel.maxAttachCharsTotal,
-    });
+    const token = componerNivel(
+      {
+        name: nivel.name ?? '',
+        description: nivel.description,
+        precio: weiAPrecio(nivel.wei, decimales),
+        maxBriefChars: nivel.maxBriefChars,
+        maxAttachChars: nivel.maxAttachChars,
+        maxAttachCharsTotal: nivel.maxAttachCharsTotal,
+      },
+      decimales,
+    );
     if (token) composed += ` · ${token}`;
   }
   // Y los ejemplos lo último de todo: un lector antiguo que no los conozca los
@@ -253,12 +267,12 @@ export const NIVEL_VACIO: NivelEditable = {
   maxAttachCharsTotal: null,
 };
 
-/** Lo leído de la cadena → lo que se edita. */
-export function aNivelEditable(n: Nivel): NivelEditable {
+/** Lo leído de la cadena → lo que se edita. `decimales`: los de la moneda del registro. */
+export function aNivelEditable(n: Nivel, decimales = 18): NivelEditable {
   return {
     name: n.name ?? '',
     description: n.description ?? '',
-    precio: weiAPrecio(n.wei),
+    precio: weiAPrecio(n.wei, decimales),
     maxBriefChars: n.maxBriefChars,
     maxAttachChars: n.maxAttachChars,
     maxAttachCharsTotal: n.maxAttachCharsTotal,
@@ -271,9 +285,9 @@ export function aNivelEditable(n: Nivel): NivelEditable {
  * Una fila vacía devuelve `null` y eso es lo normal: el formulario enseña tres
  * y casi nadie va a rellenar las tres.
  */
-export function aNivel(e: NivelEditable): Nivel | null {
+export function aNivel(e: NivelEditable, decimales = 18): Nivel | null {
   const precio = e.precio.replace(',', '.').trim();
-  const wei = precioAWei(precio);
+  const wei = precioAWei(precio, decimales);
   const name = e.name.replace(/\s+/g, ' ').trim();
   if (wei === null || !name) return null;
   return {
@@ -295,25 +309,23 @@ export function aNivel(e: NivelEditable): Nivel | null {
  */
 /**
  * Qué le pasa al precio de una pregunta, o null si vale (vacío también vale: es
- * no contestar preguntas). Por debajo del mínimo del escrow —0,001 MON o
- * 1 $PANAL— el contrato rechazaría el pago, y quien preguntase se encontraría
- * el error al firmar.
+ * no contestar preguntas). Por debajo del mínimo del escrow —0,001 MON,
+ * 1 $PANAL o 0,01 USDC— el contrato rechazaría el pago, y quien preguntase se
+ * encontraría el error al firmar.
  */
 export function falloDePregunta(precio: string, simbolo: string): 'precio' | 'minimo' | null {
   const p = precio.replace(',', '.').trim();
   if (!p) return null;
-  const wei = precioAWei(p);
-  if (wei === null) return 'precio';
-  const minimo = simbolo === '$PANAL' ? 10n ** 18n : 10n ** 15n;
-  return wei < minimo ? 'minimo' : null;
+  // En la moneda del registro, con sus decimales y su mínimo (USDC: 6 y 0,01).
+  return falloDePrecio(p, simbolo === '$PANAL' || simbolo === 'USDC' ? simbolo : 'MON');
 }
 
-export function falloDeNivel(e: NivelEditable): 'incompleto' | 'precio' | 'separador' | null {
+export function falloDeNivel(e: NivelEditable, decimales = 18): 'incompleto' | 'precio' | 'separador' | null {
   const precio = e.precio.replace(',', '.').trim();
   const name = e.name.trim();
   if (!precio && !name && !e.description.trim()) return null;
   if (!precio || !name) return 'incompleto';
-  if (precioAWei(precio) === null) return 'precio';
+  if (precioAWei(precio, decimales) === null) return 'precio';
   if (/[·|]/.test(name) || /[·|]/.test(e.description)) return 'separador';
   return null;
 }

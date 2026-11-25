@@ -286,6 +286,18 @@ export interface MonedaDeLaLista {
   minimo: bigint;
 }
 
+/**
+ * Los decimales de una moneda que el SDK conoce: USDC 6; MON y $PANAL 18.
+ *
+ * Hace falta para el precio del registro y el de sus niveles, que se escriben
+ * sin decir la moneda: es la del registro del agente, y desde el registro V3
+ * puede ser USDC. Una moneda que la lista añada después con otros decimales
+ * no está aquí: sus decimales los da `getCurrency(token).decimales`.
+ */
+export function decimalesDeMoneda(currency: string | null | undefined): number {
+  return currency && currency.toLowerCase() === V2_5_MAINNET.usdc.toLowerCase() ? USDC_DECIMALES : 18;
+}
+
 /** Lo más que puede llegar a cobrar el escrow (`MAX_FEE_BPS` de la lista): 5 %. */
 export const FEE_BPS_MAXIMA = 500;
 /** El aviso que da el multisig antes de añadir una moneda o cambiar sus números. */

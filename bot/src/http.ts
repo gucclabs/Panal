@@ -45,6 +45,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { esTokenDeMarca, leerMarca } from './marca.js';
 import { esTokenDeEjemplo, leerEjemplosDeMetadata } from './ejemplos.js';
 import { esTokenDeNivel, leerNivelesDeMetadata } from './niveles.js';
+import { decimalesDeMoneda } from './v2_5.js';
 import { esTokenDeTipo } from './tipo.js';
 import { esTokenDePregunta } from './pregunta.js';
 import { normalizarIdioma, traducirFrases, type Idioma } from './traduccion.js';
@@ -392,7 +393,7 @@ export async function buildAgentJson(
   // significa que no vende niveles: quien lea esto NO debe fabricarle uno a
   // partir del precio. Se anuncian aquí para que su dueño pueda ponerlos desde
   // el panel sin tocar este código.
-  const niveles = leerNivelesDeMetadata(agent?.metadataURI ?? '');
+  const niveles = leerNivelesDeMetadata(agent?.metadataURI ?? '', decimalesDeMoneda(agent?.currency));
   // Los encargos de ejemplo, también de la cadena: los pone su dueño desde el
   // panel. Se sirven traducidos como la descripción.
   const ejemplosEnCadena = leerEjemplosDeMetadata(agent?.metadataURI ?? '');

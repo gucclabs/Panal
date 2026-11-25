@@ -19,8 +19,17 @@
  * ───────────────────────────────────────────────────────────────────────────
  */
 
-import { formatEther } from 'viem';
-import { conTextoDeLaFicha, leerNivelesDeMetadata, type Nivel } from '@panal/sdk';
+import { formatUnits } from 'viem';
+import { conTextoDeLaFicha, decimalesDeMoneda, leerNivelesDeMetadata, type Nivel } from '@panal/sdk';
+
+/**
+ * Los decimales de la moneda del registro, por el símbolo que ya se enseña:
+ * USDC 6; MON y $PANAL 18. Desde el registro V3 un agente puede registrarse
+ * en USDC, y sus niveles van en esa moneda.
+ */
+function decimalesDeSimbolo(symbol: string): number {
+  return symbol === 'USDC' ? 6 : 18;
+}
 
 /**
  * Los niveles de un agente: el precio de la CADENA, el texto de su ficha.
@@ -34,14 +43,19 @@ import { conTextoDeLaFicha, leerNivelesDeMetadata, type Nivel } from '@panal/sdk
  * Si la cadena no trae ninguno, valen los de la ficha: hay agentes que los
  * declaran solo ahí, y no enseñarlos sería esconder lo que sí venden.
  */
-export function nivelesDeAgente(metadataURI: string | null | undefined, deLaFicha: Nivel[]): Nivel[] {
-  const enCadena = leerNivelesDeMetadata(metadataURI);
+export function nivelesDeAgente(
+  metadataURI: string | null | undefined,
+  deLaFicha: Nivel[],
+  /** La moneda del registro del agente: sus niveles se leen con sus decimales. */
+  currency?: string | null,
+): Nivel[] {
+  const enCadena = leerNivelesDeMetadata(metadataURI, decimalesDeMoneda(currency));
   return enCadena.length > 0 ? conTextoDeLaFicha(enCadena, deLaFicha) : deLaFicha;
 }
 
 /** `0.3 MON` a partir del importe de un nivel. */
 export function precioDeNivel(nivel: Nivel, symbol: string): string {
-  return `${formatEther(nivel.wei)} ${symbol}`;
+  return `${formatUnits(nivel.wei, decimalesDeSimbolo(symbol))} ${symbol}`;
 }
 
 /**
@@ -80,7 +94,7 @@ export function lineaDeNiveles(niveles: Nivel[], symbol: string): string | null 
   const rango =
     niveles.length === 1
       ? precioDeNivel(barato, symbol)
-      : `${formatEther(barato.wei)} to ${precioDeNivel(caro, symbol)}`;
+      : `${formatUnits(barato.wei, decimalesDeSimbolo(symbol))} to ${precioDeNivel(caro, symbol)}`;
   return `  Sizes: ${niveles.length} (${rango}) — panal_get_agent lists them`;
 }
 
@@ -98,7 +112,7 @@ function esLetraOSimbolo(c: number): boolean {
   return (c >= 97 && c <= 122) || c === 36 || c === 32 || c === 9 || c === 10 || c === 13 || c === 11 || c === 12;
 }
 
-export function buscarNivel(niveles: Nivel[], pedido: string): Nivel | null {
+export function buscarNivel(niveles: Nivel[], pedido: string, symbol = 'MON'): Nivel | null {
   const limpio = pedido.trim().toLowerCase().replace(/\s+/g, ' ');
   if (!limpio) return null;
   const porNombre = niveles.find((n) => (n.name ?? '').toLowerCase().replace(/\s+/g, ' ') === limpio);
@@ -110,7 +124,7 @@ export function buscarNivel(niveles: Nivel[], pedido: string): Nivel | null {
   let fin = limpio.length;
   while (fin > 0 && esLetraOSimbolo(limpio.charCodeAt(fin - 1))) fin--;
   const soloNumero = limpio.slice(0, fin).trim();
-  const porPrecio = niveles.find((n) => formatEther(n.wei) === soloNumero);
+  const porPrecio = niveles.find((n) => formatUnits(n.wei, decimalesDeSimbolo(symbol)) === soloNumero);
   if (porPrecio) return porPrecio;
   const i = Number(limpio);
   return Number.isInteger(i) && i >= 1 && i <= niveles.length ? niveles[i - 1]! : null;

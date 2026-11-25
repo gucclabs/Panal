@@ -11,7 +11,7 @@ import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ExternalLink, Inbox, Loader2, TriangleAlert, X } from 'lucide-react';
 import { useSwitchChain, useWriteContract } from 'wagmi';
-import { formatEther, parseEther } from 'viem';
+import { formatEther, formatUnits, parseEther, parseUnits } from 'viem';
 import { toast } from 'sonner';
 import {
   Dialog,
@@ -26,13 +26,17 @@ import { useTxReceipt } from '@/hooks/useTxReceipt';
 import { useWallet } from '@/hooks/useWallet';
 import {
   EXPLORER_TX,
-  NATIVE_CURRENCY,
   PANAL_REGISTRY_ADDRESS,
   PANAL_REGISTRY_V3_ADDRESS,
-  PANAL_TOKEN_ADDRESS,
+  MINIMO_POR_MONEDA,
+  MONEDAS_DEL_REGISTRO,
   V2_ENABLED,
   activeChain,
+  decimalesDe,
+  direccionDeMoneda,
+  falloDePrecio,
   publicClient,
+  type SimboloMoneda,
 } from '@/contracts/config';
 import { panalRegistryAbi, panalRegistryV2Abi } from '@/contracts/abis';
 import { falloDeEjemplo, type TipoDeAgente } from '@panal/sdk';
@@ -102,8 +106,13 @@ function RegisterAgentForm({ tipo, onOpenChange }: { tipo: TipoDeAgente; onOpenC
   const [skillInput, setSkillInput] = useState('');
   const [skillError, setSkillError] = useState<'dup' | 'max' | null>(null);
   const [price, setPrice] = useState('');
-  /** Moneda del precio (solo con V2_ENABLED): 'MON' nativo o '$PANAL' token. */
-  const [currency, setCurrency] = useState<'MON' | '$PANAL'>('MON');
+  /**
+   * Moneda del registro (solo con V2_ENABLED): cualquiera de la lista. Desde
+   * el registro V3 también USDC. El precio y los niveles van en ella.
+   */
+  const [currency, setCurrency] = useState<SimboloMoneda>('MON');
+  /** Sus decimales: 6 en USDC, 18 en MON y $PANAL. */
+  const decimales = decimalesDe(direccionDeMoneda(currency));
   /** Lo que cobra por contestar una pregunta (solo personas). Vacío: no contesta preguntas. */
   const [precioPregunta, setPrecioPregunta] = useState('');
   const [botUrl, setBotUrl] = useState('');
@@ -154,10 +163,13 @@ function RegisterAgentForm({ tipo, onOpenChange }: { tipo: TipoDeAgente; onOpenC
   const descTrim = description.trim();
   const descValid =
     descTrim.length >= 10 && descTrim.length <= 140 && !/[\r\n]/.test(descTrim);
-  // Validación estricta del string: evita que parseEther lance con notación
-  // científica o más de 18 decimales (crash del componente).
+  // Validación estricta del string: evita que parseUnits lance con notación
+  // científica o más decimales de los que tiene la moneda (crash del
+  // componente), y avisa antes de firmar de un precio bajo el mínimo de la
+  // lista, que el registro V3 rechazaría.
   const priceStr = price.replace(',', '.').trim();
-  const priceValid = /^\d+(\.\d{1,18})?$/.test(priceStr) && Number(priceStr) > 0;
+  const falloPrecio = falloDePrecio(priceStr, V2_ENABLED ? currency : 'MON');
+  const priceValid = falloPrecio === null;
   /**
    * La dirección donde recibirá los encargos.
    *
@@ -179,7 +191,7 @@ function RegisterAgentForm({ tipo, onOpenChange }: { tipo: TipoDeAgente; onOpenC
   const botUrlValid = isHttpsUrl(botUrlTrim);
   // Una fila a medias no se registra: se escribiría una ficha en la que ese
   // nivel no está, y su dueño se iría creyendo que sí.
-  const nivelesValid = niveles.every((n) => falloDeNivel(n) === null);
+  const nivelesValid = niveles.every((n) => falloDeNivel(n, decimales) === null);
   const ejemplosValid = ejemplos.every((e) => falloDeEjemplo(e) === null);
   const preguntaValid = tipo !== 'persona' || falloDePregunta(precioPregunta, currency) === null;
   const valid =
@@ -190,18 +202,21 @@ function RegisterAgentForm({ tipo, onOpenChange }: { tipo: TipoDeAgente; onOpenC
   // antes se pedía a mano en el texto libre).
   const metadataURI = useMemo(
     () =>
-      composeAgentMetadata({
-        name: nameTrim,
-        description: descTrim,
-        skills,
-        botUrl: botUrlTrim,
-        marca,
-        niveles: niveles.map(aNivel).filter((n) => n !== null),
-        tipo: tipo ?? 'bot',
-        ejemplos,
-        pregunta: tipo === 'persona' ? precioPregunta.replace(',', '.') : '',
-      }),
-    [nameTrim, descTrim, skills, botUrlTrim, marca, niveles, tipo, ejemplos, precioPregunta],
+      composeAgentMetadata(
+        {
+          name: nameTrim,
+          description: descTrim,
+          skills,
+          botUrl: botUrlTrim,
+          marca,
+          niveles: niveles.map((n) => aNivel(n, decimales)).filter((n) => n !== null),
+          tipo: tipo ?? 'bot',
+          ejemplos,
+          pregunta: tipo === 'persona' ? precioPregunta.replace(',', '.') : '',
+        },
+        decimales,
+      ),
+    [nameTrim, descTrim, skills, botUrlTrim, marca, niveles, tipo, ejemplos, precioPregunta, decimales],
   );
 
   // ——— Skills como chips ———
@@ -270,13 +285,13 @@ function RegisterAgentForm({ tipo, onOpenChange }: { tipo: TipoDeAgente; onOpenC
     };
     // La llamada se arma UNA vez: con ella se mira la reserva y con ella se
     // firma. Dos copias de los mismos argumentos acaban siendo dos llamadas.
-    const currencyAddr = currency === '$PANAL' ? PANAL_TOKEN_ADDRESS : NATIVE_CURRENCY;
+    const currencyAddr = direccionDeMoneda(currency);
     const llamada = V2_ENABLED
       ? {
           address: PANAL_REGISTRY_V3_ADDRESS,
           abi: panalRegistryV2Abi,
           functionName: 'registerAgent' as const,
-          args: [metadataURI, parseEther(priceStr), currencyAddr] as const,
+          args: [metadataURI, parseUnits(priceStr, decimales), currencyAddr] as const,
         }
       : {
           address: PANAL_REGISTRY_ADDRESS,
@@ -529,7 +544,9 @@ function RegisterAgentForm({ tipo, onOpenChange }: { tipo: TipoDeAgente; onOpenC
                 onChange={(e) => setPrice(e.target.value)}
                 onBlur={() => touch('price')}
                 inputMode="decimal"
-                placeholder="0.05"
+                // $PANAL no baja de 1: con «0.05» de ejemplo se proponía un precio
+                // que el registro rechaza.
+                placeholder={currency === '$PANAL' ? '100' : currency === 'USDC' ? '0.50' : '0.05'}
                 aria-label={t('ownAgent.priceAria')}
                 aria-invalid={touched.price && !priceValid}
                 className={cn(
@@ -539,16 +556,23 @@ function RegisterAgentForm({ tipo, onOpenChange }: { tipo: TipoDeAgente; onOpenC
               />
               <span className="shrink-0 font-mono text-[0.8125rem] text-ink-2">
                 {tipo === 'persona'
-                  ? currency === '$PANAL'
-                    ? tx('tokenTask')
+                  ? currency !== 'MON'
+                    ? tx('tokenTask', { symbol: currency })
                     : tx('monTask')
-                  : currency === '$PANAL'
-                    ? t('common.tokenTask')
+                  : currency !== 'MON'
+                    ? t('common.tokenTask', { symbol: currency })
                     : t('common.monTask')}
               </span>
             </div>
             {touched.price && !priceValid && (
-              <p className="text-[0.75rem] text-terra">{tx('fields.priceError')}</p>
+              <p className="text-[0.75rem] text-terra">
+                {falloPrecio === 'minimo'
+                  ? tx('fields.priceMinimo', {
+                      symbol: currency,
+                      min: formatUnits(MINIMO_POR_MONEDA[currency], decimales),
+                    })
+                  : tx('fields.priceError', { decimals: decimales })}
+              </p>
             )}
           </div>
 
@@ -556,8 +580,8 @@ function RegisterAgentForm({ tipo, onOpenChange }: { tipo: TipoDeAgente; onOpenC
           {V2_ENABLED && (
             <div className="flex flex-col gap-2">
               <span className="text-[0.8125rem] font-medium text-ink-2">{tx('currencyLabel')}</span>
-              <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label={tx('currencyLabel')}>
-                {(['MON', '$PANAL'] as const).map((c) => (
+              <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label={tx('currencyLabel')}>
+                {MONEDAS_DEL_REGISTRO.map((c) => (
                   <button
                     key={c}
                     type="button"
@@ -565,18 +589,23 @@ function RegisterAgentForm({ tipo, onOpenChange }: { tipo: TipoDeAgente; onOpenC
                     aria-checked={currency === c}
                     onClick={() => setCurrency(c)}
                     className={cn(
-                      'rounded-full border px-4 py-2.5 font-mono text-[0.8125rem] font-medium transition-colors',
+                      // Tres en una fila: con px-4 «$PANAL (token)» no cabía en un móvil.
+                      'rounded-full border px-2 py-2.5 font-mono text-[0.75rem] font-medium transition-colors',
                       currency === c
                         ? 'border-honey bg-honey-soft text-honey-deep'
                         : 'border-line text-ink-2 hover:border-honey',
                     )}
                   >
-                    {c === 'MON' ? tx('currencyNative') : tx('currencyToken')}
+                    {c === 'MON' ? tx('currencyNative') : c === 'USDC' ? tx('currencyUsdc') : tx('currencyToken')}
                   </button>
                 ))}
               </div>
               <p className="text-[0.75rem] leading-relaxed text-ink-3">
-                {currency === '$PANAL' ? tx('currencyTokenHint') : tx('currencyNativeHint')}
+                {currency === '$PANAL'
+                  ? tx('currencyTokenHint')
+                  : currency === 'USDC'
+                    ? tx('currencyUsdcHint')
+                    : tx('currencyNativeHint')}
               </p>
             </div>
           )}
@@ -620,6 +649,7 @@ function RegisterAgentForm({ tipo, onOpenChange }: { tipo: TipoDeAgente; onOpenC
             idPrefix="reg"
             simbolo={currency}
             precioBase={price}
+            decimales={decimales}
           />
 
           <EjemplosFields ejemplos={ejemplos} onChange={setEjemplos} idPrefix="reg" />

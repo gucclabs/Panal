@@ -20,12 +20,14 @@
 
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { formatEther, formatUnits } from 'viem';
+import { formatUnits } from 'viem';
 import type { Address } from 'viem';
 import {
   MULTICALL3_ADDRESS,
   NATIVE_CURRENCY,
   currencySymbol,
+  decimalesDe,
+  enUnidades,
   PANAL_NAMES_ADDRESS,
   PANAL_PRICES_ADDRESS,
   PANAL_REGISTRY_ADDRESS,
@@ -233,13 +235,21 @@ export function categoriaDe(skills: string[] | undefined, tagline?: string): Age
  * La clave de traducción del precio según la moneda REAL del agente.
  *
  * Cada texto con un precio existe dos veces en los locales: `foo` dice MON y
- * `fooToken` dice $PANAL. Elegir a mano en cada sitio es justo lo que falló —
+ * `fooToken` lleva `{{symbol}}` ($PANAL, USDC: pásale `simboloDe(agent)`). Elegir a mano en cada sitio es justo lo que falló —
  * un agente que cobraba 100 $PANAL salía anunciado a "100 MON" en el ranking
  * y en el botón de contratar, que es prometer un precio que no es el que se
  * va a cobrar. Con este ayudante el sitio nuevo solo tiene que pasar la base.
  */
 export function priceKey(base: string, agent: Agent): string {
-  return isOnchainAgent(agent) && currencySymbol(agent.currency) === '$PANAL' ? `${base}Token` : base;
+  return simboloDe(agent) !== 'MON' ? `${base}Token` : base;
+}
+
+/**
+ * El símbolo de la moneda del registro del agente, para el `{{symbol}}` de las
+ * claves `…Token`: `$PANAL`, y desde el registro V3 también `USDC`.
+ */
+export function simboloDe(agent: Agent): ReturnType<typeof currencySymbol> {
+  return isOnchainAgent(agent) ? currencySymbol(agent.currency) : 'MON';
 }
 
 /**
@@ -400,7 +410,9 @@ function delCatalogo(fichas: CatalogAgent[], idioma: string): OnchainAgent[] {
         type: leerTipo(f.metadataURI) === 'persona' ? 'humano' : 'ia',
         tagline: descripcion || 'Agente registrado on-chain en PanalRegistry.',
         description: descripcion || 'Agente registrado directamente en PanalRegistry (Monad mainnet).',
-        pricePerTask: Number(formatEther(priceWei)),
+        // En la moneda del registro, con sus decimales: desde el registro V3
+        // puede ser USDC (6), y con formatEther 0,05 USDC salía 0,00000000000005.
+        pricePerTask: enUnidades(priceWei, f.currency),
         // La nota por cliente si el índice la trae (ver `reputacionDeStats`).
         ...reputacionDeStats(f.stats),
         tasksCompleted: f.stats?.completed ?? 0,
@@ -447,7 +459,7 @@ function delCatalogo(fichas: CatalogAgent[], idioma: string): OnchainAgent[] {
         // pinta como siempre, que es exactamente lo que hacía antes.
         marca: leerMarca(f.metadataURI),
         pregunta: leerPrecioDePregunta(f.metadataURI),
-        nivelesEnCadena: f.metadataURI ? leerNivelesDeMetadata(f.metadataURI).length : 0,
+        nivelesEnCadena: f.metadataURI ? leerNivelesDeMetadata(f.metadataURI, decimalesDe(f.currency)).length : 0,
         // Del mismo `metadataURI`, y por eso mismo `undefined` con un indexador
         // anterior a él: entonces es «no se sabe» y no se marca nada.
         canal: canalDeFicha(f.metadataURI),
@@ -566,7 +578,7 @@ async function fetchOnchainAgents(idioma: string): Promise<OnchainAgent[]> {
 
     const meta = parseMetadata(data.metadataURI, addr);
     const priceWei = data.pricePerTask;
-    const priceMon = Number(formatEther(priceWei));
+    const priceMon = enUnidades(priceWei, data.currency);
     const rating = Number(score) / 100; // score x100 → estrellas
 
     return {
@@ -599,7 +611,7 @@ async function fetchOnchainAgents(idioma: string): Promise<OnchainAgent[]> {
       skills: meta.skills,
       marca: leerMarca(data.metadataURI),
       pregunta: leerPrecioDePregunta(data.metadataURI),
-      nivelesEnCadena: leerNivelesDeMetadata(data.metadataURI).length,
+      nivelesEnCadena: leerNivelesDeMetadata(data.metadataURI, decimalesDe(data.currency)).length,
       // Aquí la ficha viene entera de la cadena: la respuesta es sí o no.
       canal: canalDeFicha(data.metadataURI),
       botUrl: extractBotUrl(data.metadataURI),

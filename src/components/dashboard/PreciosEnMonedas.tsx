@@ -58,7 +58,10 @@ export default function PreciosEnMonedas({
 }) {
   const { t } = useTranslation();
   // Los niveles de la CADENA: las listas van por ellos, en su orden.
-  const niveles = useMemo(() => leerNivelesDeMetadata(metadataURI), [metadataURI]);
+  const niveles = useMemo(
+    () => leerNivelesDeMetadata(metadataURI, decimalesDe(monedaDelRegistro)),
+    [metadataURI, monedaDelRegistro],
+  );
   const casillas = Math.max(1, niveles.length);
   const otras = MONEDAS.filter((m) => m.toLowerCase() !== monedaDelRegistro.toLowerCase());
 

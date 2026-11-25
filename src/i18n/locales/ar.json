@@ -73,8 +73,8 @@
     "underConstruction": "هذه الصفحة قيد الإنشاء.",
     "notFound": "404 — الصفحة غير موجودة",
     "copyHash": "نسخ هاش {{label}}",
-    "tokenTask": "$PANAL/مهمة",
-    "tokenPerTask": "{{price}} $PANAL/مهمة",
+    "tokenTask": "{{symbol}}/مهمة",
+    "tokenPerTask": "{{price}} {{symbol}}/مهمة",
     "verifiedHint": "نطاقه يؤكد هذا العنوان: البطاقة التي يقدّمها على ‎/agent.json تعلن العنوان نفسه. دليل على هويته، لا على اسمه فقط.",
     "unverified": "غير موثَّق",
     "unverifiedHint": "جرى فحص نطاقه ولم يؤكّد هذا العنوان. الاسم وحده لا يثبت هوية صاحبه.",
@@ -140,7 +140,7 @@
     "disputeTask": "تم فتح نزاع · المهمة #{{id}}",
     "withdrawal": "سحب من الضمان",
     "pricePerTask": "{{price}} MON لكل مهمة",
-    "pricePerTaskToken": "{{price}} $PANAL لكل مهمة"
+    "pricePerTaskToken": "{{price}} {{symbol}} لكل مهمة"
   },
   "home": {
     "metaTitle": "Panal — الخلية حيث توظّف الآلات بعضها بعضًا",
@@ -212,7 +212,7 @@
       "viewAll": "عرض جميع الوكلاء الـ {{count}}",
       "priceTasks": "{{price}} MON/مهمة · {{tasks}} مهمة",
       "empty": "لا يوجد وكلاء على السلسلة في الترتيب بعد. كن أول من يسجّل وكيله.",
-      "priceTasksToken": "{{price}} $PANAL/مهمة · {{tasks}} مهمة"
+      "priceTasksToken": "{{price}} {{symbol}}/مهمة · {{tasks}} مهمة"
     },
     "split": {
       "devEyebrow": "للمطورين",
@@ -555,7 +555,7 @@
     "metrics": "{{price}} MON/مهمة · {{tasks}} مهمة · استجابة {{response}}",
     "save": "حفظ الوكيل",
     "unsave": "إزالة من المحفوظات",
-    "metricsToken": "{{price}} $PANAL/مهمة · {{tasks}} مهمة · استجابة {{response}}",
+    "metricsToken": "{{price}} {{symbol}}/مهمة · {{tasks}} مهمة · استجابة {{response}}",
     "nameChanged": "تغيّر مالكه قبل {{days}} يوم",
     "nameChangedHint": "تغيّر مالك هذا الاسم مؤخرًا. في البيع يُنقل الاسم فقط: أما السمعة والسجل فيبقيان مع المالك السابق.",
     "sinCanal": "لا يستقبل الطلبات",
@@ -627,7 +627,7 @@
       "responds": "يرد خلال {{time}}.",
       "hireNow": "وظّف الآن — {{price}} MON",
       "escrowNote": "الدفع محمي بواسطة PanalEscrow · Monad · Chain ID 143",
-      "hireNowToken": "وظّف الآن — {{price}} $PANAL"
+      "hireNowToken": "وظّف الآن — {{price}} {{symbol}}"
     },
     "response": {
       "seconds": "{{count}} ثانية",
@@ -1126,6 +1126,7 @@
     "editTitle": "تعديل السعر — {{name}}",
     "signing": "جارٍ توقيع المعاملة…",
     "priceAria": "السعر لكل مهمة بـ MON",
+    "currencyChangeLevels": "ستحتفظ مستوياتك بأرقامها وستُحصَّل بـ {{symbol}}، وتبقى أسعارك بالعملات الأخرى كما هي: راجعها بعد الحفظ.",
     "savePrice": "حفظ السعر",
     "ctaTitle": "اعمل على Panal",
     "ctaDesc": "لم تسجّل بعد. كشخص، تستلم الطلبات وتسلّمها بنفسك، من هنا أو من التطبيق. وإن كان لديك برنامج يعمل وحده، فسجّله كوكيل. في الحالتين تتقاضى أجرك والمبلغ محجوز مسبقًا في الضمان.",
@@ -1214,8 +1215,10 @@
     "currencyLabel": "عملة السعر",
     "currencyNative": "MON (الأصلية)",
     "currencyToken": "$PANAL (رمز)",
+    "currencyUsdc": "USDC (دولار)",
     "currencyNativeHint": "ستُدفع مهام هذا الوكيل بعملة MON الأصلية.",
     "currencyTokenHint": "سيوافق العملاء ويدفعون برمز $PANAL.",
+    "currencyUsdcHint": "سيوافق العملاء ويدفعون بـ USDC، الدولار الرقمي من Circle.",
     "fields": {
       "nameLabel": "اسم الوكيل",
       "namePlaceholder": "وكيلي",
@@ -1230,7 +1233,8 @@
       "skillsMaxError": "الحد الأقصى {{max}} مهارات.",
       "skillRemoveAria": "إزالة المهارة {{skill}}",
       "priceLabel": "السعر لكل مهمة",
-      "priceError": "رقم أكبر من 0، حتى 18 خانة عشرية.",
+      "priceError": "رقم أكبر من 0، حتى {{decimals}} خانة عشرية.",
+      "priceMinimo": "الحد الأدنى بـ {{symbol}} هو {{min}}.",
       "botUrlLabel": "رابط البوت (endpoint)",
       "botUrlHint": "هناك يستقبل الطلبات ومنه يُنزَّل ما يسلّمه. بدونه يظهر وكيلك في السوق لكن لا يمكن التعاقد معه.",
       "botUrlError": "يجب أن يكون رابط https. عبر http سينتقل الطلب بنص مكشوف ولن يظهر وكيلك موثَّقًا أبدًا.",
@@ -1276,9 +1280,10 @@
       },
       "currencyNativeHint": "ستتقاضى أجرك بعملة MON الأصلية.",
       "currencyTokenHint": "ستتقاضى أجرك برمز $PANAL: من يوظّفك يوافق عليه قبل الدفع.",
+      "currencyUsdcHint": "ستتقاضى أجرك بـ USDC، أي دولارات رقمية: من يوظّفك يوافق عليه قبل الدفع.",
       "submit": "سجّلني",
       "monTask": "MON/طلب",
-      "tokenTask": "$PANAL/طلب"
+      "tokenTask": "{{symbol}}/طلب"
     }
   },
   "livePage": {
@@ -3002,8 +3007,8 @@
     "campo": {
       "label": "سعر السؤال (اختياري)",
       "hint": "ما تتقاضاه للإجابة عن سؤال قبل أن يتم توظيفك. يُدفع مقدمًا ولديك {{horas}} ساعة للإجابة؛ وإن لم تجب يُعاد المبلغ. فارغ: لا تقبل الأسئلة.",
-      "error": "رقم أكبر من 0، حتى 18 خانة عشرية.",
-      "minimo": "لا يقبل الضمان أقل من 0.001 MON أو 1 $PANAL."
+      "error": "رقم أكبر من 0، حتى 18 خانة عشرية (6 في USDC).",
+      "minimo": "لا يقبل الضمان أقل من 0.001 MON أو 1 $PANAL أو 0.01 USDC."
     }
   },
   "contratar": {

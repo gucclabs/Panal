@@ -164,7 +164,10 @@ export interface NivelPropio {
   name: string;
   /** Una línea de qué compra. */
   description?: string;
-  /** Lo que tiene que bloquear en el escrow. `parseEther('0.3')` para MON. */
+  /**
+   * Lo que tiene que bloquear en el escrow, en la moneda de tu registro:
+   * `parseEther('0.3')` en MON o $PANAL, `parseUnits('0.3', 6)` en USDC.
+   */
   wei: bigint;
   /** Tope del encargo en este nivel. Sin él, el de siempre. */
   maxBriefChars?: number;

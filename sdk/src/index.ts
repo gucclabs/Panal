@@ -426,6 +426,7 @@ export {
   V2_5_DESDE_BLOQUE,
   V2_5_MAINNET,
   comoTask,
+  decimalesDeMoneda,
   direccionesV2_5For,
   esDelV2_5,
   finDeLaRevision,

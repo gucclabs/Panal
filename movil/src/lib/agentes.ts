@@ -29,6 +29,7 @@ import {
   PANAL_ESCROW_V2_ADDRESS,
   PANAL_REGISTRY_V3_ADDRESS,
   PANAL_TOKEN_ADDRESS,
+  currencySymbol,
   USDC_TOKEN_ADDRESS,
   V2_5_ENABLED,
   activeChain,
@@ -439,8 +440,9 @@ export function useCartera(direcciones: string[]) {
             registrado: ficha.registeredAt > 0n,
             activo: ficha.active,
             precio: ficha.pricePerTask,
-            moneda:
-              ficha.currency?.toLowerCase() === PANAL_TOKEN_ADDRESS.toLowerCase() ? '$PANAL' : 'MON',
+            // Desde el registro V3 también USDC: con «$PANAL o MON» un agente en
+            // USDC salía en la cartera cobrando en MON.
+            moneda: currencySymbol(ficha.currency),
             conEndpoint: extractBotUrl(ficha.metadataURI) !== null,
             panal: pendiente.panal,
             mon: pendiente.mon,

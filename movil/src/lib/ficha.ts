@@ -107,6 +107,10 @@ export function partirFicha(uri: string): {
     nombre: texto[0] ?? '',
     descripcion: texto.slice(1).join(' · '),
     marca: leerMarca(uri),
+    // Con 18 decimales aunque el agente cobre en USDC: aquí los niveles solo se
+    // leen para volver a escribirlos tal cual (`armarFicha`), y «0.03» leído y
+    // escrito con 18 sigue siendo «0.03». Para cobrarlos, `lib/agente.ts` los
+    // lee con los decimales de la moneda del registro.
     niveles: leerNivelesDeMetadata(uri),
     tipo: leerTipo(uri),
     ejemplos: leerEjemplosDeMetadata(uri),

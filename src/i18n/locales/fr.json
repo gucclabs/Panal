@@ -73,8 +73,8 @@
     "underConstruction": "Cette page est en construction.",
     "notFound": "404 — Page introuvable",
     "copyHash": "Copier le hash {{label}}",
-    "tokenTask": "$PANAL/tâche",
-    "tokenPerTask": "{{price}} $PANAL/tâche",
+    "tokenTask": "{{symbol}}/tâche",
+    "tokenPerTask": "{{price}} {{symbol}}/tâche",
     "verifiedHint": "Son domaine confirme cette adresse : la fiche servie sur /agent.json la déclare. Preuve de qui il est, pas seulement de son nom.",
     "unverified": "Non vérifié",
     "unverifiedHint": "Son domaine a été contrôlé et ne confirme pas cette adresse. Le nom seul ne prouve pas de qui il s'agit.",
@@ -140,7 +140,7 @@
     "disputeTask": "Litige ouvert · tâche #{{id}}",
     "withdrawal": "Retrait de l'escrow",
     "pricePerTask": "{{price}} MON par tâche",
-    "pricePerTaskToken": "{{price}} $PANAL par tâche"
+    "pricePerTaskToken": "{{price}} {{symbol}} par tâche"
   },
   "home": {
     "metaTitle": "Panal — La ruche où les machines s'engagent entre elles",
@@ -212,7 +212,7 @@
       "viewAll": "Voir les {{count}} agents",
       "priceTasks": "{{price}} MON/tâche · {{tasks}} tâches",
       "empty": "Pas encore d'agents on-chain dans le classement. Soyez le premier à enregistrer le vôtre.",
-      "priceTasksToken": "{{price}} $PANAL/tâche · {{tasks}} tâches"
+      "priceTasksToken": "{{price}} {{symbol}}/tâche · {{tasks}} tâches"
     },
     "split": {
       "devEyebrow": "POUR LES DÉVELOPPEURS",
@@ -555,7 +555,7 @@
     "metrics": "{{price}} MON/tâche · {{tasks}} tâches · rép. {{response}}",
     "save": "Enregistrer l'agent",
     "unsave": "Retirer des enregistrés",
-    "metricsToken": "{{price}} $PANAL/tâche · {{tasks}} tâches · rép. {{response}}",
+    "metricsToken": "{{price}} {{symbol}}/tâche · {{tasks}} tâches · rép. {{response}}",
     "nameChanged": "A changé de propriétaire il y a {{days}} j",
     "nameChangedHint": "Ce nom a changé de mains récemment. Lors d'une vente, seul le nom est transféré : la réputation et l'historique restent au propriétaire précédent.",
     "sinCanal": "ne reçoit pas de commandes",
@@ -627,7 +627,7 @@
       "responds": "répond en {{time}}.",
       "hireNow": "Engager maintenant — {{price}} MON",
       "escrowNote": "Paiement protégé par PanalEscrow · Monad · Chain ID 143",
-      "hireNowToken": "Engager maintenant — {{price}} $PANAL"
+      "hireNowToken": "Engager maintenant — {{price}} {{symbol}}"
     },
     "response": {
       "seconds": "{{count}} secondes",
@@ -1126,6 +1126,7 @@
     "editTitle": "Modifier le prix — {{name}}",
     "signing": "Signature de la transaction…",
     "priceAria": "Prix par tâche en MON",
+    "currencyChangeLevels": "Vos niveaux gardent leurs chiffres et seront facturés en {{symbol}}, et vos prix dans d’autres monnaies restent inchangés : vérifiez-les après l’enregistrement.",
     "savePrice": "Enregistrer le prix",
     "ctaTitle": "Travaillez sur Panal",
     "ctaDesc": "Vous n’êtes pas encore inscrit. En tant que personne, vous recevez des commandes et les livrez vous-même, d’ici ou depuis l’app. Si vous avez un programme qui travaille seul, enregistrez-le comme agent. Dans les deux cas, vous êtes payé avec l’argent déjà bloqué en escrow.",
@@ -1214,8 +1215,10 @@
     "currencyLabel": "Devise du prix",
     "currencyNative": "MON (natif)",
     "currencyToken": "$PANAL (token)",
+    "currencyUsdc": "USDC (dollar)",
     "currencyNativeHint": "Les tâches de cet agent seront payées en MON natif.",
     "currencyTokenHint": "Les clients approuveront et paieront avec le token $PANAL.",
+    "currencyUsdcHint": "Les clients approuveront et paieront en USDC, le dollar numérique de Circle.",
     "fields": {
       "nameLabel": "Nom de l'agent",
       "namePlaceholder": "MonAgent",
@@ -1230,7 +1233,8 @@
       "skillsMaxError": "Maximum {{max}} compétences.",
       "skillRemoveAria": "Retirer la compétence {{skill}}",
       "priceLabel": "Prix par tâche",
-      "priceError": "Un nombre supérieur à 0, jusqu'à 18 décimales.",
+      "priceError": "Un nombre supérieur à 0, jusqu'à {{decimals}} décimales.",
+      "priceMinimo": "Le minimum en {{symbol}} est de {{min}}.",
       "botUrlLabel": "URL de votre bot (endpoint)",
       "botUrlHint": "C'est là qu'il reçoit les commandes et que ce qu'il livre se télécharge. Sans elle, votre agent est listé mais ne peut pas être engagé.",
       "botUrlError": "Ce doit être une URL https. En http, la commande circulerait en clair et votre agent n'apparaîtrait jamais comme vérifié.",
@@ -1276,9 +1280,10 @@
       },
       "currencyNativeHint": "Vous serez payé en MON natif.",
       "currencyTokenHint": "Vous serez payé en jeton $PANAL : la personne qui vous engage l’autorise avant de payer.",
+      "currencyUsdcHint": "Vous serez payé en USDC, des dollars numériques : la personne qui vous engage l’autorise avant de payer.",
       "submit": "M’inscrire",
       "monTask": "MON/commande",
-      "tokenTask": "$PANAL/commande"
+      "tokenTask": "{{symbol}}/commande"
     }
   },
   "livePage": {
@@ -3002,8 +3007,8 @@
     "campo": {
       "label": "Prix par question (facultatif)",
       "hint": "Ce que vous facturez pour répondre à une question avant d’être engagé. Elle est payée d’avance et vous avez {{horas}} h pour répondre ; sinon, elle est remboursée. Vide : vous n’acceptez pas de questions.",
-      "error": "Un nombre supérieur à 0, jusqu’à 18 décimales.",
-      "minimo": "L’escrow n’accepte pas moins de 0,001 MON ou de 1 $PANAL."
+      "error": "Un nombre supérieur à 0, jusqu’à 18 décimales (6 en USDC).",
+      "minimo": "L’escrow n’accepte pas moins de 0,001 MON, de 1 $PANAL ou de 0,01 USDC."
     }
   },
   "contratar": {

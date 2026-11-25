@@ -84,6 +84,7 @@ import {
   NATIVE_CURRENCY,
   EstadoV2_5,
   esDelV2_5,
+  decimalesDeMoneda,
 } from '@panal/sdk';
 import { comoAdjunto } from './salida.js';
 import { privateKeyToAccount } from 'viem/accounts';
@@ -417,7 +418,9 @@ async function refrescarNiveles(): Promise<void> {
     };
     EJEMPLOS_OK = leerEjemplosDeMetadata(ficha.metadataURI);
     MONEDA_REGISTRO = ficha.currency ?? NATIVE_CURRENCY;
-    const enCadena = leerNivelesDeMetadata(ficha.metadataURI);
+    // Con los decimales de la moneda del registro: desde el registro V3 puede
+    // ser USDC (6), y «0.03» en USDC son 30.000 unidades, no 3·10¹⁶.
+    const enCadena = leerNivelesDeMetadata(ficha.metadataURI, decimalesDeMoneda(MONEDA_REGISTRO));
     const antes = NIVELES_OK.map((n) => `${n.wei}:${n.name ?? ''}`).join('|');
     NIVELES_OK = enCadena.length > 0 ? enCadena : NIVELES_DEL_CODIGO;
     const ahora = NIVELES_OK.map((n) => `${n.wei}:${n.name ?? ''}`).join('|');

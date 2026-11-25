@@ -66,8 +66,13 @@ export interface EditProfileDialogProps {
    * más barato no coincide: es ese el que enseña el mercado como EL precio.
    */
   precioBase: string;
-  /** MON o $PANAL: los niveles se cobran en la moneda del agente. */
+  /** La moneda del registro: los niveles se cobran en la moneda del agente. */
   simbolo: string;
+  /**
+   * Los decimales de esa moneda (USDC 6, MON y $PANAL 18): los precios de los
+   * niveles se escriben en unidades enteras y se leen y escriben con ellos.
+   */
+  decimales?: number;
   /** Tras minarse la tx (refetch del perfil on-chain). */
   onMined: () => void;
 }
@@ -80,6 +85,7 @@ export default function EditProfileDialog({
   agentAddress,
   precioBase,
   simbolo,
+  decimales = 18,
   onMined,
 }: EditProfileDialogProps) {
   return (
@@ -93,6 +99,7 @@ export default function EditProfileDialog({
           agentAddress={agentAddress}
           precioBase={precioBase}
           simbolo={simbolo}
+          decimales={decimales}
           onMined={onMined}
           onOpenChange={onOpenChange}
         />
@@ -107,6 +114,7 @@ function EditProfileForm({
   agentAddress,
   precioBase,
   simbolo,
+  decimales,
   onMined,
   onOpenChange,
 }: {
@@ -115,11 +123,12 @@ function EditProfileForm({
   agentAddress: string;
   precioBase: string;
   simbolo: string;
+  decimales: number;
   onMined: () => void;
   onOpenChange: (open: boolean) => void;
 }) {
   const { t } = useTranslation();
-  const initial = useMemo(() => parseAgentMetadata(metadataURI), [metadataURI]);
+  const initial = useMemo(() => parseAgentMetadata(metadataURI, decimales), [metadataURI, decimales]);
 
   const [name, setName] = useState(initial.name);
   const [description, setDescription] = useState(initial.description);
@@ -143,7 +152,7 @@ function EditProfileForm({
    * descripción borraría lo que un agente declaró desde su código.
    */
   const [niveles, setNiveles] = useState<NivelEditable[]>(() =>
-    initial.niveles.map(aNivelEditable),
+    initial.niveles.map((n) => aNivelEditable(n, decimales)),
   );
   /**
    * Quién hay detrás, tal y como estaba, y editable.
@@ -187,7 +196,7 @@ function EditProfileForm({
   const botUrlValid = botUrlTrim === '' || isHttpsUrl(botUrlTrim);
   // Una fila a medias no se firma: se guardaría una ficha en la que ese nivel
   // sencillamente no está, y su dueño se iría creyendo que sí.
-  const nivelesValid = niveles.every((n) => falloDeNivel(n) === null);
+  const nivelesValid = niveles.every((n) => falloDeNivel(n, decimales) === null);
   // Igual con los ejemplos: uno con «·» o demasiado largo no se escribiría.
   const ejemplosValid = ejemplos.every((e) => falloDeEjemplo(e) === null);
   const preguntaValid = falloDePregunta(precioPregunta, simbolo) === null;
@@ -196,18 +205,21 @@ function EditProfileForm({
   // Preview en vivo: mismo formato que compone el registro guiado.
   const composed = useMemo(
     () =>
-      composeAgentMetadata({
-        name: nameTrim,
-        description: descTrim,
-        skills,
-        botUrl: botUrlTrim,
-        marca,
-        niveles: niveles.map(aNivel).filter((n) => n !== null),
-        tipo,
-        ejemplos,
-        pregunta: precioPregunta.replace(',', '.'),
-      }),
-    [nameTrim, descTrim, skills, botUrlTrim, marca, niveles, tipo, ejemplos, precioPregunta],
+      composeAgentMetadata(
+        {
+          name: nameTrim,
+          description: descTrim,
+          skills,
+          botUrl: botUrlTrim,
+          marca,
+          niveles: niveles.map((n) => aNivel(n, decimales)).filter((n) => n !== null),
+          tipo,
+          ejemplos,
+          pregunta: precioPregunta.replace(',', '.'),
+        },
+        decimales,
+      ),
+    [nameTrim, descTrim, skills, botUrlTrim, marca, niveles, tipo, ejemplos, precioPregunta, decimales],
   );
 
   // ——— Skills como chips (Enter/coma, mismo patrón del registro) ———
@@ -497,6 +509,7 @@ function EditProfileForm({
             idPrefix="edit"
             simbolo={simbolo}
             precioBase={precioBase}
+            decimales={decimales}
           />
 
           <EjemplosFields ejemplos={ejemplos} onChange={setEjemplos} idPrefix="edit" />

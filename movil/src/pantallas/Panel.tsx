@@ -1,16 +1,17 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useWaitForTransactionReceipt, useWriteContract } from 'wagmi';
-import { parseEther } from 'viem';
+import { parseUnits } from 'viem';
 import type { Address } from 'viem';
 import { useWallet } from '@/hooks/useWallet';
 import { panalRegistryV2Abi } from '@/contracts/abis';
 import {
-  NATIVE_CURRENCY,
   PANAL_REGISTRY_V3_ADDRESS,
-  PANAL_TOKEN_ADDRESS,
   currencySymbol,
+  direccionDeMoneda,
+  falloDePrecio,
   publicClient,
+  type SimboloMoneda,
 } from '@/contracts/config';
 import { escrowDe, numeroVisible } from '@/lib/escrow';
 import { gasDeRetirada } from '@/lib/reservaDeGas';
@@ -21,7 +22,13 @@ import Icono from '~/componentes/Icono';
 import CamposMarca from '~/componentes/CamposMarca';
 import type { Marca } from '@/lib/marca';
 import { falloDePregunta, resumirFicha } from '@/lib/agentMetadata';
-import { EJEMPLOS_EDITABLES, falloDeEjemplo, MAX_EJEMPLO, PLAZO_DE_PREGUNTA_HORAS } from '@panal/sdk';
+import {
+  EJEMPLOS_EDITABLES,
+  falloDeEjemplo,
+  leerNivelesDeMetadata,
+  MAX_EJEMPLO,
+  PLAZO_DE_PREGUNTA_HORAS,
+} from '@panal/sdk';
 import {
   armarFicha,
   direccionEscrow,
@@ -197,7 +204,7 @@ export default function PanelAgente(): React.ReactElement {
             onTocar={() => setHoja('precio')}
             derecha={
               <span className="font-mono text-[13px] text-ink-2">
-                {monto(ficha.precio)} {currencySymbol(ficha.moneda)}
+                {monto(ficha.precio, currencySymbol(ficha.moneda))} {currencySymbol(ficha.moneda)}
               </span>
             }
           />
@@ -346,6 +353,7 @@ export default function PanelAgente(): React.ReactElement {
         <HojaPrecio
           precio={ficha.precio}
           moneda={ficha.moneda}
+          conNiveles={leerNivelesDeMetadata(ficha.metadataURI).length > 0}
           onCerrar={() => setHoja(null)}
           onHecho={() => void releerFicha()}
         />
@@ -512,16 +520,20 @@ function LineaCobro({
 function HojaPrecio({
   precio,
   moneda,
+  conNiveles,
   onCerrar,
   onHecho,
 }: {
   precio: bigint;
   moneda: Address;
+  /** Si publica niveles: al cambiar de moneda pasan a cobrarse en la nueva. */
+  conNiveles: boolean;
   onCerrar: () => void;
   onHecho: () => void;
 }): React.ReactElement {
-  const [texto, setTexto] = useState(() => monto(precio).replace(/\./g, ''));
-  const [enPanal, setEnPanal] = useState(currencySymbol(moneda) === '$PANAL');
+  const [texto, setTexto] = useState(() => monto(precio, currencySymbol(moneda)).replace(/\./g, ''));
+  /** La moneda del registro: desde el registro V3, cualquiera de la lista. */
+  const [simbolo, setSimbolo] = useState<SimboloMoneda>(currencySymbol(moneda));
   const { writeContract, data: hash, isPending } = useWriteContract();
   const recibo = useWaitForTransactionReceipt({ hash });
 
@@ -532,7 +544,8 @@ function HojaPrecio({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recibo.isSuccess]);
 
-  const nuevo = parsear(texto);
+  const nuevo = parsear(texto, simbolo);
+  const fallo = texto.trim() ? falloDePrecio(texto, simbolo) : null;
   const trabajando = isPending || recibo.isLoading;
   const T = useTextos();
 
@@ -548,13 +561,13 @@ function HojaPrecio({
           className="min-w-0 grow bg-transparent font-mono text-[22px] text-ink outline-none"
         />
         <div className="flex shrink-0 gap-1.5">
-          {(['$PANAL', 'MON'] as const).map((m) => (
+          {(['$PANAL', 'MON', 'USDC'] as const).map((m) => (
             <button
               key={m}
               type="button"
-              onClick={() => setEnPanal(m === '$PANAL')}
+              onClick={() => setSimbolo(m)}
               className={`rounded-full border px-2.5 py-1 text-[11.5px] ${
-                enPanal === (m === '$PANAL')
+                simbolo === m
                   ? 'border-honey bg-honey-soft text-honey'
                   : 'border-line text-ink-3'
               }`}
@@ -564,6 +577,17 @@ function HojaPrecio({
           ))}
         </div>
       </div>
+
+      {fallo && (
+        <p className="mt-2 px-1 text-[11.5px] leading-[1.45] text-terra">
+          {fallo === 'minimo' ? T.pregunta.campoMinimo : T.pregunta.campoError}
+        </p>
+      )}
+
+      {/* Los niveles se escriben sin moneda: son de la del registro. */}
+      {conNiveles && simbolo !== currencySymbol(moneda) && (
+        <p className="mt-2 px-1 text-[11.5px] leading-[1.45] text-honey">{T.panel.monedaCambiaNiveles(simbolo)}</p>
+      )}
 
       <Nota>{T.panel.precioNota}</Nota>
 
@@ -577,7 +601,7 @@ function HojaPrecio({
               address: PANAL_REGISTRY_V3_ADDRESS,
               abi: panalRegistryV2Abi,
               functionName: 'updatePrice',
-              args: [nuevo!, enPanal ? PANAL_TOKEN_ADDRESS : NATIVE_CURRENCY],
+              args: [nuevo!, direccionDeMoneda(simbolo)],
             })
           }
           disabled={nuevo === null || trabajando}
@@ -937,12 +961,13 @@ function mes(ms: number): string {
 }
 
 /** «12,5» o «12.5» → wei. `null` si no es un número que se pueda firmar. */
-function parsear(texto: string): bigint | null {
+/**
+ * El precio escrito, en unidades mínimas de su moneda, o null si no vale: con
+ * más decimales de los que tiene (USDC lleva 6) o por debajo del mínimo de la
+ * lista, que el registro V3 rechazaría.
+ */
+function parsear(texto: string, simbolo: SimboloMoneda): bigint | null {
   const limpio = texto.trim().replace(',', '.');
-  if (!/^\d+(\.\d+)?$/.test(limpio)) return null;
-  try {
-    return parseEther(limpio);
-  } catch {
-    return null;
-  }
+  if (falloDePrecio(limpio, simbolo) !== null) return null;
+  return parseUnits(limpio, simbolo === 'USDC' ? 6 : 18);
 }

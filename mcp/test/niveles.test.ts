@@ -7,7 +7,7 @@
  * el dinero ya en el escrow.
  */
 import { formatEther, parseEther } from 'viem';
-import type { Nivel } from '@panal/sdk';
+import { V2_5_MAINNET, type Nivel } from '@panal/sdk';
 import { buscarNivel, lineaDeNiveles, nivelesDeAgente, renderNiveles } from '../src/niveles.js';
 
 let fallos = 0;
@@ -129,6 +129,19 @@ check('  y se enseña sin ceros de relleno', formatEther(parseEther('0.03')) ===
   const ms = Date.now() - t0;
   check('un nombre enorme no lo frena', r === null && ms < 200, `${ms} ms`);
   check('  y el recorte sigue quitando el símbolo', buscarNivel(tres, '0.3 $panal ') === tres[1]);
+}
+
+console.log('\nun agente registrado en USDC (registro V3): sus niveles van en USDC');
+{
+  const ficha = 'Lint · Revisa código · nivel:0.05|Un archivo · nivel:0.25|El lote';
+  const n = nivelesDeAgente(ficha, [], V2_5_MAINNET.usdc);
+  check('se leen con 6 decimales', n.map((x) => x.wei).join(',') === '50000,250000', n.map((x) => x.wei).join(','));
+  check('sin moneda, con 18 como siempre', nivelesDeAgente(ficha, [])[0]!.wei === 50_000_000_000_000_000n);
+  const lista = renderNiveles(n, 'USDC').join('\n');
+  check('se enseñan en USDC, no en 0,00000000000005', lista.includes('0.05 USDC') && lista.includes('0.25 USDC'), lista);
+  const linea = lineaDeNiveles(n, 'USDC') ?? '';
+  check('la línea del buscador también', linea.includes('0.05 to 0.25 USDC'), linea);
+  check('se elige por su precio', buscarNivel(n, '0.25 usdc', 'USDC') === n[1]);
 }
 
 console.log(fallos === 0 ? '\n✅ todo bien' : `\n❌ ${fallos} fallo(s)`);

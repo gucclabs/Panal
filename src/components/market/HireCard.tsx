@@ -11,7 +11,7 @@ import type { Agent } from '@/data/agents';
 import { formatInt, formatMon } from '@/data/agents';
 import Dolares from '@/components/Dolares';
 import { useIndexAgents } from '@/lib/indexer';
-import { canalDe, isOnchainAgent, priceKey } from '@/hooks/usePanalAgents';
+import { canalDe, isOnchainAgent, priceKey, simboloDe } from '@/hooks/usePanalAgents';
 import { TEXTO_CIERRE, cierreDe, type Cierre } from '@/hooks/useCierre';
 import { currencySymbol } from '@/contracts/config';
 import OtrasMonedas from '@/components/market/OtrasMonedas';
@@ -89,7 +89,7 @@ export default function HireCard({ agent, onHire, cierre: cierreDado, onPregunta
         disabled={cierre !== null}
         className="btn-monad mt-5 inline-flex w-full px-5 py-3.5 text-[0.9375rem] font-semibold disabled:cursor-not-allowed disabled:opacity-40"
       >
-        {t(priceKey('detail.cta.hireNow', agent), { price: formatMon(agent.pricePerTask) })}
+        {t(priceKey('detail.cta.hireNow', agent), { price: formatMon(agent.pricePerTask), symbol: simboloDe(agent) })}
       </button>
 
       {cierre && (
@@ -206,7 +206,7 @@ export function MobileHireBar({ agent, onHire, cierre: cierreDado }: HireCardPro
           <div className="flex items-baseline gap-1.5">
             <span className="font-mono text-[0.9375rem] font-semibold text-ink">{formatMon(agent.pricePerTask)}</span>
             <span className="text-[0.75rem] text-ink-3">
-              {t(isOnchainAgent(agent) && currencySymbol(agent.currency) === '$PANAL' ? 'common.tokenTask' : 'common.monTask')}
+              {t(simboloDe(agent) !== 'MON' ? 'common.tokenTask' : 'common.monTask', { symbol: simboloDe(agent) })}
             </span>
             {isOnchainAgent(agent) && <Dolares cantidad={agent.priceWei} moneda={currencySymbol(agent.currency)} />}
           </div>

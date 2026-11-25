@@ -49,6 +49,16 @@ import {
   esTokenDeNivel as esTokenDeNivelBot,
   leerNivelesDeMetadata as leerNivelesBot,
 } from '../bot/src/niveles';
+import { decimalesDeMoneda as decimalesBot } from '../bot/src/v2_5';
+import {
+  MINIMO_POR_MONEDA,
+  USDC_TOKEN_ADDRESS,
+  decimalesDe,
+  direccionDeMoneda,
+  falloDePrecio,
+} from '../src/contracts/config';
+import { falloDePregunta } from '../src/lib/agentMetadata';
+import { readFileSync, readdirSync } from 'node:fs';
 
 let fallos = 0;
 const check = (nombre: string, ok: boolean, detalle = ''): void => {
@@ -256,6 +266,69 @@ check(
   conDesfase.map((n) => n.name).join(' / ') === 'Un texto / El lote / El proyecto',
   conDesfase.map((n) => n.name).join(' / '),
 );
+
+console.log('\nUN AGENTE REGISTRADO EN USDC (registro V3): sus niveles van en USDC, con 6 decimales');
+{
+  const usdc = decimalesDe(USDC_TOKEN_ADDRESS);
+  check('USDC lleva 6, MON y $PANAL 18', usdc === 6 && decimalesDe(direccionDeMoneda('MON')) === 18 && decimalesDe(direccionDeMoneda('$PANAL')) === 18);
+  check('el buzón dice lo mismo', decimalesBot(USDC_TOKEN_ADDRESS) === 6 && decimalesBot(direccionDeMoneda('MON')) === 18);
+  const ficha = 'Lint · Revisa código · bot:https://x.example · nivel:0.05|Un archivo · nivel:0.25|El lote|Hasta cien';
+  const web = parseAgentMetadata(ficha, usdc).niveles;
+  check('la web los lee en unidades de USDC', web.map((n) => n.wei).join(',') === '50000,250000', web.map((n) => n.wei).join(','));
+  check('el buzón también', leerNivelesBot(ficha, usdc).map((n) => n.wei).join(',') === '50000,250000');
+  check('y leídos con 18 serían un billón de veces más', leerNivelesDeMetadata(ficha)[0]!.wei === 50_000_000_000_000_000n);
+  // El editor de la web: leer, editar y volver a escribir no cambia nada.
+  const editables = web.map((n) => aNivelEditable(n, usdc));
+  check('al editarlos se ven como se escribieron', editables.map((e) => e.precio).join(',') === '0.05,0.25', editables.map((e) => e.precio).join(','));
+  const deVuelta = composeAgentMetadata(
+    { ...parseAgentMetadata(ficha, usdc), niveles: editables.map((e) => aNivel(e, usdc)).filter((n) => n !== null) },
+    usdc,
+  );
+  check('y se vuelven a escribir igual', leerNivelesDeMetadata(deVuelta, usdc).map((n) => n.wei).join(',') === '50000,250000', deVuelta);
+  check('una cifra más de las que tiene USDC no es un precio', falloDeNivel({ ...NIVEL_VACIO, name: 'X', precio: '0.0000001' }, usdc) === 'precio');
+  check('en MON esa misma cifra sí lo es', falloDeNivel({ ...NIVEL_VACIO, name: 'X', precio: '0.0000001' }) === null);
+  // La app no edita niveles: los lee con 18 para volver a escribirlos tal cual.
+  const app = armarFicha('Lint', 'Revisa código', 'https://x.example', {}, partirFicha(ficha).niveles);
+  check('la app los conserva al editar la ficha de un agente en USDC', leerNivelesDeMetadata(app, usdc).map((n) => n.wei).join(',') === '50000,250000', app);
+}
+
+console.log('\nEL PRECIO DEL REGISTRO: decimales y mínimo de cada moneda de la lista');
+{
+  check('0,001 MON vale y menos no', falloDePrecio('0.001', 'MON') === null && falloDePrecio('0.0009', 'MON') === 'minimo');
+  check('en $PANAL el mínimo es 1', falloDePrecio('1', '$PANAL') === null && falloDePrecio('0.5', '$PANAL') === 'minimo');
+  check('en USDC, 0,01', falloDePrecio('0.01', 'USDC') === null && falloDePrecio('0.009', 'USDC') === 'minimo');
+  check('con coma decimal también', falloDePrecio('0,50', 'USDC') === null);
+  check('USDC no tiene siete decimales', falloDePrecio('0.0100001', 'USDC') === 'precio');
+  check('cero, vacío o notación rara no son precios', ['0', '', '1e3', '-1', '.5'].every((p) => falloDePrecio(p, 'MON') === 'precio'));
+  check('los mínimos son los de la lista (0,001 MON, 1 $PANAL, 0,01 USDC)',
+    MINIMO_POR_MONEDA.MON === 10n ** 15n && MINIMO_POR_MONEDA.$PANAL === 10n ** 18n && MINIMO_POR_MONEDA.USDC === 10_000n);
+  check('la pregunta de una persona en USDC, igual', falloDePregunta('0.5', 'USDC') === null && falloDePregunta('0.001', 'USDC') === 'minimo');
+}
+
+console.log('\nLOS TEXTOS CON PRECIO: la variante «Token» lleva el símbolo, no «$PANAL» a fuego');
+{
+  const claves = [
+    'common.tokenTask',
+    'common.tokenPerTask',
+    'live.pricePerTaskToken',
+    'home.rank.priceTasksToken',
+    'agentCard.metricsToken',
+    'detail.cta.hireNowToken',
+    'register.persona.tokenTask',
+  ];
+  const dir = new URL('../src/i18n/locales/', import.meta.url);
+  for (const archivo of readdirSync(dir).filter((f) => f.endsWith('.json'))) {
+    const d = JSON.parse(readFileSync(new URL(archivo, dir), 'utf8')) as Record<string, unknown>;
+    const valor = (clave: string): string =>
+      clave.split('.').reduce<unknown>((o, k) => (o as Record<string, unknown>)?.[k], d) as string;
+    const malas = claves.filter((c) => !valor(c)?.includes('{{symbol}}') || valor(c).includes('$PANAL'));
+    check(`${archivo}: las siete con {{symbol}}`, malas.length === 0, malas.join(', '));
+    const nuevas = ['register.currencyUsdc', 'register.currencyUsdcHint', 'register.persona.currencyUsdcHint', 'register.fields.priceMinimo', 'ownAgent.currencyChangeLevels'];
+    const faltan = nuevas.filter((c) => typeof valor(c) !== 'string' || !valor(c).trim());
+    check(`${archivo}: los textos de USDC están`, faltan.length === 0, faltan.join(', '));
+    check(`${archivo}: el error de precio dice los decimales de la moneda`, valor('register.fields.priceError').includes('{{decimals}}'));
+  }
+}
 
 console.log(fallos === 0 ? '\nTodo bien.' : `\n${fallos} mal.`);
 process.exit(fallos === 0 ? 0 : 1);

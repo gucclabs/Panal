@@ -34,8 +34,8 @@ import ActivityTab from '@/components/market/ActivityTab';
 import { FadeUp, WordReveal } from '@/components/market/motion';
 import { responseInWords } from '@/components/market/detail-data';
 import { cn } from '@/lib/utils';
-import { EXPLORER_ADDRESS, currencySymbol } from '@/contracts/config';
-import { canalDe, cuentaDe, isOnchainAgent, marcaDe } from '@/hooks/usePanalAgents';
+import { EXPLORER_ADDRESS, currencySymbol, decimalesDe } from '@/contracts/config';
+import { canalDe, cuentaDe, isOnchainAgent, marcaDe, priceKey, simboloDe } from '@/hooks/usePanalAgents';
 import { TEXTO_CIERRE, useCierre } from '@/hooks/useCierre';
 import { MARCA_VACIA } from '@/lib/marca';
 import { CATEGORY_LABELS, STATUS_LABELS, formatInt, formatMon, formatRating } from '@/data/agents';
@@ -181,7 +181,9 @@ export default function AgentDetail() {
    * fijo. Ver `sdk/src/pregunta.ts`.
    */
   const precioPregunta = isOnchainAgent(agent) ? agent.pregunta : null;
-  const weiPregunta = precioPregunta ? precioAWei(precioPregunta) : null;
+  // En la moneda de su registro, con sus decimales (USDC lleva 6).
+  const weiPregunta =
+    precioPregunta && isOnchainAgent(agent) ? precioAWei(precioPregunta, decimalesDe(agent.currency)) : null;
   const openPregunta = () => {
     if (weiPregunta === null) return;
     setNivel({
@@ -605,7 +607,7 @@ export default function AgentDetail() {
               transition={{ duration: 0.4, ease: 'easeOut' }}
               className="rounded-full bg-honey px-7 py-3.5 text-[0.9375rem] font-semibold text-ink transition-colors duration-200 hover:bg-paper disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-honey"
             >
-              {t(isOnchainAgent(agent) && currencySymbol(agent.currency) === '$PANAL' ? 'detail.cta.hireNowToken' : 'detail.cta.hireNow', { price: formatMon(agent.pricePerTask) })}
+              {t(priceKey('detail.cta.hireNow', agent), { price: formatMon(agent.pricePerTask), symbol: simboloDe(agent) })}
             </motion.button>
             <Link
               to="/mercado"

@@ -21,7 +21,11 @@
  * ─────────────────────────────────────────────────────────────────────────
  */
 
-/** Decimales de MON y de $PANAL, las dos monedas del registro. */
+/**
+ * Decimales por defecto: los de MON y $PANAL. Desde el registro V3 un agente
+ * puede registrarse en USDC (6), y el precio de sus niveles va en esa moneda:
+ * quien lee pasa los de la moneda del registro (`decimalesDeMoneda`).
+ */
 const DECIMALES = 18;
 
 /** Cuántos se leen de una ficha ajena. Ocho ya son demasiados para elegir. */
@@ -43,11 +47,13 @@ export interface NivelFicha {
   maxAttachCharsTotal: number | null;
 }
 
-function precioAWei(precio: string): bigint | null {
+function precioAWei(precio: string, decimales: number = DECIMALES): bigint | null {
   const s = precio.trim();
   if (!PRECIO.test(s)) return null;
   const [entera, decimal = ''] = s.split('.');
-  const wei = BigInt(entera + decimal.padEnd(DECIMALES, '0').slice(0, DECIMALES));
+  // Más cifras de las que tiene la moneda no es un precio que se pueda cobrar.
+  if (decimal.length > decimales) return null;
+  const wei = BigInt(entera + decimal.padEnd(decimales, '0'));
   return wei > 0n ? wei : null;
 }
 
@@ -73,7 +79,7 @@ function letrero(v: string | undefined, max: number): string | null {
  * del encargo» dentro de ella; si bastara con ver dos puntos, esa frase se
  * convertiría en un nivel fantasma y además desaparecería de la descripción.
  */
-export function leerNivelDeSegmento(segmento: string): NivelFicha | null {
+export function leerNivelDeSegmento(segmento: string, decimales: number = DECIMALES): NivelFicha | null {
   const i = segmento.indexOf(':');
   if (i <= 0) return null;
   if (segmento.slice(0, i).trim().toLowerCase() !== 'nivel') return null;
@@ -81,7 +87,7 @@ export function leerNivelDeSegmento(segmento: string): NivelFicha | null {
   const campos = segmento.slice(i + 1).split('|');
   if (campos.length < 2) return null;
 
-  const wei = precioAWei(campos[0] ?? '');
+  const wei = precioAWei(campos[0] ?? '', decimales);
   if (wei === null) return null;
   const name = letrero(campos[1], MAX_NOMBRE);
   if (!name) return null;
@@ -106,12 +112,15 @@ export function esTokenDeNivel(segmento: string): boolean {
  * `[]` significa que no publica ninguno: el agente cobra un precio y ya, el del
  * registro. Nadie debe fabricarle niveles a partir de él.
  */
-export function leerNivelesDeMetadata(metadataURI: string | null | undefined): NivelFicha[] {
+export function leerNivelesDeMetadata(
+  metadataURI: string | null | undefined,
+  decimales: number = DECIMALES,
+): NivelFicha[] {
   if (!metadataURI) return [];
   const out: NivelFicha[] = [];
   for (const segmento of metadataURI.split('·')) {
     if (out.length >= MAX_NIVELES) break;
-    const nivel = leerNivelDeSegmento(segmento.trim());
+    const nivel = leerNivelDeSegmento(segmento.trim(), decimales);
     // Uno mal escrito se cae de la lista en vez de tumbarla entera.
     if (nivel) out.push(nivel);
   }

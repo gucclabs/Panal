@@ -75,6 +75,14 @@ export const V2_5_ANTERIOR = {
   desdeBloque: 124_859_551,
 } as const;
 
+/**
+ * Los decimales de la moneda del registro de un agente: USDC 6; MON y $PANAL
+ * 18. Con ellos se leen los precios de sus niveles (ver niveles.ts).
+ */
+export function decimalesDeMoneda(currency: string | null | undefined, usdc: string = V2_5_MAINNET.usdc): number {
+  return currency && currency.toLowerCase() === usdc.toLowerCase() ? 6 : 18;
+}
+
 /** Lo que el bot necesita saber del v2.5. `null` en la config = no lo hay. */
 export interface ConfigV2_5 {
   escrow: Address;
