@@ -8,6 +8,7 @@ import {
   NATIVE_CURRENCY,
   V2_5_ENABLED,
   currencySymbol,
+  decimalesDe,
   activeChain,
   publicClient,
 } from '@/contracts/config';
@@ -220,7 +221,8 @@ export default function HojaEncargar({
    * El elegido. Sin tocar nada es el más barato, que debería costar lo mismo
    * que su precio registrado: quien no elija bloquea lo de siempre.
    */
-  const weiPregunta = pregunta && datos?.pregunta ? precioAWei(datos.pregunta) : null;
+  // La pregunta va en la moneda del registro, con sus decimales (USDC lleva 6).
+  const weiPregunta = pregunta && datos?.pregunta ? precioAWei(datos.pregunta, decimalesDe(datos.moneda)) : null;
   const elegido: Nivel | null =
     weiPregunta !== null
       ? { name: null, description: null, wei: weiPregunta, maxBriefChars: MAX_PREGUNTA_CHARS, maxAttachChars: null, maxAttachCharsTotal: null }

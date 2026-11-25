@@ -6,7 +6,7 @@ import type { Nivel } from '@panal/sdk';
 import type { Agent } from '@/data/agents';
 import { formatMon } from '@/data/agents';
 import Dolares from '@/components/Dolares';
-import { currencySymbol } from '@/contracts/config';
+import { currencySymbol, enUnidades } from '@/contracts/config';
 import { isOnchainAgent } from '@/hooks/usePanalAgents';
 import { TEXTO_CIERRE, cierreDe, type Cierre } from '@/hooks/useCierre';
 import { useNiveles } from '@/hooks/useNiveles';
@@ -103,7 +103,8 @@ export default function ServicesTab({ agent, onHire, cierre: cierreDado }: Servi
           clave: `${n.wei}-${i}`,
           nombre: n.name ?? t('detail.services.escrow.name'),
           descripcion: n.description ?? t('detail.services.escrow.desc'),
-          precio: formatMon(Number(formatEther(n.wei))),
+          // En la moneda del registro, con sus decimales (USDC lleva 6).
+          precio: formatMon(isOnchainAgent(agent) ? enUnidades(n.wei, agent.currency) : Number(formatEther(n.wei))),
           simbolo,
           wei: n.wei,
           ...(n.maxBriefChars

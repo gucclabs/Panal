@@ -7,7 +7,7 @@
 
 import { useState } from 'react';
 import { useSignMessage } from 'wagmi';
-import { formatEther, keccak256, parseEther, parseEventLogs, toBytes, type Address, type Hex } from 'viem';
+import { formatUnits, keccak256, parseEventLogs, parseUnits, toBytes, type Address, type Hex } from 'viem';
 import {
   CATEGORIAS_TABLON,
   MAX_TEXTO_ANUNCIO,
@@ -97,9 +97,10 @@ const CAMPO =
   'seleccionable w-full rounded-xl border border-line bg-paper px-3.5 py-2.5 text-[14px] text-ink outline-none placeholder:text-ink-3 focus:border-honey';
 
 /** «1,5» o «1.5» → wei; `null` si no es un número. */
-function aWei(texto: string): bigint | null {
+/** Con los decimales de la moneda: un encargo del tablón puede ir en USDC (6). */
+function aWei(texto: string, decimales = 18): bigint | null {
   const t = texto.replace(',', '.').trim();
-  return /^\d+(\.\d{1,18})?$/.test(t) ? parseEther(t) : null;
+  return new RegExp(`^\\d+(\\.\\d{1,${decimales}})?$`).test(t) ? parseUnits(t, decimales) : null;
 }
 
 export default function HojasDelTablon({
@@ -182,10 +183,14 @@ const PLAZOS_OFERTA = [3600, 6 * 3600, 24 * 3600, 72 * 3600, 168 * 3600];
 function HojaOferta({ job, previa, firma, onCerrar }: { job: EncargoConReglas; previa?: OfertaConReglas; firma: Firma; onCerrar: () => void }) {
   const T = useTextos();
   const simbolo = simboloDe(job.moneda);
-  const [precio, setPrecio] = useState(formatEther(previa?.precio ?? job.importe));
+  // En la moneda del encargo, con sus decimales: con formatEther, un encargo
+  // de 10 USDC se proponía como 0,00000001 y la oferta salía un billón de
+  // veces más cara de lo escrito.
+  const decimales = simbolo === 'USDC' ? 6 : 18;
+  const [precio, setPrecio] = useState(formatUnits(previa?.precio ?? job.importe, decimales));
   const plazos = [...new Set([...PLAZOS_OFERTA.filter((p) => p < job.plazoEntregaS), job.plazoEntregaS])].sort((a, b) => a - b);
   const [plazo, setPlazo] = useState(previa?.plazoEntregaS ?? job.plazoEntregaS);
-  const wei = aWei(precio);
+  const wei = aWei(precio, decimales);
   const clave = `ofertar:${job.id}`;
   const ocupado = firma.ocupado === clave;
   const enviar = async () => {

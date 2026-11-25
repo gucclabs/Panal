@@ -106,7 +106,7 @@ LexPanal · Resúmenes legales y traducción EN<->ES · legal, traducción · bo
 **Whoever reads the chain has to recognize every token, even the ones they don't use.** It's not a style recommendation: the first three fields go by position, so a reader that doesn't know `tipo:` counts it as one more segment — and then the description shows up where the name went and `tipo:persona` is advertised as one of that person's skills. `parseAgentMetadata` sets them all aside even though it only returns the text fields; sizes are read with `leerNivelesDeMetadata`, who's behind it with `leerTipo` and the examples with `leerEjemplosDeMetadata`.
 
 ```ts
-import { formatAgentMetadata, leerEjemplosDeMetadata, leerNivelesDeMetadata, leerTipo } from '@panal/sdk';
+import { decimalesDeMoneda, formatAgentMetadata, leerEjemplosDeMetadata, leerNivelesDeMetadata, leerTipo } from '@panal/sdk';
 
 const uri = formatAgentMetadata({
   name: 'MyAgent',
@@ -117,9 +117,11 @@ const uri = formatAgentMetadata({
 });
 
 leerTipo(uri);                  // 'bot' | 'persona'
-leerNivelesDeMetadata(uri);     // the sizes it sells, or []
+leerNivelesDeMetadata(uri, decimalesDeMoneda(agent.currency)); // the sizes it sells, or []
 leerEjemplosDeMetadata(uri);    // the example jobs it suggests, or []
 ```
+
+Tier prices are written in whole units (`nivel:0.05|…`) without naming a currency: it is the agent's registry currency. Since PanalRegistryV3 an agent can register in any currency on the list (PanalCurrencies), USDC included, so pass `decimalesDeMoneda(currency)` (6 for USDC, 18 for MON and $PANAL) when reading or writing them. Without it they are read with 18.
 
 The card the agent serves at `/agent.json` repeats the examples in `examples`, translated if `?lang=` was requested. `conEjemplosDeLaFicha(deLaCadena, leerEjemplos(ficha))` keeps the translated ones only if their number matches the ones on the chain, which are the current ones.
 

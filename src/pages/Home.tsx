@@ -23,7 +23,7 @@ import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import { leerTipo } from '@panal/sdk';
 import { activeChain, currencySymbol } from '@/contracts/config';
-import { marcaDe, priceKey } from '@/hooks/usePanalAgents';
+import { marcaDe, priceKey, simboloDe } from '@/hooks/usePanalAgents';
 import Reveal, { WordReveal } from '@/components/home/Reveal';
 import SwarmCanvas from '@/components/live/SwarmCanvas';
 import { useLiveStream } from '@/components/live/useLiveStream';
@@ -654,6 +654,7 @@ function PodiumCard({ agent, rank }: { agent: Agent; rank: number }) {
           {t(priceKey('home.rank.priceTasks', agent), {
             price: formatMon(agent.pricePerTask),
             tasks: formatInt(agent.tasksCompleted),
+            symbol: simboloDe(agent),
           })}
         </p>
         <button

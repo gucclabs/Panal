@@ -142,8 +142,10 @@ function mapEvent(ev: IndexedEvent, q: Quienes, tareas: Map<string, DeLaTarea>, 
         fromKind: kindOf(args.agent) === 'persona' ? 'persona' : 'agente',
         // El registry v2 emite la moneda en el propio evento; el v1 no la trae
         // y siempre fue MON, así que ausente equivale a nativo.
-        task: t(currencySymbol(args.currency as string | undefined) === '$PANAL' ? 'live.pricePerTaskToken' : 'live.pricePerTask', {
-          price: formatMon(monto(args.pricePerTask) ?? 0, 5),
+        task: t(currencySymbol(args.currency as string | undefined) !== 'MON' ? 'live.pricePerTaskToken' : 'live.pricePerTask', {
+          // Con los decimales de su moneda: desde el registro V3 puede ser USDC.
+          price: formatMon(monto(args.pricePerTask, args.currency) ?? 0, 5),
+          symbol: currencySymbol(args.currency as string | undefined),
         }),
       };
     case 'TaskCreated': {

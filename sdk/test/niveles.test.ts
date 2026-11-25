@@ -26,6 +26,7 @@ import {
   weiAPrecio,
 } from '../src/niveles.js';
 import { nivelPara } from '../src/agent-card.js';
+import { V2_5_MAINNET, decimalesDeMoneda } from '../src/v2_5.js';
 
 /** `JSON.stringify` no sabe serializar un bigint, y el precio lo es. */
 const vista = (v: unknown): string => JSON.stringify(v, (_k, x) => (typeof x === 'bigint' ? `${x}n` : x));
@@ -182,6 +183,20 @@ for (const v of vueltas) {
       (leido.maxBriefChars ?? null) === (v.maxBriefChars ?? null),
     vista(leido),
   );
+}
+
+console.log('\nun agente registrado en USDC (6 decimales, registro V3)');
+{
+  check('0.03 USDC son 30000 unidades', precioAWei('0.03', 6) === 30_000n);
+  check('y vuelven a ser 0.03', weiAPrecio(30_000n, 6) === '0.03');
+  check('una cifra de más que USDC no tiene no es un precio', precioAWei('0.0000001', 6) === null);
+  check('sin decir nada, 18 como siempre', precioAWei('0.03') === 30_000_000_000_000_000n);
+  const ficha = 'Lint · Revisa código · nivel:0.01|Una lectura · nivel:0.04|Entero|Todo';
+  const enUsdc = leerNivelesDeMetadata(ficha, 6);
+  check('los niveles se leen con los decimales de su moneda', enUsdc.map((n) => n.wei).join(',') === '10000,40000', enUsdc.map((n) => n.wei).join(','));
+  check('con los de MON serían otra cosa', leerNivelesDeMetadata(ficha)[0]!.wei === 10_000_000_000_000_000n);
+  check('componer exige que el precio quepa en la moneda', componerNivel({ name: 'X', precio: '0.0000001' }, 6) === null && componerNivel({ name: 'X', precio: '0.01' }, 6) === 'nivel:0.01|X');
+  check('decimalesDeMoneda: USDC 6, MON y $PANAL 18', decimalesDeMoneda(V2_5_MAINNET.usdc) === 6 && decimalesDeMoneda(V2_5_MAINNET.usdc.toLowerCase()) === 6 && decimalesDeMoneda('0x0000000000000000000000000000000000000000') === 18 && decimalesDeMoneda(undefined) === 18);
 }
 
 console.log(fallos === 0 ? '\nTodo bien.' : `\n${fallos} mal.`);

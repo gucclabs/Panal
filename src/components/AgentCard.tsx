@@ -149,7 +149,7 @@ export default function AgentCard({ agent, className }: AgentCardProps) {
 
           {/* Métricas mono */}
           <p className="font-mono text-[12px] text-ink-2">
-            {t(priceSymbol === '$PANAL' ? 'agentCard.metricsToken' : 'agentCard.metrics', { price: formatMon(agent.pricePerTask), tasks: formatInt(agent.tasksCompleted), response: agent.avgResponse })}
+            {t(priceSymbol !== 'MON' ? 'agentCard.metricsToken' : 'agentCard.metrics', { price: formatMon(agent.pricePerTask), tasks: formatInt(agent.tasksCompleted), response: agent.avgResponse, symbol: priceSymbol })}
           </p>
           <OtrasMonedas agent={agent} className="-mt-1" />
 

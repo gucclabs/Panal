@@ -10,7 +10,7 @@ import { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Bot, ExternalLink, Loader2, PlugZap, Plus, TriangleAlert } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { formatEther, parseEther } from 'viem';
+import { formatEther, formatUnits, parseEther, parseUnits } from 'viem';
 import HexAvatar from '@/components/HexAvatar';
 import EditProfileDialog from '@/components/dashboard/EditProfileDialog';
 import VerificarCuentaDialog from '@/components/dashboard/VerificarCuentaDialog';
@@ -35,12 +35,19 @@ import {
   EXPLORER_TX,
   NATIVE_CURRENCY,
   PANAL_REGISTRY_ADDRESS,
-  PANAL_TOKEN_ADDRESS,
   PANAL_REGISTRY_V3_ADDRESS,
+  MINIMO_POR_MONEDA,
+  MONEDAS_DEL_REGISTRO,
   V2_5_ENABLED,
   V2_ENABLED,
   currencySymbol,
+  decimalesDe,
+  direccionDeMoneda,
+  enUnidades,
+  falloDePrecio,
+  type SimboloMoneda,
 } from '@/contracts/config';
+import { leerNivelesDeMetadata } from '@panal/sdk';
 import { panalRegistryAbi, panalRegistryV2Abi } from '@/contracts/abis';
 import { formatMonEs, formatRatingEs } from './data';
 
@@ -63,10 +70,14 @@ export default function OwnAgentCard({ onRegister }: { onRegister: (tipo: 'perso
   const [preciosOpen, setPreciosOpen] = useState(false);
   const [priceInput, setPriceInput] = useState('');
   /** Moneda elegida en el diálogo de edición (v2: updatePrice la lleva). */
-  const [editCurrency, setEditCurrency] = useState<'MON' | '$PANAL'>('MON');
+  const [editCurrency, setEditCurrency] = useState<SimboloMoneda>('MON');
+  const editDecimales = decimalesDe(direccionDeMoneda(editCurrency));
 
   const priceStr = priceInput.replace(',', '.').trim();
-  const priceValid = /^\d+(\.\d{1,18})?$/.test(priceStr) && Number(priceStr) > 0;
+  // Con los decimales y el mínimo de la moneda elegida: el registro V3
+  // rechaza un precio por debajo del `minAmount` de la lista.
+  const falloPrecio = falloDePrecio(priceStr, V2_ENABLED ? editCurrency : 'MON');
+  const priceValid = falloPrecio === null;
 
   const agent = profile.agent;
   /**
@@ -149,7 +160,7 @@ export default function OwnAgentCard({ onRegister }: { onRegister: (tipo: 'perso
             address: PANAL_REGISTRY_V3_ADDRESS,
             abi: panalRegistryV2Abi,
             functionName: 'updatePrice',
-            args: [parseEther(priceStr), editCurrency === '$PANAL' ? PANAL_TOKEN_ADDRESS : NATIVE_CURRENCY],
+            args: [parseUnits(priceStr, editDecimales), direccionDeMoneda(editCurrency)],
           }
         : {
             address: PANAL_REGISTRY_ADDRESS,
@@ -183,7 +194,7 @@ export default function OwnAgentCard({ onRegister }: { onRegister: (tipo: 'perso
             {agent && (
               <span className="rounded-full bg-honey-soft px-2.5 py-0.5 font-mono text-[0.75rem] text-honey-deep">
                 {agent.currency && agent.currency !== NATIVE_CURRENCY
-                  ? `${formatMonEs(Number(formatEther(agent.pricePerTask)))} ${currencySymbol(agent.currency)}/task`
+                  ? `${formatMonEs(enUnidades(agent.pricePerTask, agent.currency))} ${currencySymbol(agent.currency)}/task`
                   : t('common.monPerTask', { price: formatMonEs(Number(formatEther(agent.pricePerTask))) })}
               </span>
             )}
@@ -265,8 +276,8 @@ export default function OwnAgentCard({ onRegister }: { onRegister: (tipo: 'perso
         <button
           type="button"
           onClick={() => {
-            setPriceInput(agent ? formatEther(agent.pricePerTask) : '');
-            setEditCurrency(agent?.currency === PANAL_TOKEN_ADDRESS ? '$PANAL' : 'MON');
+            setPriceInput(agent ? formatUnits(agent.pricePerTask, decimalesDe(agent.currency)) : '');
+            setEditCurrency(currencySymbol(agent?.currency));
             setDialogOpen(true);
           }}
           disabled={!agent}
@@ -345,8 +356,9 @@ export default function OwnAgentCard({ onRegister }: { onRegister: (tipo: 'perso
           open={profileDialogOpen}
           onOpenChange={setProfileDialogOpen}
           metadataURI={agent.metadataURI}
-          precioBase={formatEther(agent.pricePerTask)}
+          precioBase={formatUnits(agent.pricePerTask, decimalesDe(agent.currency))}
           simbolo={currencySymbol(agent.currency ?? NATIVE_CURRENCY)}
+          decimales={decimalesDe(agent.currency)}
           agentName={name}
           agentAddress={address ?? ''}
           onMined={() => profile.refetch()}
@@ -413,20 +425,24 @@ export default function OwnAgentCard({ onRegister }: { onRegister: (tipo: 'perso
               {V2_ENABLED && (
                 <div className="flex flex-col gap-1.5">
                   <span className="text-[0.8125rem] font-medium text-ink-2">{t('register.currencyLabel')}</span>
-                  <div className="grid grid-cols-2 gap-2">
-                    {(['MON', '$PANAL'] as const).map((cur) => (
+                  <div className="grid grid-cols-3 gap-2">
+                    {MONEDAS_DEL_REGISTRO.map((cur) => (
                       <button
                         key={cur}
                         type="button"
                         onClick={() => setEditCurrency(cur)}
                         className={cn(
-                          'rounded-full border px-3 py-2 text-[0.8125rem] font-medium transition-colors',
+                          'rounded-full border px-2 py-2 text-[0.75rem] font-medium transition-colors',
                           editCurrency === cur
                             ? 'border-honey bg-honey-soft text-honey-deep'
                             : 'border-line bg-transparent text-ink-2 hover:border-honey/50 hover:text-ink',
                         )}
                       >
-                        {cur === 'MON' ? t('register.currencyNative') : t('register.currencyToken')}
+                        {cur === 'MON'
+                          ? t('register.currencyNative')
+                          : cur === 'USDC'
+                            ? t('register.currencyUsdc')
+                            : t('register.currencyToken')}
                       </button>
                     ))}
                   </div>
@@ -444,18 +460,37 @@ export default function OwnAgentCard({ onRegister }: { onRegister: (tipo: 'perso
                   // En $PANAL no hay gas que comparar —se paga en MON y el token no
                   // tiene precio en la app—, así que se sugiere el escalón de entrada
                   // que ya cobra el mercado (Spec, 100).
-                  placeholder={editCurrency === '$PANAL' ? '100' : '0.05'}
+                  placeholder={editCurrency === '$PANAL' ? '100' : editCurrency === 'USDC' ? '0.50' : '0.05'}
                   aria-label={t('ownAgent.priceAria')}
                   className="w-full rounded-xl border border-line bg-paper px-4 py-2.5 font-mono text-[0.875rem] text-ink placeholder:text-ink-3 focus:border-honey focus:outline-none"
                 />
-                <span className="shrink-0 font-mono text-[0.8125rem] text-ink-2">{editCurrency === '$PANAL' ? t('common.tokenTask') : t('common.monTask')}</span>
+                <span className="shrink-0 font-mono text-[0.8125rem] text-ink-2">
+                  {editCurrency !== 'MON' ? t('common.tokenTask', { symbol: editCurrency }) : t('common.monTask')}
+                </span>
               </div>
               {priceStr.length > 0 && !priceValid && (
                 <p className="flex items-center gap-1.5 text-[0.75rem] text-terra">
                   <TriangleAlert size={12} aria-hidden />
-                  {t('wallet.invalidAmount')}
+                  {falloPrecio === 'minimo'
+                    ? t('register.fields.priceMinimo', {
+                        symbol: editCurrency,
+                        min: formatUnits(MINIMO_POR_MONEDA[editCurrency], editDecimales),
+                      })
+                    : t('wallet.invalidAmount')}
                 </p>
               )}
+              {/* Los niveles se escriben sin moneda: son de la del registro. Al
+                  cambiarla, «0.05» pasa a ser 0,05 de la nueva, y eso hay que
+                  decirlo antes de firmar, no descubrirlo en el mercado. */}
+              {V2_ENABLED &&
+                agent &&
+                editCurrency !== currencySymbol(agent.currency) &&
+                leerNivelesDeMetadata(agent.metadataURI, decimalesDe(agent.currency)).length > 0 && (
+                  <p className="flex items-start gap-1.5 text-[0.75rem] leading-relaxed text-ink-2">
+                    <TriangleAlert size={12} aria-hidden className="mt-0.5 shrink-0 text-honey-deep" />
+                    {t('ownAgent.currencyChangeLevels', { symbol: editCurrency })}
+                  </p>
+                )}
               <button
                 type="button"
                 onClick={savePrice}

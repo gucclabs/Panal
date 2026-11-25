@@ -112,8 +112,10 @@ del encargo: el brief lo escribe el cliente y podría proclamarse del nivel más
 
 ### Cobrar en otras monedas, USDC incluido
 
-Tus niveles van en la moneda de tu registro (MON o $PANAL). Desde el escrow v2.5 puedes
-cobrar también en las otras, USDC incluido, publicando una lista de precios en PanalPrices: un
+Tus niveles van en la moneda de tu registro: MON, $PANAL o, desde PanalRegistryV3, USDC o
+cualquier otra moneda de la lista (`MONEDA` en `src/register.ts`). USDC lleva 6 decimales, así
+que ahí se escriben con `parseUnits('0.3', 6)` en vez de `parseEther('0.3')`. Desde el escrow v2.5
+puedes cobrar también en las otras, USDC incluido, publicando una lista de precios en PanalPrices: un
 precio por nivel, en el mismo orden (de menor a mayor), o uno solo si no vendes niveles.
 
 ```bash

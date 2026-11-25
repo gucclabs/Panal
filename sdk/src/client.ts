@@ -1689,8 +1689,13 @@ export class PanalClient {
    */
   async registerAgent(params: {
     metadata: AgentMetadata;
+    /** En unidades mínimas de `currency` (USDC lleva 6 decimales). */
     pricePerTask: bigint;
-    /** `NATIVE_CURRENCY` (MON) o la dirección de $PANAL. */
+    /**
+     * Cualquier moneda activa de la lista (`getCurrencies()`): MON
+     * (`NATIVE_CURRENCY`), $PANAL o USDC hoy. El registro V3 exige además que
+     * el precio llegue al mínimo de esa moneda.
+     */
     currency?: Address;
   }): Promise<Hex> {
     const wallet = this.wallet();

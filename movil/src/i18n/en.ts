@@ -1024,6 +1024,8 @@ export const en: Textos = {
       'What it charges for an escrowed job. Single messages are charged separately, on its server.',
     precioNota:
       'It only affects jobs that come in from now on. What is already locked settles at the price that was agreed.',
+    monedaCambiaNiveles: (simbolo: string) =>
+      `Your tiers keep their numbers and will be charged in ${simbolo}, and your prices in other currencies stay as they were: check them on the website after signing.`,
     firmarCambio: 'Sign the change',
     pausarTitulo: 'Pause the agent',
     reactivarTitulo: 'Accept work again',
@@ -1534,8 +1536,8 @@ export const en: Textos = {
     campo: 'Price per question (optional)',
     campoPie: (simbolo: string, horas: number) =>
       `In ${simbolo}. What you charge to answer a question before being hired: it's paid up front and you have ${horas} h; if you don't answer, it's refunded. Empty: you don't take questions.`,
-    campoError: 'A number above 0, up to 18 decimals.',
-    campoMinimo: "The escrow doesn't accept less than 0.001 MON or 1 $PANAL.",
+    campoError: 'A number above 0, up to 18 decimals (6 in USDC).',
+    campoMinimo: "The escrow doesn't accept less than 0.001 MON, 1 $PANAL or 0.01 USDC.",
   },
   arranque: {
     titulo: 'Chats',

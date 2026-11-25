@@ -45,13 +45,15 @@
 import type { Nivel } from './agent-card.js';
 
 /**
- * Decimales de las dos monedas del registro: MON nativo y $PANAL.
+ * Decimales por defecto: los de MON y $PANAL.
  *
- * Está fijo a propósito. `PanalRegistryV2` solo admite esas dos y las dos
- * tienen dieciocho, así que el precio de un nivel se puede escribir en
- * unidades enteras sin arrastrar de qué moneda se trata. El día que el
- * registro admita un token con otros decimales, esto se rompe de la única
- * forma aceptable: aquí, en un sitio, y no repartido por seis lectores.
+ * El precio de un nivel se escribe en unidades enteras («0.03») sin decir de
+ * qué moneda es: es la del registro del agente. Hasta Panal V3 el registro
+ * solo admitía MON y $PANAL, las dos con dieciocho, y bastaba con fijarlos
+ * aquí. Desde el registro V3 (25-nov-2026) un agente puede registrarse en
+ * cualquier moneda de la lista —USDC lleva seis—, así que cada lector pasa
+ * los decimales de la moneda del registro del agente (`decimalesDeMoneda`).
+ * Sin pasarlos, 18: lo de siempre para MON y $PANAL.
  */
 const DECIMALES = 18;
 
@@ -83,11 +85,14 @@ const PRECIO = /^\d{1,12}(\.\d{1,18})?$/;
  * cuenta es rellenar de ceros a la derecha, que es exactamente lo que hace
  * `parseUnits` sin coma flotante por medio.
  */
-export function precioAWei(precio: string): bigint | null {
+export function precioAWei(precio: string, decimales: number = DECIMALES): bigint | null {
   const s = precio.trim();
   if (!PRECIO.test(s)) return null;
   const [entera, decimal = ''] = s.split('.');
-  const wei = BigInt(entera + decimal.padEnd(DECIMALES, '0').slice(0, DECIMALES));
+  // Más cifras de las que tiene la moneda no es un precio que se pueda
+  // cobrar: «0.0000001» USDC no existe. Recortarlo cobraría otra cosa.
+  if (decimal.length > decimales) return null;
+  const wei = BigInt(entera + decimal.padEnd(decimales, '0'));
   return wei > 0n ? wei : null;
 }
 
@@ -97,10 +102,11 @@ export function precioAWei(precio: string): bigint | null {
  * Sin ceros de relleno al final: `'0.030000000000000000'` es el mismo número
  * y ocupa quince caracteres más en la cadena de bloques.
  */
-export function weiAPrecio(wei: bigint): string {
-  const s = wei.toString().padStart(DECIMALES + 1, '0');
-  const entera = s.slice(0, -DECIMALES);
-  let decimal = s.slice(-DECIMALES);
+export function weiAPrecio(wei: bigint, decimales: number = DECIMALES): string {
+  if (decimales === 0) return wei.toString();
+  const s = wei.toString().padStart(decimales + 1, '0');
+  const entera = s.slice(0, -decimales);
+  let decimal = s.slice(-decimales);
   while (decimal.endsWith('0')) decimal = decimal.slice(0, -1);
   return decimal ? `${entera}.${decimal}` : entera;
 }
@@ -127,7 +133,7 @@ function letrero(v: string | undefined, max: number): string | null {
  * Devolver `null` es lo normal: por aquí pasan TODOS los segmentos de la
  * ficha, incluida la descripción libre del agente.
  */
-export function leerNivelDeSegmento(segmento: string): Nivel | null {
+export function leerNivelDeSegmento(segmento: string, decimales: number = DECIMALES): Nivel | null {
   const i = segmento.indexOf(':');
   if (i <= 0) return null;
   if (segmento.slice(0, i).trim().toLowerCase() !== 'nivel') return null;
@@ -137,7 +143,7 @@ export function leerNivelDeSegmento(segmento: string): Nivel | null {
   // con un precio al lado no es una oferta, es un acertijo.
   if (campos.length < 2) return null;
 
-  const wei = precioAWei(campos[0] ?? '');
+  const wei = precioAWei(campos[0] ?? '', decimales);
   if (wei === null) return null;
   const name = letrero(campos[1], MAX_NOMBRE);
   if (!name) return null;
@@ -152,7 +158,10 @@ export function leerNivelDeSegmento(segmento: string): Nivel | null {
   };
 }
 
-/** true si este segmento es un nivel. Para que los lectores de ficha lo aparten. */
+/**
+ * true si este segmento es un nivel. Para que los lectores de ficha lo aparten.
+ * Con 18 decimales, los más permisivos: un nivel en USDC también lo es.
+ */
 export function esTokenDeNivel(segmento: string): boolean {
   return leerNivelDeSegmento(segmento) !== null;
 }
@@ -164,12 +173,15 @@ export function esTokenDeNivel(segmento: string): boolean {
  * trataba antes de que esto existiera: el agente tiene UN precio, el del
  * registro. Nadie debe fabricarle niveles a partir de él.
  */
-export function leerNivelesDeMetadata(metadataURI: string | null | undefined): Nivel[] {
+export function leerNivelesDeMetadata(
+  metadataURI: string | null | undefined,
+  decimales: number = DECIMALES,
+): Nivel[] {
   if (!metadataURI) return [];
   const out: Nivel[] = [];
   for (const segmento of metadataURI.split('·')) {
     if (out.length >= MAX_NIVELES) break;
-    const nivel = leerNivelDeSegmento(segmento.trim());
+    const nivel = leerNivelDeSegmento(segmento.trim(), decimales);
     // Un nivel mal escrito se cae de la lista en vez de tumbarla entera: un
     // campo roto no puede dejar sin comprar los niveles buenos de al lado.
     if (nivel) out.push(nivel);
@@ -187,15 +199,18 @@ export function leerNivelesDeMetadata(metadataURI: string | null | undefined): N
  * sería un nivel que dice algo distinto de lo que su dueño escribió. Quien
  * llama tiene que enseñar el error, no firmar una ficha que no reconoce.
  */
-export function componerNivel(nivel: {
-  name: string;
-  description?: string | null;
-  precio: string;
-  maxBriefChars?: number | null;
-  maxAttachChars?: number | null;
-  maxAttachCharsTotal?: number | null;
-}): string | null {
-  if (precioAWei(nivel.precio) === null) return null;
+export function componerNivel(
+  nivel: {
+    name: string;
+    description?: string | null;
+    precio: string;
+    maxBriefChars?: number | null;
+    maxAttachChars?: number | null;
+    maxAttachCharsTotal?: number | null;
+  },
+  decimales: number = DECIMALES,
+): string | null {
+  if (precioAWei(nivel.precio, decimales) === null) return null;
 
   const name = nivel.name.replace(/\s+/g, ' ').trim();
   const description = (nivel.description ?? '').replace(/\s+/g, ' ').trim();

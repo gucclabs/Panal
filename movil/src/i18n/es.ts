@@ -1034,6 +1034,8 @@ export const es = {
       'Lo que cobra por un trabajo con depósito. Los mensajes sueltos se cobran aparte, en su servidor.',
     precioNota:
       'Solo afecta a los encargos que entren a partir de ahora. Lo que ya está bloqueado se liquida al precio que se pactó.',
+    monedaCambiaNiveles: (simbolo: string) =>
+      `Tus niveles conservan sus números y pasarán a cobrarse en ${simbolo}, y tus precios en otras monedas siguen como estaban: revísalos desde la web después de firmar.`,
     firmarCambio: 'Firmar el cambio',
     pausarTitulo: 'Pausar el agente',
     reactivarTitulo: 'Volver a aceptar trabajo',
@@ -1545,8 +1547,8 @@ export const es = {
     campo: 'Precio por pregunta (opcional)',
     campoPie: (simbolo: string, horas: number) =>
       `En ${simbolo}. Lo que cobras por contestar una pregunta antes de que te contraten: te la pagan por adelantado y tienes ${horas} h; si no contestas, se le devuelve. Vacío: no aceptas preguntas.`,
-    campoError: 'Un número mayor que 0, hasta 18 decimales.',
-    campoMinimo: 'El escrow no acepta menos de 0,001 MON o de 1 $PANAL.',
+    campoError: 'Un número mayor que 0, hasta 18 decimales (6 en USDC).',
+    campoMinimo: 'El escrow no acepta menos de 0,001 MON, de 1 $PANAL o de 0,01 USDC.',
   },
   arranque: {
     titulo: 'Chats',

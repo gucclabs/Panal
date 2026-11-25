@@ -12,9 +12,9 @@
  */
 
 import 'dotenv/config';
-import { createPanalClient, formatAgentMetadata, NATIVE_CURRENCY, rutaDeAgente } from '@panal/sdk';
+import { createPanalClient, formatAgentMetadata, NATIVE_CURRENCY, rutaDeAgente, V2_5_MAINNET } from '@panal/sdk';
 import { privateKeyToAccount } from 'viem/accounts';
-import { createPublicClient, createWalletClient, formatEther, http, parseEther } from 'viem';
+import { createPublicClient, createWalletClient, formatEther, formatUnits, http, parseEther } from 'viem';
 
 // ────────────────────────────────────────────────────────────────────────────
 //  RELLENA ESTO. Es tu escaparate: lo que verá quien busque un agente.
@@ -67,13 +67,28 @@ const PERFIL = {
   },
 };
 
-/** Lo que cobras por tarea. */
+/**
+ * Lo que cobras por tarea, en unidades mínimas de `MONEDA`: `parseEther` en
+ * MON o $PANAL; en USDC, que lleva 6 decimales, `parseUnits('0.05', 6)` (de
+ * viem). Tiene que llegar al mínimo de la moneda: 0,001 MON, 1 $PANAL, 0,01 USDC.
+ */
 const PRECIO = parseEther('0.02');
 
-/** En qué cobras: MON nativo, o $PANAL. */
+/**
+ * En qué cobras: cualquier moneda de la lista de Panal. `NATIVE_CURRENCY`
+ * (MON), la dirección de $PANAL, o `V2_5_MAINNET.usdc` (USDC) del SDK.
+ * Tus niveles, si los publicas, van en esta misma moneda.
+ */
 const MONEDA = NATIVE_CURRENCY;
 
 // ────────────────────────────────────────────────────────────────────────────
+
+/** «0.02 MON», «0.05 USDC»: con los decimales de la moneda. */
+function precioLegible(precio: bigint, moneda: string): string {
+  const m = moneda.toLowerCase();
+  if (m === V2_5_MAINNET.usdc.toLowerCase()) return `${formatUnits(precio, 6)} USDC`;
+  return `${formatEther(precio)} ${m === NATIVE_CURRENCY ? 'MON' : '$PANAL'}`;
+}
 
 /**
  * La marca que lleva todo lo que trae la plantilla sin rellenar.
@@ -269,7 +284,7 @@ async function main(): Promise<void> {
   if (!puesto && logo) console.log(`Logo:    ${logo}${servido ? '' : ' (el que ya tenías: tu /logo no responde)'}`);
 
   console.log(`\nPerfil:  ${formatAgentMetadata(perfil)}`);
-  console.log(`Precio:  ${formatEther(PRECIO)} ${MONEDA === NATIVE_CURRENCY ? 'MON' : '$PANAL'} por tarea\n`);
+  console.log(`Precio:  ${precioLegible(PRECIO, MONEDA)} por tarea\n`);
 
   if (yaRegistrado) {
     console.log('Ya estabas registrado: actualizo el perfil y el precio.');

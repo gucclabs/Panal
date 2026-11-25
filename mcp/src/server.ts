@@ -41,10 +41,11 @@ import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
 import { fileURLToPath } from 'node:url';
-import { formatEther, formatUnits, isAddress, keccak256, parseEther, toBytes } from 'viem';
+import { formatUnits, isAddress, keccak256, parseEther, toBytes } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import type { Address } from 'viem';
 import {
+  decimalesDeMoneda,
   BUZON_URL,
   NATIVE_CURRENCY,
   TaskStatus,
@@ -268,6 +269,14 @@ export async function refrescarPrecios(): Promise<void> {
  * « (≈ $0.60)» si hay un precio de menos de cinco minutos para esa moneda;
  * nada si no. Las estables ya son dólares y no llevan nada.
  */
+/**
+ * El precio del registro, con los decimales de SU moneda: desde el registro
+ * V3 puede ser USDC, y con `formatEther` 0,01 USDC salía como 0,00000000000001.
+ */
+export function precioDelRegistro(agent: Pick<Agent, 'pricePerTask' | 'currency'>): string {
+  return formatUnits(agent.pricePerTask, decimalesDeMoneda(agent.currency));
+}
+
 export function usd(amount: bigint, currency: Address): string {
   const sym = symbolOf(currency);
   if (sym !== 'MON' && sym !== '$PANAL') return '';
@@ -430,7 +439,7 @@ const COMO_PAGAR_EN_OTRA =
     : 'to pay in it, pass it as `currency` to panal_quote_hire';
 
 function renderAgent(agent: Agent, niveles: Nivel[] = [], detallado = false, otras: OtraMoneda[] = []): string {
-  const price = `${formatEther(agent.pricePerTask)} ${symbolOf(agent.currency)}${usd(agent.pricePerTask, agent.currency)}`;
+  const price = `${precioDelRegistro(agent)} ${symbolOf(agent.currency)}${usd(agent.pricePerTask, agent.currency)}`;
   const skills = agent.metadata.skills.length ? agent.metadata.skills.join(', ') : '(no skills declared)';
   return [
     `${agent.metadata.name || '(no name)'} — ${agent.address}`,
@@ -750,11 +759,11 @@ export async function resolverEncargo(
   }
 
   // ---- Qué tamaño se compra ---------------------------------------------
-  const niveles = nivelesDeAgente(agent.metadataURI, limites.niveles);
+  const niveles = nivelesDeAgente(agent.metadataURI, limites.niveles, agent.currency);
   let elegido: Nivel | null = null;
   if (niveles.length > 0) {
     if (tierPedido) {
-      elegido = buscarNivel(niveles, tierPedido);
+      elegido = buscarNivel(niveles, tierPedido, symbol);
       if (!elegido) {
         return {
           error: [
@@ -777,7 +786,7 @@ export async function resolverEncargo(
     // contratar una cosa distinta de la que se pidió.
     return {
       error:
-        `${nombre} does not sell sizes: it has one price for any job, ${formatEther(agent.pricePerTask)} ` +
+        `${nombre} does not sell sizes: it has one price for any job, ${precioDelRegistro(agent)} ` +
         `${symbol}. Nothing was quoted. Ask again without \`tier\` if that is what you want.`,
     };
   }
@@ -838,7 +847,7 @@ export const READ_TOOLS: Tool[] = [
       // monedas, de todos a la vez en una sola llamada.
       const otras = await otrasMonedasDe(panal, found);
       return `${found.length} agent(s):\n\n${found
-        .map((a) => renderAgent(a, nivelesDeAgente(a.metadataURI, []), false, otras.get(a.address.toLowerCase()) ?? []))
+        .map((a) => renderAgent(a, nivelesDeAgente(a.metadataURI, [], a.currency), false, otras.get(a.address.toLowerCase()) ?? []))
         .join('\n\n')}`;
     },
   },
@@ -875,7 +884,7 @@ export const READ_TOOLS: Tool[] = [
       const porLlamada = q
         ? `  Per question: ${fmt(BigInt(q.amount), q.asset)} ${symbolOf(q.asset)} (x402, answered on the spot)`
         : '  Per question: not offered (this agent only takes jobs through escrow)';
-      const niveles = nivelesDeAgente(agent.metadataURI, ficha?.niveles ?? []);
+      const niveles = nivelesDeAgente(agent.metadataURI, ficha?.niveles ?? [], agent.currency);
       // Los encargos de ejemplo que propone su dueño: ayudan a redactar el
       // encargo con lo que este agente hace de verdad. Son una idea, no un
       // encargo listo — al que pide le falta añadir su material.
@@ -951,7 +960,7 @@ export const READ_TOOLS: Tool[] = [
         const msg = err instanceof Error ? err.message : String(err);
         return (
           `${name} does not answer per-question requests (${msg}).\n` +
-          `It can still be hired for a job: ${formatEther(agent.pricePerTask)} ${symbolOf(agent.currency)} ` +
+          `It can still be hired for a job: ${precioDelRegistro(agent)} ${symbolOf(agent.currency)} ` +
           `per task, via panal_quote_hire.`
         );
       }
@@ -984,7 +993,7 @@ export const READ_TOOLS: Tool[] = [
         `  Paid to: ${quote.payTo}`,
         quote.description ? `  Covers: ${quote.description}` : null,
         '',
-        `For comparison, hiring it for a job costs ${formatEther(agent.pricePerTask)} ${symbolOf(agent.currency)} ` +
+        `For comparison, hiring it for a job costs ${precioDelRegistro(agent)} ${symbolOf(agent.currency)} ` +
           'per task (escrow, with deadline and dispute window).',
         '',
         `quote_id: ${saved.id}  (valid for 5 minutes)`,
@@ -1018,7 +1027,7 @@ export const READ_TOOLS: Tool[] = [
         '',
         active.length
           ? `Active now:\n${active
-              .map((a) => renderAgent(a, nivelesDeAgente(a.metadataURI, [])))
+              .map((a) => renderAgent(a, nivelesDeAgente(a.metadataURI, [], a.currency)))
               .join('\n\n')}`
           : 'No active agents.',
       ].join('\n');

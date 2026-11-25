@@ -26,7 +26,7 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { conTextoDeLaFicha, leerNivelesDeMetadata, type Nivel } from '@panal/sdk';
-import { PANAL_REGISTRY_V3_ADDRESS, publicClient } from '@/contracts/config';
+import { PANAL_REGISTRY_V3_ADDRESS, decimalesDe, publicClient } from '@/contracts/config';
 import { panalRegistryV2Abi } from '@/contracts/abis';
 import { extractBotUrl, leerCapacidades } from '@/lib/botEndpoint';
 import { leerCobroPorLlamada, type CobroPorLlamada } from '@/lib/chat';
@@ -86,8 +86,9 @@ export function useNiveles(agent: Agent | null): ServiciosDelAgente {
           abi: panalRegistryV2Abi,
           functionName: 'getAgent',
           args: [de as `0x${string}`],
-        })) as { metadataURI?: string };
-        const enCadena = leerNivelesDeMetadata(meta.metadataURI);
+        })) as { metadataURI?: string; currency?: string };
+        // En la moneda del registro: desde el V3 puede ser USDC, con 6 decimales.
+        const enCadena = leerNivelesDeMetadata(meta.metadataURI, decimalesDe(meta.currency));
         const botUrl = extractBotUrl(meta.metadataURI);
         if (!botUrl) {
           // Sin endpoint no hay tarjeta, pero los de la cadena están: no hacen

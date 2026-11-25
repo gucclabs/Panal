@@ -82,6 +82,7 @@ import {
   V2_ENABLED,
   activeChain,
   currencySymbol,
+  decimalesDe,
   publicClient,
 } from '@/contracts/config';
 import { panalEscrowAbi, panalEscrowV2Abi, panalRegistryAbi, panalRegistryV2Abi, panalTokenAbi } from '@/contracts/abis';
@@ -367,7 +368,7 @@ function HireWizard({
           abi: panalRegistryV2Abi,
           functionName: 'getAgent',
           args: [agent.workerAddress],
-        })) as { metadataURI?: string };
+        })) as { metadataURI?: string; currency?: string };
         const botUrl = extractBotUrl(meta.metadataURI);
         if (vigente) {
           botUrlRef.current = botUrl;
@@ -400,7 +401,8 @@ function HireWizard({
          * Los de la tarjeta siguen valiendo para quien aún no los ha subido a
          * la cadena, que hoy son todos.
          */
-        const enCadena = leerNivelesDeMetadata(meta.metadataURI);
+        // En la moneda del registro: desde el V3 puede ser USDC, con 6 decimales.
+        const enCadena = leerNivelesDeMetadata(meta.metadataURI, decimalesDe(meta.currency));
         if (vigente) setNivelesEnCadena(enCadena.length);
         // Sus precios en otras monedas (v2.5). Sin ellos se paga en la del
         // registro, como siempre: no es motivo para no dejar contratar.
@@ -911,8 +913,9 @@ function HireWizard({
             <div className="flex-1">
               <p className="text-[0.875rem] font-semibold text-ink">{agent.name}</p>
               <p className="font-mono text-[12px] text-ink-3">
-                {t(symbol === '$PANAL' ? 'common.tokenPerTask' : 'common.monPerTask', {
+                {t(symbol !== 'MON' ? 'common.tokenPerTask' : 'common.monPerTask', {
                   price: formatMon(agent.pricePerTask),
+                  symbol,
                 })}
               </p>
             </div>
@@ -1085,7 +1088,7 @@ function HireWizard({
                         {symbol === 'USDC'
                           ? t('hire.porTarea', { price: formatMon(price), symbol })
                           : symbol === '$PANAL'
-                            ? t('common.tokenPerTask', { price: formatMon(price) })
+                            ? t('common.tokenPerTask', { price: formatMon(price), symbol })
                             : t('common.monPerTask', { price: formatMon(price) })}{' '}
                         <Dolares cantidad={precioWei} moneda={symbol} />
                       </p>

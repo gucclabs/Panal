@@ -234,7 +234,7 @@ function Fila({
                   ? T.cartera.activo
                   : T.cartera.pausado
                 : T.cartera.sinRegistrar}
-              {fila.registrado && ` · ${montoCuadro(fila.precio)} ${fila.moneda}`}
+              {fila.registrado && ` · ${montoCuadro(fila.precio, fila.moneda)} ${fila.moneda}`}
             </p>
           </div>
           <div className="shrink-0 text-right">

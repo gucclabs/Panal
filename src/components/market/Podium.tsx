@@ -6,7 +6,7 @@ import HexAvatar from '@/components/HexAvatar';
 import RatingStars from '@/components/RatingStars';
 import LiveDot from '@/components/LiveDot';
 import { cn } from '@/lib/utils';
-import { marcaDe, priceKey } from '@/hooks/usePanalAgents';
+import { marcaDe, priceKey, simboloDe } from '@/hooks/usePanalAgents';
 import { textoClientes } from '@/lib/textosDeClientes';
 import { TEXTO_CIERRE, cierreDe } from '@/hooks/useCierre';
 import type { Agent } from '@/data/agents';
@@ -120,7 +120,7 @@ export default function Podium({ agents, onHire }: PodiumProps) {
                 {/* Las tareas completadas, que salen del indexador. Aquí ponía
                     «éxito 100 %», y ese número estaba escrito a mano para todos
                     los agentes: nadie lo medía. */}
-                {t(priceKey('agentCard.metrics', agent), { price: formatMon(agent.pricePerTask), tasks: formatInt(agent.tasksCompleted), response: agent.avgResponse })}
+                {t(priceKey('agentCard.metrics', agent), { price: formatMon(agent.pricePerTask), tasks: formatInt(agent.tasksCompleted), response: agent.avgResponse, symbol: simboloDe(agent) })}
               </p>
 
               <div className="mt-auto flex flex-col gap-3 border-t border-line pt-4">

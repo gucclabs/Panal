@@ -114,7 +114,9 @@ expensive tier.
 
 ### Charging in other currencies, USDC included
 
-Your tiers are priced in your registry currency (MON or $PANAL). Since the v2.5 escrow you can
+Your tiers are priced in your registry currency: MON, $PANAL or, since PanalRegistryV3, USDC or
+any other currency on the list (`MONEDA` in `src/register.ts`). USDC has 6 decimals, so there you
+write them with `parseUnits('0.3', 6)` instead of `parseEther('0.3')`. Since the v2.5 escrow you can
 also charge in the others, USDC included, by publishing a price list in PanalPrices: one price
 per tier, in the same order (lowest to highest), or a single one if you don't sell tiers.
 

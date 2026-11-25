@@ -2,14 +2,15 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { falloDePregunta } from '@/lib/agentMetadata';
 import { useWaitForTransactionReceipt, useWriteContract } from 'wagmi';
-import { formatEther, parseEther } from 'viem';
+import { formatEther, parseUnits } from 'viem';
 import { useWallet } from '@/hooks/useWallet';
 import { panalRegistryV2Abi } from '@/contracts/abis';
 import {
-  NATIVE_CURRENCY,
   PANAL_REGISTRY_V3_ADDRESS,
-  PANAL_TOKEN_ADDRESS,
+  direccionDeMoneda,
+  falloDePrecio,
   publicClient,
+  type SimboloMoneda,
 } from '@/contracts/config';
 import { esFaltaDeReserva, monHaciaArriba, reservaParaContrato, type Reserva } from '@/lib/reservaDeGas';
 import Icono from '~/componentes/Icono';
@@ -51,10 +52,11 @@ export default function Alta(): React.ReactElement {
   const [params] = useSearchParams();
   const tipo: TipoDeAgente = params.get('tipo') === 'persona' ? 'persona' : 'bot';
   const [precio, setPrecio] = useState('');
-  const [enPanal, setEnPanal] = useState(true);
+  /** La moneda del registro: desde el registro V3, cualquiera de la lista. */
+  const [simbolo, setSimbolo] = useState<SimboloMoneda>('$PANAL');
   /** Lo que cobra por contestar una pregunta (solo personas). Vacío: no contesta preguntas. */
   const [precioPregunta, setPrecioPregunta] = useState('');
-  const falloPregunta = tipo === 'persona' ? falloDePregunta(precioPregunta, enPanal ? '$PANAL' : 'MON') : null;
+  const falloPregunta = tipo === 'persona' ? falloDePregunta(precioPregunta, simbolo) : null;
   /** Logo y enlaces del creador. Todo opcional; lo vacío no escribe nada. */
   const [marca, setMarca] = useState<Marca>(MARCA_VACIA);
   const T = useTextos();
@@ -78,7 +80,8 @@ export default function Alta(): React.ReactElement {
   // Una persona no escribe dirección: recibe en el buzón de Panal, a su nombre.
   const donde = tipo === 'persona' ? (address ? urlDeBuzon(address) : '') : bot;
   const ficha = armarFicha(nombre, descripcion, donde, marca, [], tipo, [], tipo === 'persona' ? precioPregunta.replace(',', '.') : '');
-  const wei = parsear(precio);
+  const falloDelPrecio = precio.trim() ? falloDePrecio(precio, simbolo) : null;
+  const wei = parsear(precio, simbolo);
   /**
    * Lo que falta para la reserva de gas de Monad, mirado antes de firmar.
    * El porqué entero está en `lib/reservaDeGas.ts`, que comparte con la web.
@@ -223,13 +226,13 @@ export default function Alta(): React.ReactElement {
             className="min-w-0 grow bg-transparent font-mono text-[22px] text-ink outline-none placeholder:text-ink-3"
           />
           <div className="flex shrink-0 gap-1.5">
-            {(['$PANAL', 'MON'] as const).map((m) => (
+            {(['$PANAL', 'MON', 'USDC'] as const).map((m) => (
               <button
                 key={m}
                 type="button"
-                onClick={() => setEnPanal(m === '$PANAL')}
+                onClick={() => setSimbolo(m)}
                 className={`rounded-full border px-2.5 py-1 text-[11.5px] ${
-                  enPanal === (m === '$PANAL')
+                  simbolo === m
                     ? 'border-honey bg-honey-soft text-honey'
                     : 'border-line text-ink-3'
                 }`}
@@ -239,6 +242,12 @@ export default function Alta(): React.ReactElement {
             ))}
           </div>
         </div>
+        {/* Sin esto el botón de firmar se quedaba apagado sin decir por qué. */}
+        {falloDelPrecio && (
+          <p className="shrink-0 px-1 text-[11.5px] leading-[1.45] text-terra">
+            {falloDelPrecio === 'minimo' ? T.pregunta.campoMinimo : T.pregunta.campoError}
+          </p>
+        )}
 
         {tipo === 'persona' && (
           <>
@@ -254,7 +263,7 @@ export default function Alta(): React.ReactElement {
                 ? T.pregunta.campoMinimo
                 : falloPregunta === 'precio'
                   ? T.pregunta.campoError
-                  : T.pregunta.campoPie(enPanal ? '$PANAL' : 'MON', PLAZO_DE_PREGUNTA_HORAS)}
+                  : T.pregunta.campoPie(simbolo, PLAZO_DE_PREGUNTA_HORAS)}
             </p>
           </>
         )}
@@ -287,7 +296,7 @@ export default function Alta(): React.ReactElement {
         <button
           type="button"
           onClick={async () => {
-            const args = [ficha, wei!, enPanal ? PANAL_TOKEN_ADDRESS : NATIVE_CURRENCY] as const;
+            const args = [ficha, wei!, direccionDeMoneda(simbolo)] as const;
             // Antes de firmar: una wallet recién cargada con «lo justo» no
             // cubre lo que Monad reserva, y el rechazo no dice cuánto falta.
             if (address) {
@@ -362,12 +371,13 @@ function Campo({
   );
 }
 
-function parsear(texto: string): bigint | null {
+/**
+ * El precio escrito, en unidades mínimas de su moneda, o null si no vale: con
+ * más decimales de los que tiene (USDC lleva 6) o por debajo del mínimo de la
+ * lista, que el registro V3 rechazaría.
+ */
+function parsear(texto: string, simbolo: SimboloMoneda): bigint | null {
   const limpio = texto.trim().replace(',', '.');
-  if (!/^\d+(\.\d+)?$/.test(limpio)) return null;
-  try {
-    return parseEther(limpio);
-  } catch {
-    return null;
-  }
+  if (falloDePrecio(limpio, simbolo) !== null) return null;
+  return parseUnits(limpio, simbolo === 'USDC' ? 6 : 18);
 }

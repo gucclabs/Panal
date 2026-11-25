@@ -8,7 +8,7 @@
  * fuerza Monad testnet (10143) solo para desarrollo (ver MAINNET.md).
  */
 
-import { defineChain, createPublicClient, formatUnits, http } from 'viem';
+import { defineChain, createPublicClient, formatUnits, http, parseUnits } from 'viem';
 import { MAINNET_ADDRESSES as DIRECCIONES_SDK, V2_5_MAINNET } from '@panal/sdk';
 import type { EIP1193Provider } from 'viem';
 import { createConfig } from 'wagmi';
@@ -226,6 +226,47 @@ export function currencySymbol(currency?: string | null): SimboloMoneda {
 /** Decimales de una moneda: USDC lleva 6; MON y $PANAL, 18. */
 export function decimalesDe(currency?: string | null): number {
   return currencySymbol(currency) === 'USDC' ? 6 : 18;
+}
+
+/**
+ * Las monedas en las que un agente puede registrarse: las activas de la lista
+ * (PanalCurrencies). Hasta el registro V3 eran solo MON y $PANAL; desde el
+ * 25-nov-2026 también USDC.
+ */
+export const MONEDAS_DEL_REGISTRO: readonly SimboloMoneda[] = ['MON', '$PANAL', 'USDC'];
+
+/** La `currency` on-chain de un símbolo: lo contrario de `currencySymbol`. */
+export function direccionDeMoneda(simbolo: SimboloMoneda): `0x${string}` {
+  if (simbolo === '$PANAL') return PANAL_TOKEN_ADDRESS;
+  if (simbolo === 'USDC') return USDC_TOKEN_ADDRESS;
+  return NATIVE_CURRENCY;
+}
+
+/**
+ * Lo mínimo que se puede cobrar en cada moneda, en unidades mínimas: el
+ * `minAmount` de PanalCurrencies el 25-nov-2026 (0,001 MON, 1 $PANAL, 0,01
+ * USDC). Es lo mismo que exigen el registro V3 y el escrow; sirve para avisar
+ * ANTES de firmar. Si la lista lo cambia, el contrato tiene la última palabra
+ * y la firma falla con su motivo.
+ */
+export const MINIMO_POR_MONEDA: Record<SimboloMoneda, bigint> = {
+  MON: 10n ** 15n,
+  $PANAL: 10n ** 18n,
+  USDC: 10_000n,
+};
+
+/**
+ * Qué le pasa a un precio escrito a mano en una moneda: `null` si vale,
+ * `'precio'` si no es un número que esa moneda pueda cobrar (más cifras de
+ * las que tiene, cero, notación rara) y `'minimo'` si no llega al mínimo.
+ */
+export function falloDePrecio(precio: string, simbolo: SimboloMoneda): 'precio' | 'minimo' | null {
+  const p = precio.replace(',', '.').trim();
+  const decimales = simbolo === 'USDC' ? 6 : 18;
+  if (!new RegExp(`^\\d{1,12}(\\.\\d{1,${decimales}})?$`).test(p)) return 'precio';
+  const unidades = parseUnits(p, decimales);
+  if (unidades <= 0n) return 'precio';
+  return unidades < MINIMO_POR_MONEDA[simbolo] ? 'minimo' : null;
 }
 
 /**
