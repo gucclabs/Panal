@@ -28,6 +28,7 @@ import {
   CierreV2_5,
   EstadoV2_5,
   PRIMER_ID_V2_5,
+  V2_5_ANTERIOR,
   V2_5_MAINNET,
   comoTask,
   esDelV2_5,
@@ -200,6 +201,7 @@ const crudoV2_5 = (o: Partial<Record<string, unknown>> = {}) => ({
   amount: 10_000_000n,
   createdAt: ahora,
   disputedAt: 0n,
+  feeBps: 250,
   taskHash: keccak256(toBytes('el encargo')),
   resultHash: CERO32,
   ...o,
@@ -338,6 +340,7 @@ console.log('\ncontratar en USDC');
   const { panal, escrituras, lecturas } = montar(
     (l) => {
       if (l.functionName === 'isBanned') return false;
+      if (l.functionName === 'info') return [true, 6, 250, 10_000n];
       if (l.functionName === 'getPrices') return [5_000_000n, 20_000_000n];
       if (l.functionName === 'balanceOf') return 50_000_000n;
       throw new Error(`lectura inesperada ${l.functionName}`);
@@ -353,6 +356,7 @@ console.log('\ncontratar en USDC');
   const r = await panal.hireV2_5({ agent: agente, brief: 'Hazme esto', currency: V2_5_MAINNET.usdc, reviewWindow: 48 * 3600 });
   check('el precio sale de PanalPrices: el primero', r.amount === 5_000_000n, String(r.amount));
   check('pregunta antes si está suspendido', lecturas.some((l) => l.functionName === 'isBanned' && mismo(l.address, V2_5_MAINNET.bans)));
+  check('mira la moneda en la lista de monedas', lecturas.some((l) => l.functionName === 'info' && mismo(l.address, V2_5_MAINNET.currencies) && mismo(String(l.args[0]), V2_5_MAINNET.usdc)));
   const [approve, crear] = escrituras;
   check('approve exacto de USDC al escrow v2.5', approve?.functionName === 'approve' && mismo(approve.address, V2_5_MAINNET.usdc) && mismo(String(approve.args[0]), V2_5_MAINNET.escrow) && approve.args[1] === 5_000_000n);
   const nueva = crear?.args[0] as Record<string, unknown>;
@@ -360,11 +364,71 @@ console.log('\ncontratar en USDC');
   check('con su revisión y su moneda', nueva.reviewWindow === 48 * 3600 && nueva.currency === V2_5_MAINNET.usdc && nueva.amount === 5_000_000n);
   check('aceptar dura hasta 10 min antes del plazo', Number(nueva.acceptWindow) === Number((nueva.deadline as bigint) - ahora) - 600 || Number(nueva.acceptWindow) === Number((nueva.deadline as bigint) - ahora) - 601);
   check('el número sale del evento, con el desplazamiento', r.taskId === idDelV2_5(42n), String(r.taskId));
-  const sinSaldo = montar((l) => (l.functionName === 'balanceOf' ? 1_000_000n : l.functionName === 'isBanned' ? false : []));
+  const sinSaldo = montar((l) => {
+    if (l.functionName === 'balanceOf') return 1_000_000n;
+    if (l.functionName === 'isBanned') return false;
+    // En la lista solo está USDC; cualquier otra cosa sale desactivada y a cero.
+    if (l.functionName === 'info') return mismo(String(l.args[0]), V2_5_MAINNET.usdc) ? [true, 6, 250, 2_000_000n] : [false, 0, 0, 0n];
+    return [];
+  });
   (sinSaldo.panal as unknown as Record<string, unknown>).getAgent = async () => ({ address: agente, active: true, currency: NATIVE_CURRENCY, pricePerTask: 1n });
   const error = await lanza(() => sinSaldo.panal.hireV2_5({ agent: agente, brief: 'x', currency: V2_5_MAINNET.usdc, amount: 5_000_000n }));
   check('el aviso de saldo cuenta USDC con 6 decimales', /5 USDC/.test(error) && /tiene 1\./.test(error), error);
-  check('no contrata en una moneda que no es del escrow', /MON, \$PANAL o USDC/.test(await lanza(() => sinSaldo.panal.hireV2_5({ agent: agente, brief: 'x', currency: agente }))));
+  check('no contrata en una moneda que no está en la lista', /no es una moneda activa de la lista/.test(await lanza(() => sinSaldo.panal.hireV2_5({ agent: agente, brief: 'x', currency: agente }))));
+  check('ni por debajo del mínimo de la lista', /mínimo de un encargo/.test(await lanza(() => sinSaldo.panal.hireV2_5({ agent: agente, brief: 'x', currency: V2_5_MAINNET.usdc, amount: 1_000_000n }))));
+}
+
+console.log('\nPanal V3: la lista de monedas y los precios de antes');
+{
+  check('el V3 en el hueco del v2.5', mismo(V2_5_MAINNET.escrow, '0xE9666cB1Ce29CC511ED9Fa28f11749d22D47264f') && mismo(V2_5_MAINNET.currencies, '0x86A2d5b9e02e3E8F63ED468fDC31565e44d70790'));
+  const { panal } = montar(() => crudoV2_5({ feeBps: 150 }));
+  check('cada encargo trae su comisión', (await panal.getTaskV2_5(idDelV2_5(3n))).feeBps === 150);
+
+  const lista = montar((l) => {
+    if (l.functionName === 'currencies') return [NATIVE_CURRENCY, V2_5_MAINNET.usdc];
+    if (l.functionName === 'info') return mismo(String(l.args[0]), NATIVE_CURRENCY) ? [true, 18, 250, 10n ** 15n] : [false, 6, 250, 10_000n];
+    throw new Error(`lectura inesperada ${l.functionName}`);
+  });
+  const monedas = await lista.panal.getCurrencies();
+  check('getCurrencies lee la lista en su orden', monedas.length === 2 && monedas[0]!.token === NATIVE_CURRENCY && monedas[0]!.minimo === 10n ** 15n && monedas[0]!.decimales === 18);
+  check('y dice cuál está desactivada', monedas[1]!.activa === false && monedas[1]!.feeBps === 250);
+  check('todo en PanalCurrencies', lista.lecturas.every((l) => mismo(l.address, V2_5_MAINNET.currencies)));
+
+  // Precios: si el agente no ha publicado nada en el V3, los del v2.5 de antes.
+  const sinPublicar = montar((l) => {
+    if (l.functionName === 'getPrices') return mismo(l.address, V2_5_ANTERIOR.prices) ? [7_000_000n] : [];
+    if (l.functionName === 'updatedAt') return 0n;
+    throw new Error(`lectura inesperada ${l.functionName}`);
+  });
+  const p1 = await sinPublicar.panal.getPricesV2_5(agente, V2_5_MAINNET.usdc);
+  check('sin precios en el V3, los del PanalPrices de antes', p1.length === 1 && p1[0] === 7_000_000n, String(p1));
+  const vaciado = montar((l) => {
+    if (l.functionName === 'getPrices') return mismo(l.address, V2_5_ANTERIOR.prices) ? [7_000_000n] : [];
+    if (l.functionName === 'updatedAt') return ahora;
+    throw new Error(`lectura inesperada ${l.functionName}`);
+  });
+  check('si los vació en el V3, manda el V3', (await vaciado.panal.getPricesV2_5(agente, V2_5_MAINNET.usdc)).length === 0);
+  check('y no mira los de antes', !vaciado.lecturas.some((l) => mismo(l.address, V2_5_ANTERIOR.prices)));
+  const conPrecio = montar((l) => (l.functionName === 'getPrices' ? [9n] : 0n));
+  await conPrecio.panal.getPricesV2_5(agente);
+  check('con precios en el V3, una sola lectura', conPrecio.lecturas.length === 1 && mismo(conPrecio.lecturas[0]!.address, V2_5_MAINNET.prices));
+}
+
+console.log('\nel escrow v2 con el registro V3');
+{
+  const soloV3 = montar((l) => {
+    if (l.functionName === 'getAgent') return { active: false, registeredAt: 0n };
+    return 10n ** 21n;
+  });
+  (soloV3.panal as unknown as Record<string, unknown>).getAgent = async () => ({ address: agente, active: true, currency: NATIVE_CURRENCY, pricePerTask: 10n ** 18n });
+  const e1 = await lanza(() => soloV3.panal.hire({ agent: agente, brief: 'x' }));
+  check('un agente que solo está en el V3 no se contrata en el v2', /registro V2/.test(e1) && /hireV2_5/.test(e1), e1);
+  check('y se pregunta al registro V2', soloV3.lecturas.some((l) => l.functionName === 'getAgent' && mismo(l.address, '0x89a812BFb1c35fc814ef25a3E6Ca75068B16Ac51')));
+  check('sin firmar nada', soloV3.escrituras.length === 0);
+  const enUsdc = montar(() => 0n);
+  (enUsdc.panal as unknown as Record<string, unknown>).getAgent = async () => ({ address: agente, active: true, currency: V2_5_MAINNET.usdc, pricePerTask: 1n });
+  const e2 = await lanza(() => enUsdc.panal.hire({ agent: agente, brief: 'x' }));
+  check('ni uno que cobra en USDC', /solo cobra en MON o \$PANAL/.test(e2), e2);
 }
 
 console.log('\nel tablón v2.5');

@@ -1,10 +1,21 @@
 /**
- * Panal SDK — el escrow v2.5 y su tablón (desplegados el 24-nov-2026).
+ * Panal SDK — el escrow de Panal V3 y su tablón (desplegados el 25-nov-2026),
+ * en el hueco del v2.5.
+ *
+ * EL V3 EN EL HUECO DEL v2.5. El escrow v2.5 del 24-nov se quedó vacío y lo
+ * reemplazó el V3 al día siguiente: el mismo escrow, con las monedas en una
+ * lista (PanalCurrencies) que el multisig dueño amplía con 48 h de aviso, y la
+ * comisión guardada en cada encargo. Ocupa los mismos números (más de mil
+ * millones) y el SDK lo sigue llamando `v2_5` (`hireV2_5`, `TareaV2_5`…): los
+ * nombres ya publicados no cambian. Los contratos se llaman PanalEscrowV3,
+ * PanalBoardV3, PanalPricesV3, PanalReputationV3, PanalRegistryV3 y
+ * PanalCurrencies.
  *
  * QUÉ CAMBIA FRENTE AL v2
  *
- *   - Tres monedas: MON, $PANAL y USDC (6 decimales). Comisión del 1,5 % en
- *     $PANAL y del 2,5 % en MON y USDC.
+ *   - Las monedas de la lista: al desplegar, MON, $PANAL y USDC (6
+ *     decimales), con comisión del 1,5 % en $PANAL y del 2,5 % en MON y USDC.
+ *     Para las de hoy, `getCurrencies()` del cliente.
  *   - Quien trabaja acepta (o rechaza) el encargo. Entregar sin haber aceptado
  *     cuenta como aceptar.
  *   - La revisión dura lo que diga el cliente al contratar: de 24 h a 7 días
@@ -56,28 +67,47 @@ export function idEnLaCadena(id: bigint): bigint {
 // ── Las direcciones ────────────────────────────────────────────────────────
 
 export interface DireccionesV2_5 {
+  /** PanalEscrowV3. */
   escrow: Address;
+  /** PanalBoardV3. */
   tablon: Address;
+  /** PanalReputationV3: la del V3 más la que trae del v2. */
   reputation: Address;
   /** PanalBans: las cuentas suspendidas. */
   bans: Address;
-  /** PanalPrices: los precios de cada agente en cada moneda. */
+  /** PanalPricesV3: los precios de cada agente en cada moneda de la lista. */
   prices: Address;
   usdc: Address;
+  /** PanalCurrencies: en qué monedas se trabaja, con su mínimo y su comisión. */
+  currencies?: Address;
 }
 
-/** Desplegados y verificados en Monad mainnet el 24-nov-2026. */
-export const V2_5_MAINNET: DireccionesV2_5 = {
+/** Panal V3, desplegado y verificado en Monad mainnet el 25-nov-2026. */
+export const V2_5_MAINNET: DireccionesV2_5 & { currencies: Address } = {
+  escrow: '0xE9666cB1Ce29CC511ED9Fa28f11749d22D47264f',
+  tablon: '0xeB267E44Ff624CC03D1B8b9851e1EDF03835C70c',
+  reputation: '0x6b6D6b38932B918763782175AE2D06ee3DBF1EA6',
+  bans: '0xdA315187aA8bE2266a3bFfe6cdD876A1250A4638',
+  prices: '0xfbf59aa0D9574359fd20E049db4C821Fba896413',
+  usdc: '0x754704Bc059F8C67012fEd69BC8A327a5aafb603',
+  currencies: '0x86A2d5b9e02e3E8F63ED468fDC31565e44d70790',
+};
+
+/** El bloque del primer contrato del V3: antes no hay nada que leer. */
+export const V2_5_DESDE_BLOQUE = 125_136_390n;
+
+/**
+ * El v2.5 del 24-nov, que el V3 reemplazó al día siguiente sin que nadie lo
+ * usara (0 tareas, 0 encargos). Queda solo por una cosa: los precios en USDC
+ * que los agentes publicaron en su PanalPrices. Hasta que cada agente publique
+ * los suyos en el V3, se leen de ahí (ver `getPricesV2_5` del cliente).
+ */
+export const V2_5_ANTERIOR = {
   escrow: '0x1800225eac5cEF7798e2A926AE243F2a4a42D440',
   tablon: '0x10aF8A30591Fcee56127692d7346476bc68CD656',
   reputation: '0xc8f91E7718835cAEf5e36452705B8922c857624e',
-  bans: '0xdA315187aA8bE2266a3bFfe6cdD876A1250A4638',
   prices: '0x90CBa3BE239FcA150Fc8fAfC10D6bD7CCb547663',
-  usdc: '0x754704Bc059F8C67012fEd69BC8A327a5aafb603',
-};
-
-/** El bloque del primer contrato del v2.5: antes no hay nada que leer. */
-export const V2_5_DESDE_BLOQUE = 124_859_551n;
+} as const satisfies Record<string, Address>;
 
 /** Las del v2.5 en una red, o `null` donde no está desplegado (testnet). */
 export function direccionesV2_5For(network: PanalNetwork): DireccionesV2_5 | null {
@@ -86,7 +116,12 @@ export function direccionesV2_5For(network: PanalNetwork): DireccionesV2_5 | nul
 
 // ── Las reglas del escrow v2.5 (constantes del contrato) ──────────────────
 
-/** Comisión en $PANAL y en el resto (MON y USDC), en puntos básicos. */
+/**
+ * Comisión en $PANAL y en el resto (MON y USDC), en puntos básicos: las de la
+ * lista al desplegar el V3. El multisig puede cambiarlas con 48 h de aviso, y
+ * cada encargo se queda con la que tenía al crearse (`TareaV2_5.feeBps`). Para
+ * las de hoy, `getCurrencies()` del cliente.
+ */
 export const FEE_BPS_V2_5 = { panal: 150, resto: 250 } as const;
 /** La revisión que proponen la web y la app, y sus límites. */
 export const REVISION_POR_DEFECTO_S = 72 * 60 * 60;
@@ -164,6 +199,11 @@ export interface TareaV2_5 {
   deliveredAt: bigint;
   /** Cero si no hay disputa. */
   disputedAt: bigint;
+  /**
+   * La comisión de este encargo en puntos básicos, fijada al crearlo con la
+   * de la lista de monedas. Lo que cambie la lista después no la toca.
+   */
+  feeBps: number;
 }
 
 /** De lo que devuelve `getTask` del escrow v2.5 a una `TareaV2_5`. */
@@ -185,6 +225,7 @@ export function tareaV2_5DeLaCadena(id: bigint, t: Record<string, unknown>): Tar
     createdAt: BigInt(t.createdAt as bigint),
     deliveredAt: BigInt(t.deliveredAt as bigint),
     disputedAt: BigInt(t.disputedAt as bigint),
+    feeBps: Number(t.feeBps ?? 0),
   };
 }
 
@@ -229,6 +270,26 @@ export function comoTask(t: TareaV2_5): Task {
 export function finDeLaRevision(t: TareaV2_5): bigint | null {
   return t.estado === EstadoV2_5.Entregada ? t.deliveredAt + BigInt(t.reviewWindow) : null;
 }
+
+// ── La lista de monedas (PanalCurrencies) ───────────────────────────────────
+
+/** Una moneda de la lista. */
+export interface MonedaDeLaLista {
+  /** address(0) = MON. */
+  token: Address;
+  /** Si se puede empezar algo nuevo en ella (contratar, registrarse, publicar). */
+  activa: boolean;
+  decimales: number;
+  /** La comisión que llevaría un encargo nuevo, en puntos básicos. */
+  feeBps: number;
+  /** Lo mínimo de un encargo, en sus unidades. */
+  minimo: bigint;
+}
+
+/** Lo más que puede llegar a cobrar el escrow (`MAX_FEE_BPS` de la lista): 5 %. */
+export const FEE_BPS_MAXIMA = 500;
+/** El aviso que da el multisig antes de añadir una moneda o cambiar sus números. */
+export const AVISO_MONEDAS_S = 48 * 60 * 60;
 
 /** La reputación v2.5: la suya en el v2.5 más la que traía del v2. */
 export interface ReputacionV2_5 {

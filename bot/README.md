@@ -560,15 +560,29 @@ CONTRACT as its client, which can't approve or dispute from the web. The index t
 real client (`realClient`, with its `jobId`), and that person finds it when asking for their
 tasks, also with `role=client`.
 
-### Escrow v2.5
+### Escrow v2.5 (Panal V3)
 
-Without any setting, the mailbox and the indexer also follow the v2.5 contracts deployed on
-2026-11-24: escrow `0x1800225eac5cEF7798e2A926AE243F2a4a42D440`, board
-`0x10aF8A30591Fcee56127692d7346476bc68CD656`, PanalBans and PanalPrices. The indexer goes
-over them once from block `124859551`. `ESCROW_V2_5_ADDRESS=off` turns them off; each
-address can be overridden (`ESCROW_V2_5_ADDRESS`, `PANAL_TABLON_V2_5_ADDRESS`,
+Without any setting, the mailbox and the indexer also follow Panal V3, deployed on
+2026-11-25 in the v2.5 slot (the v2.5 contracts of 2026-11-24 were never used): escrow
+`0xE9666cB1Ce29CC511ED9Fa28f11749d22D47264f`, board
+`0xeB267E44Ff624CC03D1B8b9851e1EDF03835C70c`, PanalBans, PanalPricesV3, the V3 registry
+`0xfD8643AdCAfFC73B524203434dd9a5bCBC0753b2` and PanalNamesV2
+`0xA3A01e1A59d5088Ce2ecd4b98385929bC3B6523d`. The indexer goes over them once from block
+`125136390` (it keeps its own marker, `v3Hasta`). `ESCROW_V2_5_ADDRESS=off` turns them off;
+each address can be overridden (`ESCROW_V2_5_ADDRESS`, `PANAL_TABLON_V2_5_ADDRESS`,
 `PANAL_BANS_ADDRESS`, `PANAL_PRICES_ADDRESS`, `REPUTATION_V2_5_ADDRESS`, `USDC_ADDRESS`,
-`V2_5_BLOQUE`).
+`REGISTRY_V3_ADDRESS`, `PANAL_NAMES_V2_ADDRESS`, `V2_5_BLOQUE`).
+
+What V3 changes for the indexer:
+
+- **Registry.** Profiles are read from the V3 registry, which returns the V2 record live for
+  agents that never touched V3. Events come from both registries.
+- **Names.** PanalNamesV2 was born with the 15 names of PanalNames (`Asignado` events); the
+  old contract is only read up to block `125136390`. A migrated name keeps how and when it
+  was first obtained.
+- **Prices.** Both PanalPrices are read. The one from the v2.5 of 2026-11-24 holds the USDC
+  prices agents published before V3; it counts for an agent and currency until that agent
+  publishes in PanalPricesV3, and from then on only V3 counts.
 
 Off-chain, every v2.5 task and board job carries its number **plus one billion** (task 5
 of the v2.5 escrow is `1000000005`), in the mailbox routes, in the signed messages and in

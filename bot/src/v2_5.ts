@@ -1,5 +1,7 @@
 /**
- * El escrow v2.5 y su tablón, desplegados el 24-nov-2026, vistos desde el bot.
+ * El escrow de Panal V3 y su tablón (25-nov-2026), vistos desde el bot. Ocupan
+ * el hueco del v2.5 —el del 24-nov, que se quedó vacío— y aquí se siguen
+ * llamando v2.5: mismas rutas, mismos números, mismos mensajes firmados.
  *
  * LA NUMERACIÓN. El escrow v2.5 y el tablón v2.5 empiezan a contar desde 0, y
  * el buzón, el indexador y todos los mensajes firmados («Panal resultado #5 ·
@@ -36,15 +38,40 @@ export function idEnLaCadena(id: bigint): bigint {
   return esDelV2_5(id) ? id - PRIMER_ID_V2_5 : id;
 }
 
-/** Las direcciones del v2.5 en Monad mainnet, desplegadas el 24-nov-2026. */
+/**
+ * Panal V3 en Monad mainnet, desplegado el 25-nov-2026: PanalEscrowV3,
+ * PanalBoardV3, PanalReputationV3 y PanalPricesV3. PanalBans es el mismo.
+ */
 export const V2_5_MAINNET = {
-  escrow: '0x1800225eac5cEF7798e2A926AE243F2a4a42D440',
-  tablon: '0x10aF8A30591Fcee56127692d7346476bc68CD656',
-  reputation: '0xc8f91E7718835cAEf5e36452705B8922c857624e',
+  escrow: '0xE9666cB1Ce29CC511ED9Fa28f11749d22D47264f',
+  tablon: '0xeB267E44Ff624CC03D1B8b9851e1EDF03835C70c',
+  reputation: '0x6b6D6b38932B918763782175AE2D06ee3DBF1EA6',
   bans: '0xdA315187aA8bE2266a3bFfe6cdD876A1250A4638',
-  prices: '0x90CBa3BE239FcA150Fc8fAfC10D6bD7CCb547663',
+  prices: '0xfbf59aa0D9574359fd20E049db4C821Fba896413',
   usdc: '0x754704Bc059F8C67012fEd69BC8A327a5aafb603',
-  /** El bloque del primero (PanalBans). El indexador recorre desde aquí. */
+  /**
+   * PanalRegistryV3: para quien no lo ha tocado, devuelve lo del V2 en
+   * directo; para quien sí (o se registró aquí), lo suyo.
+   */
+  registry: '0xfD8643AdCAfFC73B524203434dd9a5bCBC0753b2',
+  /** PanalNamesV2: nació con los 15 nombres de PanalNames migrados (eventos `Asignado`). */
+  names: '0xA3A01e1A59d5088Ce2ecd4b98385929bC3B6523d',
+  /** El bloque del primer contrato del V3. El indexador recorre desde aquí. */
+  desdeBloque: 125_136_390,
+} as const;
+
+/**
+ * El v2.5 del 24-nov, que el V3 reemplazó sin que nadie lo usara. Quedan dos
+ * cosas suyas:
+ *   - Su PanalPrices: los agentes publicaron ahí sus precios en USDC antes de
+ *     que llegara el V3. El indexador los sigue leyendo para que no
+ *     desaparezcan del mercado hasta que cada agente publique en el V3; desde
+ *     ese momento mandan los del V3, como en el SDK.
+ *   - Su bloque: PanalBans es de entonces, y sus suspensiones se leen desde ahí.
+ */
+export const V2_5_ANTERIOR = {
+  prices: '0x90CBa3BE239FcA150Fc8fAfC10D6bD7CCb547663',
+  /** El bloque del primero (PanalBans). */
   desdeBloque: 124_859_551,
 } as const;
 
@@ -56,6 +83,13 @@ export interface ConfigV2_5 {
   bans: Address;
   prices: Address;
   usdc: Address;
+  /** PanalRegistryV3, o `null` para leer solo el V2. */
+  registry: Address | null;
+  /**
+   * PanalNamesV2, o `null`. Con él, el PanalNames de antes solo se lee hasta
+   * `desdeBloque`: lo que pasara allí después no cuenta.
+   */
+  names: Address | null;
   desdeBloque: number;
 }
 
@@ -113,6 +147,8 @@ export const escrowV2_5Abi = [
           { name: 'reviewWindow', type: 'uint32' },
           { name: 'currency', type: 'address' },
           { name: 'deliveredAt', type: 'uint64' },
+          // La comisión de este encargo, fijada al crearlo (solo en el V3).
+          { name: 'feeBps', type: 'uint16' },
           { name: 'amount', type: 'uint128' },
           { name: 'createdAt', type: 'uint64' },
           { name: 'disputedAt', type: 'uint64' },
@@ -143,6 +179,7 @@ export interface TareaV2_5 {
   reviewWindow: number;
   currency: Address;
   deliveredAt: bigint;
+  feeBps: number;
   amount: bigint;
   createdAt: bigint;
   disputedAt: bigint;
@@ -165,6 +202,7 @@ export async function getTareaV2_5(clients: ChainClients, v: ConfigV2_5, idEnCad
     closeReason: Number(t.closeReason) as CierreV2_5,
     workerShareBps: Number(t.workerShareBps),
     reviewWindow: Number(t.reviewWindow),
+    feeBps: Number(t.feeBps),
     amount: BigInt(t.amount),
   };
 }
